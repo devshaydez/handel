@@ -1,35 +1,56 @@
-# handel
+# Handel
 
-NEAR options backend prototype for Ondo tokenized assets, targeting Path B: Chain Signatures to NEP-413 intents. Backend only. This is research/testnet code, not a production financial application or investment advice.
+Handel is a NEAR Testnet backend prototype for fully collateralized European-style options on Ondo tokenized assets. It is a hackathon demonstration, not a production financial application or investment advice.
 
-## Verified implementation status
+## Current scope
 
-The Rust contract models option offers, collateral and premium operations, reconciliation states, exercise payment and delivery, and principal-scoped revocable agent policies. Call collateral is the full underlying amount; put collateral is the strike amount in configured USDC. Exercise records separate payment and delivery operations and reaches `Settled` only after both succeed, in either receipt order. Agent-created offers are attributed to the principal and checked against the principal's deterministic on-chain policy.
+- Rust contract is the source of truth for option lifecycle, asset allowlists, agent limits, ownership, pause state, and reconciliation state.
+- TypeScript SDK provides proposal validation, contract-compatible call builders, NEP-413 payload helpers, and an offline lifecycle demonstration.
+- The deterministic local proposal fallback works without a paid AI API. A NEAR AI Cloud adapter can be added later; AI output never overrides contract policy.
+- Frontend work is intentionally deferred until the user supplies their UI.
+- Development and demo target: NEAR Testnet only. No mainnet deployment, signatures, custody, or real funds.
 
-Run `cargo fmt -- --check` and `cargo test --lib`. The test suite covers operation replay, wrong asset/amount evidence, unauthorized reconciliation, collateral failure, call/put amounts, holder-only exercise, expiry, dual-leg settlement order/failure, agent limits, and principal-only revocation.
+## Critical NEAR Intents limitation
 
-## Reconciliation security boundary
+The hackathon rules state that NEAR Intents has no testnet. Therefore this repository can demonstrate the contract lifecycle on NEAR Testnet, but its Intents payloads are illustrative/mock only. Do not describe the demo as live Intents settlement. The current reconciler is a trusted service boundary, not a cryptographic proof verifier.
 
-`reconcile_operation` rejects callers other than `trusted_reconciler` and checks a receipt's unique operation ID, asset, amount, sender, receiver, and transfer reference. The contract does **not** cryptographically verify a Tidepool verifier event or NEAR Intents receipt. The configured reconciler is a trust root, and receipt semantics, finality, and independent verification remain external responsibilities. Therefore this prototype is not yet a cryptographically trustless or deployable financial system. Do not deploy or custody funds until an authenticated proof path is implemented, reviewed, and tested.
+## Build and test
 
-## Path B status
+Rust contract (run from repository root):
 
-Target architecture: user authorizes an intent through a NEP-413 signed message; the user retains control of the signing credential. A Chain Signatures service or contract coordinates the cross-chain signature only after on-chain policy authorization. It must not receive user secrets. Prototype code must bind chain, verifier, asset, amount, sender, receiver, operation ID, nonce, and expiry, and be replay-protected. The current code has not integrated the official Chain Signatures MPC interface or produced a signed NEP-413 intent. Official docs are the required source before implementing protocol-specific payloads; the latest docs retrieval in this session was incomplete. No signature credential or AI API key is available or stored.
+```sh
+cargo fmt --all -- --check
+cargo test --lib
+cargo build --target wasm32-unknown-unknown --release
+```
 
-## AI proposal boundary
+TypeScript SDK:
 
-AI may suggest option parameters only. The contract's agent policy is authoritative for allowed assets, underlying amount, premium amount, open-position count, and policy expiry. An AI provider key must be supplied and stored by the user in a local ignored secret file or secret manager, never in chat or Git. No provider call or AI API key is configured in this prototype.
+```sh
+cd sdk
+npm install
+npm run build
+npm test
+npm run lifecycle
+```
 
-## Day 1 evidence
+The offline lifecycle demo prints contract-compatible method names and argument shapes. It does not sign NEP-413 messages, submit transactions, or move assets.
 
-Existing dry-quote request/response records are stored under `evidence/day1-dry-quotes.json`. They are historical Path A dry-quote observations, not executable signed intents. Tidepool reachability and contract deployment were not established.
+GitHub Actions runs Rust formatting, Rust unit tests, the Wasm build, SDK compilation, SDK unit tests, and the offline demo on pushes to `work/testnet-backend-hardening` and pull requests.
 
-## Remaining backend work
+## Contract lifecycle
 
-- Replace trusted-service receipt assertions with authenticated verifier evidence or verifiable proof and define finality/reorg behavior.
-- Finish Path B integration against current official Chain Signatures and NEP-413 interfaces, plus an isolated test harness with no secrets or real funds.
-- Add verified asset registry and decimals, explicit withdraw/cancel/expiry handling, complete physical settlement recovery paths, and adversarial tests.
-- Implement AI provider adapter/schema validation and proposal audit trail while retaining deterministic contract policy as final authority.
-- Document reproducible testnet setup and evidence after a user-controlled secure credential is configured.
+- Direct writer offers: `create_call` / `create_put`.
+- Agent proposals: `create_agent_proposal`; the principal must approve using `approve_agent_proposal`.
+- Collateral: `begin_collateral_lock`, then trusted-reconciler evidence through `reconcile_operation`.
+- Premium: `begin_premium_payment`, then reconciliation.
+- Exercise: `exercise` creates separate payment and delivery operations; both must reconcile successfully before `Settled`.
+- Expiry: `request_expiry_release` creates an external release operation; this is not a native token transfer by the contract.
 
-No frontend work is included. No deployment, signing, or real-fund operation occurred.
+## Security and deployment boundary
+
+The contract checks reconciliation caller, operation ID, asset, amount, sender, and receiver. It does not independently prove that an external NEAR Intents or verifier event occurred. The configured reconciler is a trust root. Partial settlement recovery, authenticated proof verification, custody authority, and finality/reorg handling remain unresolved. Do not use real assets or deploy for production.
+
+The contract has not yet been confirmed by a successful CI run in this work session. Do not deploy until the GitHub Actions checks pass and the custody/reconciliation design has been reviewed.
+
+Never commit wallet seed phrases, private keys, API keys, or other credentials. Share only public account IDs in chat.
