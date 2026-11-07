@@ -341,15 +341,37 @@ impl OptionsContract {
     /// The reconciler must only report Failed when the external transfer is known not to have occurred.
     pub fn retry_collateral_lock(&mut self, position_id: u64, new_operation_id: String) {
         let position = self.position_owned_by_writer(position_id);
-        assert_eq!(position.state, PositionState::ReconciliationRequired, "position does not require reconciliation");
-        let previous_id = position.collateral_operation_id.clone().expect("collateral operation missing");
-        let previous = self.operations.get(&previous_id).expect("operation missing");
-        assert_eq!(previous.kind, OperationKind::LockCollateral, "wrong operation kind");
-        assert_eq!(previous.state, OperationState::Failed, "collateral operation is not failed");
+        assert_eq!(
+            position.state,
+            PositionState::ReconciliationRequired,
+            "position does not require reconciliation"
+        );
+        let previous_id = position
+            .collateral_operation_id
+            .clone()
+            .expect("collateral operation missing");
+        let previous = self
+            .operations
+            .get(&previous_id)
+            .expect("operation missing");
+        assert_eq!(
+            previous.kind,
+            OperationKind::LockCollateral,
+            "wrong operation kind"
+        );
+        assert_eq!(
+            previous.state,
+            OperationState::Failed,
+            "collateral operation is not failed"
+        );
         self.begin_operation(
-            new_operation_id.clone(), position_id, OperationKind::LockCollateral,
-            Self::collateral_asset_id(&position), Self::required_collateral(&position),
-            position.writer.clone(), env::current_account_id(),
+            new_operation_id.clone(),
+            position_id,
+            OperationKind::LockCollateral,
+            Self::collateral_asset_id(&position),
+            Self::required_collateral(&position),
+            position.writer.clone(),
+            env::current_account_id(),
         );
         let p = self.positions.get_mut(&position_id).unwrap();
         p.collateral_operation_id = Some(new_operation_id);
@@ -389,19 +411,55 @@ impl OptionsContract {
     /// Retry a definitively failed premium transfer. Collateral remains locked while pending.
     pub fn retry_premium_payment(&mut self, position_id: u64, new_operation_id: String) {
         let position = self.position(position_id);
-        assert_eq!(env::predecessor_account_id(), position.holder, "holder only");
-        assert_eq!(position.state, PositionState::ReconciliationRequired, "position does not require reconciliation");
-        let collateral_id = position.collateral_operation_id.as_ref().expect("collateral operation missing");
-        let collateral = self.operations.get(collateral_id).expect("collateral operation missing");
-        assert_eq!(collateral.state, OperationState::Succeeded, "collateral is not confirmed");
-        let previous_id = position.premium_operation_id.as_ref().expect("premium operation missing");
-        let previous = self.operations.get(previous_id).expect("premium operation missing");
-        assert_eq!(previous.kind, OperationKind::PayPremium, "wrong operation kind");
-        assert_eq!(previous.state, OperationState::Failed, "premium operation is not failed");
+        assert_eq!(
+            env::predecessor_account_id(),
+            position.holder,
+            "holder only"
+        );
+        assert_eq!(
+            position.state,
+            PositionState::ReconciliationRequired,
+            "position does not require reconciliation"
+        );
+        let collateral_id = position
+            .collateral_operation_id
+            .as_ref()
+            .expect("collateral operation missing");
+        let collateral = self
+            .operations
+            .get(collateral_id)
+            .expect("collateral operation missing");
+        assert_eq!(
+            collateral.state,
+            OperationState::Succeeded,
+            "collateral is not confirmed"
+        );
+        let previous_id = position
+            .premium_operation_id
+            .as_ref()
+            .expect("premium operation missing");
+        let previous = self
+            .operations
+            .get(previous_id)
+            .expect("premium operation missing");
+        assert_eq!(
+            previous.kind,
+            OperationKind::PayPremium,
+            "wrong operation kind"
+        );
+        assert_eq!(
+            previous.state,
+            OperationState::Failed,
+            "premium operation is not failed"
+        );
         self.begin_operation(
-            new_operation_id.clone(), position_id, OperationKind::PayPremium,
-            Self::usdc_asset_id(), position.premium_amount_usdc,
-            position.holder.clone(), position.writer.clone(),
+            new_operation_id.clone(),
+            position_id,
+            OperationKind::PayPremium,
+            Self::usdc_asset_id(),
+            position.premium_amount_usdc,
+            position.holder.clone(),
+            position.writer.clone(),
         );
         let p = self.positions.get_mut(&position_id).unwrap();
         p.premium_operation_id = Some(new_operation_id);
@@ -729,7 +787,10 @@ impl OptionsContract {
             "premium cap"
         );
         if kind == OptionKind::Put {
-            assert!(strike_amount_usdc <= policy.max_collateral_usdc, "USDC collateral cap");
+            assert!(
+                strike_amount_usdc <= policy.max_collateral_usdc,
+                "USDC collateral cap"
+            );
         }
         let principal = policy.principal.clone();
         let open_count = self
@@ -1524,17 +1585,46 @@ mod tests {
         authorize_reconciler(&mut c);
         let first = lock_call(&mut c, id);
         context("reconciler.testnet");
-        c.reconcile_operation(evidence(&first, "nep141:stock.testnet".into(), 42, "writer.testnet", "handel.testnet", EvidenceOutcome::Failed));
-        assert_eq!(c.get_position(id).unwrap().state, PositionState::ReconciliationRequired);
+        c.reconcile_operation(evidence(
+            &first,
+            "nep141:stock.testnet".into(),
+            42,
+            "writer.testnet",
+            "handel.testnet",
+            EvidenceOutcome::Failed,
+        ));
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::ReconciliationRequired
+        );
         context("attacker.testnet");
-        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.retry_collateral_lock(id, "lock-retry".into()))).is_err());
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || c.retry_collateral_lock(id, "lock-retry".into())
+        ))
+        .is_err());
         context("writer.testnet");
         c.retry_collateral_lock(id, "lock-retry".into());
-        assert_eq!(c.get_position(id).unwrap().state, PositionState::PendingCollateralReconciliation);
-        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.retry_collateral_lock(id, "lock-retry".into()))).is_err());
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::PendingCollateralReconciliation
+        );
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || c.retry_collateral_lock(id, "lock-retry".into())
+        ))
+        .is_err());
         context("reconciler.testnet");
-        c.reconcile_operation(evidence("lock-retry", "nep141:stock.testnet".into(), 42, "writer.testnet", "handel.testnet", EvidenceOutcome::Completed));
-        assert_eq!(c.get_position(id).unwrap().state, PositionState::CollateralLocked);
+        c.reconcile_operation(evidence(
+            "lock-retry",
+            "nep141:stock.testnet".into(),
+            42,
+            "writer.testnet",
+            "handel.testnet",
+            EvidenceOutcome::Completed,
+        ));
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::CollateralLocked
+        );
     }
 
     #[test]
@@ -1547,15 +1637,38 @@ mod tests {
         context("holder.testnet");
         c.begin_premium_payment(id, "premium-failed".into());
         context("reconciler.testnet");
-        c.reconcile_operation(evidence("premium-failed", OptionsContract::usdc_asset_id_for_test(), 75, "holder.testnet", "writer.testnet", EvidenceOutcome::Failed));
-        assert_eq!(c.get_position(id).unwrap().state, PositionState::ReconciliationRequired);
+        c.reconcile_operation(evidence(
+            "premium-failed",
+            OptionsContract::usdc_asset_id_for_test(),
+            75,
+            "holder.testnet",
+            "writer.testnet",
+            EvidenceOutcome::Failed,
+        ));
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::ReconciliationRequired
+        );
         context("attacker.testnet");
-        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.retry_premium_payment(id, "premium-retry".into()))).is_err());
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || c.retry_premium_payment(id, "premium-retry".into())
+        ))
+        .is_err());
         context("holder.testnet");
         c.retry_premium_payment(id, "premium-retry".into());
-        assert_eq!(c.get_position(id).unwrap().state, PositionState::PendingPremium);
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::PendingPremium
+        );
         context("reconciler.testnet");
-        c.reconcile_operation(evidence("premium-retry", OptionsContract::usdc_asset_id_for_test(), 75, "holder.testnet", "writer.testnet", EvidenceOutcome::Completed));
+        c.reconcile_operation(evidence(
+            "premium-retry",
+            OptionsContract::usdc_asset_id_for_test(),
+            75,
+            "holder.testnet",
+            "writer.testnet",
+            EvidenceOutcome::Completed,
+        ));
         assert_eq!(c.get_position(id).unwrap().state, PositionState::Open);
     }
 
@@ -1563,10 +1676,28 @@ mod tests {
     fn agent_put_proposal_respects_usdc_collateral_policy_cap() {
         let mut c = contract();
         context("writer.testnet");
-        c.set_agent_policy(account("agent.testnet"), vec!["nep141:stock.testnet".into()], 50, 100, 5_000, 2, 100);
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            5_000,
+            2,
+            100,
+        );
         context("agent.testnet");
         let denied = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            c.create_agent_proposal("put-over-cap".into(), OptionKind::Put, account("holder.testnet"), "nep141:stock.testnet".into(), 1, 5_001, 90, 10, "sha256:put".into())
+            c.create_agent_proposal(
+                "put-over-cap".into(),
+                OptionKind::Put,
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                1,
+                5_001,
+                90,
+                10,
+                "sha256:put".into(),
+            )
         }));
         assert!(denied.is_err());
     }
