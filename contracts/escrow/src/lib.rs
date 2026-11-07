@@ -506,6 +506,7 @@ impl EscrowContract {
             Err(PromiseError::TooLong(_)) => {
                 env::panic_str("payout result too large; reconciliation required")
             }
+            Err(_) => env::panic_str("payout result unknown; reconciliation required"),
         }
     }
 
