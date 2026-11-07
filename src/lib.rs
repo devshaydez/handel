@@ -472,6 +472,8 @@ impl OptionsContract {
         p.state = PositionState::PendingPremium;
     }
 
+    /// Exercise a European option at/after maturity during the bounded settlement grace period.
+    /// The 24-hour grace accommodates transaction submission; it does not permit early exercise.
     pub fn exercise(
         &mut self,
         position_id: u64,
