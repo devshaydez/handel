@@ -36,6 +36,10 @@ npm run lifecycle
 
 The offline lifecycle demo prints contract-compatible method names and argument shapes. It does not sign NEP-413 messages, submit transactions, or move assets.
 
+## Testnet deployment preparation
+
+A PowerShell deployment script is available at `scripts/deploy-testnet.ps1`; a Bash equivalent is at `scripts/deploy.sh`. Both require an existing dedicated `.testnet` contract account and that account's full-access key in the NEAR CLI keychain. They build from the repository root and explicitly select `network-config testnet`. They do not create accounts or keys. Do not run either script until CI passes and the custody/reconciliation design has been reviewed. The account that initializes the contract becomes its owner.
+
 GitHub Actions runs Rust formatting, Rust unit tests, the Wasm build, SDK compilation, SDK unit tests, and the offline demo on pushes to `work/testnet-backend-hardening` and pull requests.
 
 ## Contract lifecycle
