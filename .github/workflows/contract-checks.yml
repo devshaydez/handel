@@ -47,7 +47,7 @@ jobs:
           cargo near build non-reproducible-wasm --no-abi
           (cd contracts/escrow && cargo near build non-reproducible-wasm --no-abi)
           (cd contracts/mock-ft && cargo near build non-reproducible-wasm --no-abi)
-          ls -lh target/near/*.wasm
+          ls -lh target/near/*.wasm target/near/*/*.wasm
 
       - name: Run contract and sandbox integration tests
         run: cargo test --workspace
