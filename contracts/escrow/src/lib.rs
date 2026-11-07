@@ -1,7 +1,7 @@
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_sdk::{
-    env, ext_contract, json_types::U128, near, serde::Deserialize, AccountId, Gas, NearToken,
-    store::LookupMap, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue, PromiseResult,
+    env, ext_contract, json_types::U128, near, serde::Deserialize, store::LookupMap, AccountId,
+    BorshStorageKey, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, PromiseResult,
 };
 
 const EXERCISE_GRACE_NS: u64 = 24 * 60 * 60 * 1_000_000_000;
@@ -890,6 +890,4 @@ mod tests {
         assert_eq!(c.get_position(64).id, 64);
         assert_eq!(c.get_position(128).id, 128);
         assert_eq!(c.get_position(128).state, EscrowState::AwaitingCollateral);
-    }
-
-}
+    }}
