@@ -68,6 +68,17 @@ Preferred order of solutions:
 
 A retry operation is not a substitute for compensation. The protocol must define what happens when one leg is final and the other leg cannot be completed.
 
+## 4A. Recovery after collateral or premium failure
+
+The Testnet state machine now exposes two narrowly authorized retry paths:
+
+- `retry_collateral_lock`: writer-only; available only when the current collateral operation is definitively `Failed`. It creates a fresh operation ID and returns the position to pending collateral reconciliation.
+- `retry_premium_payment`: holder-only; available only when the current premium operation is definitively `Failed` and the collateral operation is `Succeeded`. It creates a fresh operation ID and returns the position to pending premium reconciliation.
+
+Both paths preserve the original operation record and reject reused operation IDs. They do not provide a timeout-based retry, admin override, or automatic release. The reconciler must never label an unknown, delayed, or merely unobserved transfer as `Failed`; it must establish that the transfer did not occur. If the external transfer status is ambiguous, leave the operation pending and investigate rather than risk duplicate payment or collateral.
+
+These methods improve lifecycle recoverability but do not establish custody, prove external transfers, or resolve one-sided exercise settlement.
+
 ## 5. Required proof fields and invariants
 
 A future proof adapter must bind at least:
