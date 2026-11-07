@@ -243,6 +243,8 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
         .await?
         .json::<serde_json::Value>()?;
     assert_eq!(first_state["state"], "Settled");
+    assert_eq!(first_state["collateral_delivered_to_holder"], true);
+    assert_eq!(first_state["collateral_returned_to_writer"], false);
     assert_eq!(balance(&root, &usdc, writer.id()).await?, 50);
     assert_eq!(balance(&root, &stock, holder.id()).await?, 100);
 
@@ -293,6 +295,8 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
         .await?
         .json::<serde_json::Value>()?;
     assert_eq!(second_done["state"], "Settled");
+    assert_eq!(second_done["collateral_delivered_to_holder"], true);
+    assert_eq!(second_done["collateral_returned_to_writer"], false);
     assert_eq!(balance(&root, &usdc, writer.id()).await?, 100);
     assert_eq!(balance(&root, &stock, holder.id()).await?, 200);
 
