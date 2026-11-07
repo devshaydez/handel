@@ -843,4 +843,31 @@ mod tests {
         assert_eq!(c.get_position(0).state, EscrowState::PaymentPayoutPending);
     }
 
+    #[test]
+    fn persistent_position_map_handles_many_independent_records() {
+        let mut c = setup(10);
+        let context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("options.testnet"))
+            .block_timestamp(10)
+            .build();
+        testing_env!(context);
+        for expected_id in 1..=128u64 {
+            let id = c.create_position(
+                account("writer.testnet"),
+                account("holder.testnet"),
+                account("synthetic-stock.testnet"),
+                U128(100),
+                account("synthetic-usdc.testnet"),
+                U128(500),
+                1_000,
+            );
+            assert_eq!(id, expected_id);
+        }
+        assert_eq!(c.get_position(0).id, 0);
+        assert_eq!(c.get_position(64).id, 64);
+        assert_eq!(c.get_position(128).id, 128);
+        assert_eq!(c.get_position(128).state, EscrowState::AwaitingCollateral);
+    }
+
 }
