@@ -247,6 +247,8 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
     assert_eq!(balance(&root, &stock, holder.id()).await?, 100);
 
     // Failure case 2: payment succeeds, collateral fails. Retry only collateral.
+    let second_expiry =
+        worker.view_block().await?.header().timestamp_nanosec() + 30_000_000_000;
     let second = make_position(
         &controller,
         &escrow,
@@ -254,7 +256,7 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
         &holder,
         &stock,
         &usdc,
-        expiry,
+        second_expiry,
     )
     .await?;
     transfer_call(&writer, &stock, &escrow, second, "collateral", 100).await?;
