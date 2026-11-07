@@ -724,6 +724,50 @@ mod tests {
     }
 
     #[test]
+    fn accepted_exercise_can_settle_after_grace_even_if_paused() {
+        let mut c = setup(10);
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-stock.testnet",
+                "writer.testnet",
+                100,
+                "collateral",
+                20
+            ),
+            U128(0)
+        );
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-usdc.testnet",
+                "holder.testnet",
+                500,
+                "exercise_payment",
+                1_000
+            ),
+            U128(0)
+        );
+
+        let owner_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("owner.testnet"))
+            .block_timestamp(1_000)
+            .build();
+        testing_env!(owner_context);
+        c.set_paused(true);
+
+        let holder_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("holder.testnet"))
+            .block_timestamp(1_000 + EXERCISE_GRACE_NS + 1)
+            .build();
+        testing_env!(holder_context);
+        let _payout = c.settle_exercise(0);
+        assert_eq!(c.get_position(0).state, EscrowState::PaymentPayoutPending);
+    }
+
+    #[test]
     fn exercise_payment_cannot_be_replayed() {
         let mut c = setup(10);
         assert_eq!(
