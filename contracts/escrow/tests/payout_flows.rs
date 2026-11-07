@@ -344,13 +344,26 @@ async fn callback_receipt_failure_keeps_payout_pending_and_blocks_retry() -> any
     )
     .await?;
 
-    root.call(escrow.id(), "new").args_json(json!({})).transact().await?.into_result()?;
+    root.call(escrow.id(), "new")
+        .args_json(json!({}))
+        .transact()
+        .await?
+        .into_result()?;
     root.call(stock.id(), "new")
-        .args_json(json!({"owner_id": root.id()})).transact().await?.into_result()?;
+        .args_json(json!({"owner_id": root.id()}))
+        .transact()
+        .await?
+        .into_result()?;
     root.call(usdc.id(), "new")
-        .args_json(json!({"owner_id": root.id()})).transact().await?.into_result()?;
+        .args_json(json!({"owner_id": root.id()}))
+        .transact()
+        .await?
+        .into_result()?;
     root.call(escrow.id(), "set_controller")
-        .args_json(json!({"controller": controller.id()})).transact().await?.into_result()?;
+        .args_json(json!({"controller": controller.id()}))
+        .transact()
+        .await?
+        .into_result()?;
 
     for token in [&stock, &usdc] {
         for account in [escrow.id(), writer.id(), holder.id()] {
@@ -362,33 +375,65 @@ async fn callback_receipt_failure_keeps_payout_pending_and_blocks_retry() -> any
 
     let now = worker.view_block().await?.header().timestamp_nanosec();
     let position_id = make_position(
-        &controller, &escrow, &writer, &holder, &stock, &usdc,
+        &controller,
+        &escrow,
+        &writer,
+        &holder,
+        &stock,
+        &usdc,
         now + 30_000_000_000,
-    ).await?;
-    transfer_call(&writer, &stock, &escrow, position_id, "collateral", 100).await?;
+    )
+    .await?;
+    transfer_call(
+        &writer,
+        &stock,
+        &escrow,
+        position_id,
+        "collateral",
+        100,
+    )
+    .await?;
     worker.fast_forward(100).await?;
-    transfer_call(&holder, &usdc, &escrow, position_id, "exercise_payment", 50).await?;
+    transfer_call(
+        &holder,
+        &usdc,
+        &escrow,
+        position_id,
+        "exercise_payment",
+        50,
+    )
+    .await?;
 
     // The token transfer succeeds, then the test-only callback receipt deliberately panics.
     // The original settle transaction may report a failed promise chain; inspect durable state.
-    let _ = holder.call(escrow.id(), "settle_exercise")
+    let _ = holder
+        .call(escrow.id(), "settle_exercise")
         .args_json(json!({"position_id": position_id}))
-        .max_gas().transact().await?;
+        .max_gas()
+        .transact()
+        .await?;
 
-    let state = holder.view(escrow.id(), "get_position")
-        .args_json(json!({"position_id": position_id})).await?
+    let state = holder
+        .view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": position_id}))
+        .await?
         .json::<serde_json::Value>()?;
     assert_eq!(state["state"], "PaymentPayoutPending");
     assert_eq!(state["payment_paid"], false);
     assert_eq!(balance(&root, &usdc, writer.id()).await?, 50);
 
     // A retry is unsafe: the transfer already happened, but its callback did not persist.
-    let retry = holder.call(escrow.id(), "retry_failed_payout")
+    let retry = holder
+        .call(escrow.id(), "retry_failed_payout")
         .args_json(json!({"position_id": position_id}))
-        .max_gas().transact().await?;
+        .max_gas()
+        .transact()
+        .await?;
     assert!(retry.is_failure());
-    let after_retry = holder.view(escrow.id(), "get_position")
-        .args_json(json!({"position_id": position_id})).await?
+    let after_retry = holder
+        .view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": position_id}))
+        .await?
         .json::<serde_json::Value>()?;
     assert_eq!(after_retry["state"], "PaymentPayoutPending");
     assert_eq!(balance(&root, &usdc, writer.id()).await?, 50);
