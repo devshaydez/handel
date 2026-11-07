@@ -1,0 +1,39 @@
+name: Rust contract checks
+
+on:
+  push:
+    branches:
+      - work/testnet-backend-hardening
+  pull_request:
+    branches:
+      - main
+      - work/testnet-backend-hardening
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Format, unit tests, and Wasm build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run contract unit tests
+        run: cargo test --lib
+
+      - name: Build contract Wasm
+        run: cargo build --target wasm32-unknown-unknown --release
