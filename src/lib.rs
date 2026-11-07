@@ -340,6 +340,7 @@ impl OptionsContract {
     /// Retry a definitively failed collateral lock using a fresh operation ID.
     /// The reconciler must only report Failed when the external transfer is known not to have occurred.
     pub fn retry_collateral_lock(&mut self, position_id: u64, new_operation_id: String) {
+        self.assert_not_paused();
         let position = self.position_owned_by_writer(position_id);
         assert_eq!(
             position.state,
@@ -410,6 +411,7 @@ impl OptionsContract {
 
     /// Retry a definitively failed premium transfer. Collateral remains locked while pending.
     pub fn retry_premium_payment(&mut self, position_id: u64, new_operation_id: String) {
+        self.assert_not_paused();
         let position = self.position(position_id);
         assert_eq!(
             env::predecessor_account_id(),
@@ -1597,6 +1599,15 @@ mod tests {
             c.get_position(id).unwrap().state,
             PositionState::ReconciliationRequired
         );
+        context("owner.testnet");
+        c.set_paused(true);
+        context("writer.testnet");
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || c.retry_collateral_lock(id, "lock-retry".into())
+        ))
+        .is_err());
+        context("owner.testnet");
+        c.set_paused(false);
         context("attacker.testnet");
         assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
             || c.retry_collateral_lock(id, "lock-retry".into())
@@ -1649,6 +1660,15 @@ mod tests {
             c.get_position(id).unwrap().state,
             PositionState::ReconciliationRequired
         );
+        context("owner.testnet");
+        c.set_paused(true);
+        context("holder.testnet");
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || c.retry_premium_payment(id, "premium-retry".into())
+        ))
+        .is_err());
+        context("owner.testnet");
+        c.set_paused(false);
         context("attacker.testnet");
         assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
             || c.retry_premium_payment(id, "premium-retry".into())
