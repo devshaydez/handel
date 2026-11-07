@@ -92,7 +92,7 @@ External-chain withdrawals after the internal swap are separate operations. Trac
 
 The Testnet escrow stores positions in NEAR's storage-backed `LookupMap` rather than serializing every position inside one in-memory `BTreeMap`. This avoids whole-map serialization growth on each update, but it does not make storage free: every position consumes persistent account storage and must be backed by NEAR.
 
-Position creation is payable: the configured controller must attach enough NEAR to cover the measured storage-byte increase at the current storage-byte cost. The contract records the required stake in the position and refunds any excess to the controller. The stake remains committed while the position record is retained; there is no record-pruning or stake-refund path yet, so long-term archival and refund policy still require design. The 128-position unit test checks independent record access; it is not a substitute for Sandbox gas benchmarks under realistic state growth.
+Position creation is payable: the configured controller must attach enough NEAR to cover the measured storage-byte increase at the current storage-byte cost. The contract records the full attached amount as the position's storage reserve. Excess is not refunded in this prototype; it remains reserved until a separately audited record-pruning and stake-refund path exists. The 128-position unit test checks independent record access; it is not a substitute for Sandbox gas benchmarks under realistic state growth.
 
 ### NEP-141 / NEP-245 escrow contract
 
