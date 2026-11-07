@@ -56,6 +56,7 @@ pub struct EscrowPosition {
     pub payment_token: AccountId,
     pub payment_amount: u128,
     pub expiry_ns: u64,
+    pub storage_deposit: u128,
     pub state: EscrowState,
     pub collateral_received: bool,
     pub exercise_payment_received: bool,
@@ -113,7 +114,9 @@ impl EscrowContract {
     }
 
     /// Registers immutable position terms before any token transfer is accepted.
+    /// The controller funds the persistent record's NEAR storage stake.
     /// Only the configured OptionsContract may create a custody record.
+    #[payable]
     pub fn create_position(
         &mut self,
         writer: AccountId,
@@ -137,6 +140,7 @@ impl EscrowContract {
 
         let id = self.next_position_id;
         self.next_position_id = self.next_position_id.checked_add(1).expect("id overflow");
+        let storage_before = env::storage_usage();
         self.positions.insert(
             id,
             EscrowPosition {
@@ -148,6 +152,7 @@ impl EscrowContract {
                 payment_token,
                 payment_amount: payment_amount.0,
                 expiry_ns,
+                storage_deposit: 0,
                 state: EscrowState::AwaitingCollateral,
                 collateral_received: false,
                 exercise_payment_received: false,
@@ -158,6 +163,22 @@ impl EscrowContract {
                 failed_payout: None,
             },
         );
+        let storage_bytes = env::storage_usage()
+            .checked_sub(storage_before)
+            .expect("storage usage underflow");
+        let required_deposit = u128::from(storage_bytes)
+            .checked_mul(env::storage_byte_cost().as_yoctonear())
+            .expect("storage deposit overflow");
+        let attached = env::attached_deposit().as_yoctonear();
+        assert!(attached >= required_deposit, "insufficient position storage deposit");
+        let mut position = self.position(id);
+        position.storage_deposit = required_deposit;
+        self.positions.insert(id, position);
+        let refund = attached - required_deposit;
+        if refund > 0 {
+            Promise::new(env::predecessor_account_id())
+                .transfer(NearToken::from_yoctonear(refund));
+        }
         id
     }
 
@@ -502,6 +523,7 @@ mod tests {
             .current_account_id(account("escrow.testnet"))
             .predecessor_account_id(account("owner.testnet"))
             .block_timestamp(timestamp)
+            .attached_deposit(NearToken::from_near(1))
             .build();
         testing_env!(context.clone());
         let mut contract = EscrowContract::new();
@@ -849,6 +871,7 @@ mod tests {
             .current_account_id(account("escrow.testnet"))
             .predecessor_account_id(account("options.testnet"))
             .block_timestamp(10)
+            .attached_deposit(NearToken::from_near(1))
             .build();
         testing_env!(context);
         for expected_id in 1..=128u64 {
