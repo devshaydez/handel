@@ -46,8 +46,9 @@ GitHub Actions runs Rust formatting, Rust unit tests, the Wasm build, SDK compil
 
 - Direct writer offers: `create_call` / `create_put`.
 - Agent proposals: `create_agent_proposal`; the principal must approve using `approve_agent_proposal`.
-- Collateral: `begin_collateral_lock`, then trusted-reconciler evidence through `reconcile_operation`.
-- Premium: `begin_premium_payment`, then reconciliation.
+- Collateral: `begin_collateral_lock`, then trusted-reconciler evidence through `reconcile_operation`. A definitively failed lock can be retried by the writer with `retry_collateral_lock`.
+- Premium: `begin_premium_payment`, then reconciliation. A definitively failed payment can be retried by the holder with `retry_premium_payment`; collateral must already be confirmed.
+- Agent policy: configure `max_collateral_usdc` as well as underlying and premium limits; put proposals are rejected when their strike collateral exceeds this cap.
 - Exercise: `exercise` creates separate payment and delivery operations; both must reconcile successfully before `Settled`. If a leg fails, the relevant party can retry it with a fresh operation ID using `retry_exercise_payment` or `retry_exercise_delivery`; the other leg may still reconcile while the position is in `ReconciliationRequired`.
 - Expiry: `request_expiry_release` creates an external release operation; this is not a native token transfer by the contract.
 
@@ -57,6 +58,6 @@ See [`docs/CUSTODY_AND_SETTLEMENT.md`](docs/CUSTODY_AND_SETTLEMENT.md) for the e
 
 The contract checks reconciliation caller, operation ID, asset, amount, sender, and receiver. It does not independently prove that an external NEAR Intents or verifier event occurred. The configured reconciler is a trust root. Retryable exercise-leg recovery is implemented, but it does not solve economic compensation if one transfer is irreversible and the counter-transfer cannot be completed. Authenticated proof verification, custody authority, and finality/reorg handling remain unresolved. Do not use real assets or deploy for production.
 
-The contract has not yet been confirmed by a successful CI run in this work session. Do not deploy until the GitHub Actions checks pass and the custody/reconciliation design has been reviewed.
+The preceding PR commit passed GitHub Actions; every new code change must pass CI again before deployment. Do not deploy until the latest GitHub Actions checks pass and the custody/reconciliation design has been reviewed.
 
 Never commit wallet seed phrases, private keys, API keys, or other credentials. Share only public account IDs in chat.
