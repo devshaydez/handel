@@ -1,15 +1,25 @@
-/** Shared types for Handel off-chain SDK */
+/** Shared types for Handel off-chain SDK; values mirror src/lib.rs. */
 
 export type OptionType = "Call" | "Put";
 
 export type PositionStatus =
-  | "Created"
+  | "PendingCollateral"
+  | "PendingCollateralReconciliation"
   | "CollateralLocked"
+  | "PendingPremium"
   | "Open"
   | "PendingSettlement"
   | "Settled"
+  | "PendingExpiry"
   | "Expired"
-  | "Cancelled";
+  | "Cancelled"
+  | "ReconciliationRequired";
+
+export type OperationStatus =
+  | "Pending"
+  | "Succeeded"
+  | "Failed"
+  | "ReconciliationRequired";
 
 export interface AssetInfo {
   assetId: string;
@@ -18,23 +28,23 @@ export interface AssetInfo {
   enabled: boolean;
 }
 
-/** Structured proposal produced by the AI agent (never trusted on-chain) */
+/** Structured proposal produced by a deterministic fallback or AI provider. */
 export interface AgentProposal {
   proposalId: string;
   type: OptionType;
   underlyingAssetId: string;
-  strike: string; // integer string (settlement units)
-  quantity: string; // integer string (underlying units)
-  premium: string; // integer string (settlement units)
+  strike: string;
+  quantity: string;
+  premium: string;
   expiryNs: string;
   estimatedPayoff: string;
   risks: string[];
-  dataFreshness: string; // ISO timestamp of market data used
+  dataFreshness: string;
   rationale: string;
   createdAt: string;
 }
 
-/** On-chain agent permission mirror */
+/** Off-chain mirror of the on-chain agent policy. */
 export interface AgentPermission {
   agent: string;
   owner: string;
@@ -47,17 +57,15 @@ export interface AgentPermission {
   enabled: boolean;
 }
 
-/** Result of policy validation before any on-chain call */
 export interface PolicyResult {
   ok: boolean;
   errors: string[];
   warnings: string[];
 }
 
-/** NEP-413 payload structure (message field is stringified JSON) */
 export interface Nep413Payload {
   recipient: string;
-  nonce: string; // base64 32 bytes
+  nonce: string;
   message: string;
 }
 
@@ -76,6 +84,6 @@ export interface TransferIntent {
 
 export interface IntentMessage {
   signer_id: string;
-  deadline: string; // ISO 8601
+  deadline: string;
   intents: Array<TransferIntent | Record<string, unknown>>;
 }
