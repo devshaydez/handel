@@ -34,8 +34,15 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Build contract Wasm
-        run: cargo build --workspace --target wasm32-unknown-unknown --release
+      - name: Install cargo-near
+        run: cargo install --locked cargo-near --version 0.22.0
+
+      - name: Build optimized NEAR contract Wasm
+        run: |
+          cargo near build non-reproducible-wasm --no-abi
+          (cd contracts/escrow && cargo near build non-reproducible-wasm --no-abi)
+          (cd contracts/mock-ft && cargo near build non-reproducible-wasm --no-abi)
+          ls -lh target/near/*.wasm
 
       - name: Run contract and sandbox integration tests
         run: cargo test --workspace
