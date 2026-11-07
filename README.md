@@ -48,12 +48,12 @@ GitHub Actions runs Rust formatting, Rust unit tests, the Wasm build, SDK compil
 - Agent proposals: `create_agent_proposal`; the principal must approve using `approve_agent_proposal`.
 - Collateral: `begin_collateral_lock`, then trusted-reconciler evidence through `reconcile_operation`.
 - Premium: `begin_premium_payment`, then reconciliation.
-- Exercise: `exercise` creates separate payment and delivery operations; both must reconcile successfully before `Settled`.
+- Exercise: `exercise` creates separate payment and delivery operations; both must reconcile successfully before `Settled`. If a leg fails, the relevant party can retry it with a fresh operation ID using `retry_exercise_payment` or `retry_exercise_delivery`; the other leg may still reconcile while the position is in `ReconciliationRequired`.
 - Expiry: `request_expiry_release` creates an external release operation; this is not a native token transfer by the contract.
 
 ## Security and deployment boundary
 
-The contract checks reconciliation caller, operation ID, asset, amount, sender, and receiver. It does not independently prove that an external NEAR Intents or verifier event occurred. The configured reconciler is a trust root. Partial settlement recovery, authenticated proof verification, custody authority, and finality/reorg handling remain unresolved. Do not use real assets or deploy for production.
+The contract checks reconciliation caller, operation ID, asset, amount, sender, and receiver. It does not independently prove that an external NEAR Intents or verifier event occurred. The configured reconciler is a trust root. Retryable exercise-leg recovery is implemented, but it does not solve economic compensation if one transfer is irreversible and the counter-transfer cannot be completed. Authenticated proof verification, custody authority, and finality/reorg handling remain unresolved. Do not use real assets or deploy for production.
 
 The contract has not yet been confirmed by a successful CI run in this work session. Do not deploy until the GitHub Actions checks pass and the custody/reconciliation design has been reviewed.
 
