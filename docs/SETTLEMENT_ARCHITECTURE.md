@@ -149,8 +149,11 @@ An indexer, Tidepool API, 1Click status response, solver, or reconciler can help
 ## 7. Failure handling
 
 - Unknown, delayed or unobserved transfers remain pending; they are not failed.
-- A retry uses a fresh operation ID and is permitted only after the previous transfer is definitively known not to have occurred.
+- A retry is permitted only after the transfer callback actually executes and records a definitive failure. A missing/failed callback is not evidence that the token transfer failed.
+- The escrow cannot inspect historical NEP-141 transfer receipts or safely infer a position-specific transfer from a pooled token balance. Therefore a payout whose callback receipt fails remains pending and must not be retried automatically. Any future recovery path requires an independently verifiable proof mechanism and a separately audited state transition; an operator assertion alone is not trustless proof.
+- The payment callback needs enough prepaid gas to record the first leg and schedule the collateral transfer plus its callback. The implementation reserves 30 Tgas for that callback; this is a tested budget, not a guarantee against every runtime or state-growth failure.
 - If one exercise leg succeeds and the other fails, keep the position in reconciliation/dispute state. Never release the successful leg's value automatically.
+- Exercise collateral delivered to the holder and expiry collateral returned to the writer are recorded in separate fields.
 - If a payout is irreversible, the design must identify the party or escrow that can compensate the counterparty.
 - Pausing blocks new risk but must not block safe completion/recovery of existing settlement obligations.
 - Expiry release is available only after the exercise-submission deadline.
@@ -174,6 +177,6 @@ No mainnet deployment, real collateral, or user-facing claim of fully collateral
 - maturity-gated exercise and expiry refund;
 - independently verifiable settlement result;
 - atomic exchange or a fully specified and consented compensation/dispute model;
-- replay, duplicate, delayed receipt, reorg, partial failure and pause/recovery tests;
-- persistent storage and gas review;
+- replay, duplicate, delayed receipt, callback-receipt failure, reorg, partial failure and pause/recovery tests;
+- persistent storage and gas review, including callback gas under realistic state growth;
 - independent security review.
