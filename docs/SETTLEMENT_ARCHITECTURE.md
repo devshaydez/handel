@@ -88,6 +88,12 @@ This is the best candidate for avoiding a one-sided *internal-ledger exchange*: 
 
 External-chain withdrawals after the internal swap are separate operations. Track them separately from the atomic ledger exchange; do not mark an external-chain payout complete from a quote or API response alone.
 
+### Persistent position storage and storage funding
+
+The Testnet escrow stores positions in NEAR's storage-backed `LookupMap` rather than serializing every position inside one in-memory `BTreeMap`. This avoids whole-map serialization growth on each update, but it does not make storage free: every position consumes persistent account storage and must be backed by NEAR.
+
+The current prototype does not yet collect a per-position storage deposit, refund storage stake, or expose a storage-balance ledger. The escrow account must be funded with sufficient NEAR before position creation, and this remains a production release blocker until a user/controller-funded storage-staking and refund policy is implemented. The 128-position unit test checks independent record access; it is not a substitute for Sandbox gas benchmarks under realistic state growth.
+
 ### NEP-141 / NEP-245 escrow contract
 
 A per-position escrow can accept collateral using the supported token transfer-call interface, validate the token contract and sender, and hold immutable terms. It must enforce maturity and exercise-window rules, refund collateral after an unexercised expiry, and record all payout callbacks and failed transfers.
@@ -178,5 +184,5 @@ No mainnet deployment, real collateral, or user-facing claim of fully collateral
 - independently verifiable settlement result;
 - atomic exchange or a fully specified and consented compensation/dispute model;
 - replay, duplicate, delayed receipt, callback-receipt failure, reorg, partial failure and pause/recovery tests;
-- persistent storage and gas review, including callback gas under realistic state growth;
+- persistent storage and gas review, including callback gas under realistic state growth, measured Sandbox gas at increasing position counts, and explicit per-position storage staking/refunds;
 - independent security review.
