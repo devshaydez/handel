@@ -426,7 +426,6 @@ impl OptionsContract {
         p.state = PositionState::PendingSettlement;
     }
 
-    #[payable]
     pub fn request_expiry_release(&mut self, position_id: u64, operation_id: String) {
         self.assert_not_paused();
         let position = self.position_owned_by_writer(position_id);
@@ -967,6 +966,31 @@ mod tests {
         c.set_asset("nep141:stock.testnet".into(), 18, true);
         c.set_asset(OptionsContract::usdc_asset_id(), 6, true);
         c
+    }
+
+    #[test]
+    fn initializer_sets_deployer_as_owner_and_enforces_ownership_transfer() {
+        let mut c = contract();
+        assert_eq!(c.get_owner(), account("owner.testnet"));
+
+        context("attacker.testnet");
+        let denied = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.set_paused(true)));
+        assert!(denied.is_err());
+
+        context("owner.testnet");
+        c.set_paused(true);
+        assert!(c.paused);
+        c.transfer_ownership(account("new-owner.testnet"));
+        assert_eq!(c.get_owner(), account("new-owner.testnet"));
+
+        context("owner.testnet");
+        let old_owner_denied =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.set_paused(false)));
+        assert!(old_owner_denied.is_err());
+
+        context("new-owner.testnet");
+        c.set_paused(false);
+        assert!(!c.paused);
     }
 
     fn create_call(c: &mut OptionsContract) -> u64 {
