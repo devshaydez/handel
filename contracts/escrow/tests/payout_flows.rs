@@ -384,25 +384,9 @@ async fn callback_receipt_failure_keeps_payout_pending_and_blocks_retry() -> any
         now + 30_000_000_000,
     )
     .await?;
-    transfer_call(
-        &writer,
-        &stock,
-        &escrow,
-        position_id,
-        "collateral",
-        100,
-    )
-    .await?;
+    transfer_call(&writer, &stock, &escrow, position_id, "collateral", 100).await?;
     worker.fast_forward(100).await?;
-    transfer_call(
-        &holder,
-        &usdc,
-        &escrow,
-        position_id,
-        "exercise_payment",
-        50,
-    )
-    .await?;
+    transfer_call(&holder, &usdc, &escrow, position_id, "exercise_payment", 50).await?;
 
     // The token transfer succeeds, then the test-only callback receipt deliberately panics.
     // The original settle transaction may report a failed promise chain; inspect durable state.
