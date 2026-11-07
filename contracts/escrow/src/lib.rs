@@ -1,7 +1,7 @@
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_sdk::{
-    env, ext_contract, json_types::U128, near, serde::Deserialize, AccountId,
-    Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, PromiseResult,
+    env, ext_contract, json_types::U128, near, serde::Deserialize, AccountId, Gas, NearToken,
+    PanicOnDefault, Promise, PromiseOrValue, PromiseResult,
 };
 use std::collections::BTreeMap;
 
@@ -121,26 +121,32 @@ impl EscrowContract {
         assert_ne!(collateral_token, payment_token, "assets must differ");
         assert!(collateral_amount.0 > 0, "collateral must be positive");
         assert!(payment_amount.0 > 0, "payment must be positive");
-        assert!(expiry_ns > env::block_timestamp(), "expiry must be in future");
+        assert!(
+            expiry_ns > env::block_timestamp(),
+            "expiry must be in future"
+        );
 
         let id = self.next_position_id;
         self.next_position_id = self.next_position_id.checked_add(1).expect("id overflow");
-        self.positions.insert(id, EscrowPosition {
+        self.positions.insert(
             id,
-            writer,
-            holder,
-            collateral_token,
-            collateral_amount: collateral_amount.0,
-            payment_token,
-            payment_amount: payment_amount.0,
-            expiry_ns,
-            state: EscrowState::AwaitingCollateral,
-            collateral_received: false,
-            exercise_payment_received: false,
-            payment_paid: false,
-            collateral_paid: false,
-            failed_payout: None,
-        });
+            EscrowPosition {
+                id,
+                writer,
+                holder,
+                collateral_token,
+                collateral_amount: collateral_amount.0,
+                payment_token,
+                payment_amount: payment_amount.0,
+                expiry_ns,
+                state: EscrowState::AwaitingCollateral,
+                collateral_received: false,
+                exercise_payment_received: false,
+                payment_paid: false,
+                collateral_paid: false,
+                failed_payout: None,
+            },
+        );
         id
     }
 
@@ -149,12 +155,26 @@ impl EscrowContract {
     pub fn settle_exercise(&mut self, position_id: u64) -> Promise {
         assert!(!self.paused, "escrow paused");
         let mut position = self.position(position_id);
-        assert_eq!(env::predecessor_account_id(), position.holder, "holder only");
-        assert_eq!(position.state, EscrowState::ExercisePaymentReceived, "exercise payment missing");
+        assert_eq!(
+            env::predecessor_account_id(),
+            position.holder,
+            "holder only"
+        );
+        assert_eq!(
+            position.state,
+            EscrowState::ExercisePaymentReceived,
+            "exercise payment missing"
+        );
         assert!(position.collateral_received, "collateral missing");
-        let deadline = position.expiry_ns.checked_add(EXERCISE_GRACE_NS).expect("deadline overflow");
+        let deadline = position
+            .expiry_ns
+            .checked_add(EXERCISE_GRACE_NS)
+            .expect("deadline overflow");
         let now = env::block_timestamp();
-        assert!(now >= position.expiry_ns && now <= deadline, "outside exercise window");
+        assert!(
+            now >= position.expiry_ns && now <= deadline,
+            "outside exercise window"
+        );
         position.state = EscrowState::PaymentPayoutPending;
         position.failed_payout = None;
         self.positions.insert(position_id, position.clone());
@@ -174,7 +194,11 @@ impl EscrowContract {
     /// A successful leg is never repeated.
     pub fn retry_failed_payout(&mut self, position_id: u64) -> Promise {
         let mut position = self.position(position_id);
-        assert_eq!(position.state, EscrowState::ReconciliationRequired, "no failed payout");
+        assert_eq!(
+            position.state,
+            EscrowState::ReconciliationRequired,
+            "no failed payout"
+        );
         let failed = position.failed_payout.expect("failed payout missing");
         position.failed_payout = None;
         match failed {
@@ -182,23 +206,47 @@ impl EscrowContract {
                 assert!(!position.payment_paid, "payment already paid");
                 position.state = EscrowState::PaymentPayoutPending;
                 self.positions.insert(position_id, position.clone());
-                Self::transfer(position.payment_token, position.writer, position.payment_amount)
-                    .then(ext_self::ext(env::current_account_id()).with_static_gas(CALLBACK_GAS).on_payment_payout(position_id))
+                Self::transfer(
+                    position.payment_token,
+                    position.writer,
+                    position.payment_amount,
+                )
+                .then(
+                    ext_self::ext(env::current_account_id())
+                        .with_static_gas(CALLBACK_GAS)
+                        .on_payment_payout(position_id),
+                )
             }
             FailedPayout::ExerciseCollateral => {
                 assert!(position.payment_paid, "payment leg not confirmed");
                 assert!(!position.collateral_paid, "collateral already paid");
                 position.state = EscrowState::CollateralPayoutPending;
                 self.positions.insert(position_id, position.clone());
-                Self::transfer(position.collateral_token, position.holder, position.collateral_amount)
-                    .then(ext_self::ext(env::current_account_id()).with_static_gas(CALLBACK_GAS).on_collateral_payout(position_id))
+                Self::transfer(
+                    position.collateral_token,
+                    position.holder,
+                    position.collateral_amount,
+                )
+                .then(
+                    ext_self::ext(env::current_account_id())
+                        .with_static_gas(CALLBACK_GAS)
+                        .on_collateral_payout(position_id),
+                )
             }
             FailedPayout::ExpiryCollateral => {
                 assert!(!position.collateral_paid, "collateral already returned");
                 position.state = EscrowState::ExpiryPayoutPending;
                 self.positions.insert(position_id, position.clone());
-                Self::transfer(position.collateral_token, position.writer, position.collateral_amount)
-                    .then(ext_self::ext(env::current_account_id()).with_static_gas(CALLBACK_GAS).on_expiry_payout(position_id))
+                Self::transfer(
+                    position.collateral_token,
+                    position.writer,
+                    position.collateral_amount,
+                )
+                .then(
+                    ext_self::ext(env::current_account_id())
+                        .with_static_gas(CALLBACK_GAS)
+                        .on_expiry_payout(position_id),
+                )
             }
         }
     }
@@ -206,15 +254,40 @@ impl EscrowContract {
     /// Writer may reclaim unused collateral only after maturity plus the exercise grace period.
     pub fn release_expired_collateral(&mut self, position_id: u64) -> Promise {
         let mut position = self.position(position_id);
-        assert_eq!(env::predecessor_account_id(), position.writer, "writer only");
-        assert_eq!(position.state, EscrowState::CollateralLocked, "position not releasable");
-        assert!(!position.exercise_payment_received, "exercise already initiated");
-        let deadline = position.expiry_ns.checked_add(EXERCISE_GRACE_NS).expect("deadline overflow");
-        assert!(env::block_timestamp() > deadline, "exercise grace period active");
+        assert_eq!(
+            env::predecessor_account_id(),
+            position.writer,
+            "writer only"
+        );
+        assert_eq!(
+            position.state,
+            EscrowState::CollateralLocked,
+            "position not releasable"
+        );
+        assert!(
+            !position.exercise_payment_received,
+            "exercise already initiated"
+        );
+        let deadline = position
+            .expiry_ns
+            .checked_add(EXERCISE_GRACE_NS)
+            .expect("deadline overflow");
+        assert!(
+            env::block_timestamp() > deadline,
+            "exercise grace period active"
+        );
         position.state = EscrowState::ExpiryPayoutPending;
         self.positions.insert(position_id, position.clone());
-        Self::transfer(position.collateral_token, position.writer, position.collateral_amount)
-            .then(ext_self::ext(env::current_account_id()).with_static_gas(CALLBACK_GAS).on_expiry_payout(position_id))
+        Self::transfer(
+            position.collateral_token,
+            position.writer,
+            position.collateral_amount,
+        )
+        .then(
+            ext_self::ext(env::current_account_id())
+                .with_static_gas(CALLBACK_GAS)
+                .on_expiry_payout(position_id),
+        )
     }
 
     pub fn get_position(&self, position_id: u64) -> EscrowPosition {
@@ -224,14 +297,26 @@ impl EscrowContract {
     #[private]
     pub fn on_payment_payout(&mut self, position_id: u64) -> PromiseOrValue<bool> {
         let mut position = self.position(position_id);
-        assert_eq!(position.state, EscrowState::PaymentPayoutPending, "unexpected callback");
+        assert_eq!(
+            position.state,
+            EscrowState::PaymentPayoutPending,
+            "unexpected callback"
+        );
         if Self::promise_succeeded() {
             position.payment_paid = true;
             position.state = EscrowState::CollateralPayoutPending;
             self.positions.insert(position_id, position.clone());
             PromiseOrValue::Promise(
-                Self::transfer(position.collateral_token, position.holder, position.collateral_amount)
-                    .then(ext_self::ext(env::current_account_id()).with_static_gas(CALLBACK_GAS).on_collateral_payout(position_id)),
+                Self::transfer(
+                    position.collateral_token,
+                    position.holder,
+                    position.collateral_amount,
+                )
+                .then(
+                    ext_self::ext(env::current_account_id())
+                        .with_static_gas(CALLBACK_GAS)
+                        .on_collateral_payout(position_id),
+                ),
             )
         } else {
             position.state = EscrowState::ReconciliationRequired;
@@ -244,7 +329,11 @@ impl EscrowContract {
     #[private]
     pub fn on_collateral_payout(&mut self, position_id: u64) -> bool {
         let mut position = self.position(position_id);
-        assert_eq!(position.state, EscrowState::CollateralPayoutPending, "unexpected callback");
+        assert_eq!(
+            position.state,
+            EscrowState::CollateralPayoutPending,
+            "unexpected callback"
+        );
         if Self::promise_succeeded() {
             position.collateral_paid = true;
             position.state = EscrowState::Settled;
@@ -261,7 +350,11 @@ impl EscrowContract {
     #[private]
     pub fn on_expiry_payout(&mut self, position_id: u64) -> bool {
         let mut position = self.position(position_id);
-        assert_eq!(position.state, EscrowState::ExpiryPayoutPending, "unexpected callback");
+        assert_eq!(
+            position.state,
+            EscrowState::ExpiryPayoutPending,
+            "unexpected callback"
+        );
         if Self::promise_succeeded() {
             position.collateral_paid = true;
             position.state = EscrowState::Expired;
@@ -278,7 +371,12 @@ impl EscrowContract {
 
 #[near]
 impl FungibleTokenReceiver for EscrowContract {
-    fn ft_on_transfer(&mut self, sender_id: AccountId, amount: U128, msg: String) -> PromiseOrValue<U128> {
+    fn ft_on_transfer(
+        &mut self,
+        sender_id: AccountId,
+        amount: U128,
+        msg: String,
+    ) -> PromiseOrValue<U128> {
         if self.paused {
             return PromiseOrValue::Value(amount);
         }
@@ -347,7 +445,11 @@ impl EscrowContract {
     }
 
     fn assert_controller(&self) {
-        assert_eq!(Some(env::predecessor_account_id()), self.controller, "controller only");
+        assert_eq!(
+            Some(env::predecessor_account_id()),
+            self.controller,
+            "controller only"
+        );
     }
 
     fn promise_succeeded() -> bool {
@@ -395,7 +497,14 @@ mod tests {
         contract
     }
 
-    fn receive(contract: &mut EscrowContract, token: &str, sender: &str, amount: u128, leg: &str, timestamp: u64) -> U128 {
+    fn receive(
+        contract: &mut EscrowContract,
+        token: &str,
+        sender: &str,
+        amount: u128,
+        leg: &str,
+        timestamp: u64,
+    ) -> U128 {
         let context = VMContextBuilder::new()
             .current_account_id(account("escrow.testnet"))
             .predecessor_account_id(account(token))
@@ -415,62 +524,237 @@ mod tests {
     #[test]
     fn accepts_only_exact_writer_collateral_from_registered_token() {
         let mut c = setup(10);
-        assert_eq!(receive(&mut c, "wrong-token.testnet", "writer.testnet", 100, "collateral", 20), U128(100));
-        assert_eq!(receive(&mut c, "synthetic-stock.testnet", "attacker.testnet", 100, "collateral", 20), U128(100));
-        assert_eq!(receive(&mut c, "synthetic-stock.testnet", "writer.testnet", 99, "collateral", 20), U128(99));
-        assert_eq!(receive(&mut c, "synthetic-stock.testnet", "writer.testnet", 100, "collateral", 20), U128(0));
+        assert_eq!(
+            receive(
+                &mut c,
+                "wrong-token.testnet",
+                "writer.testnet",
+                100,
+                "collateral",
+                20
+            ),
+            U128(100)
+        );
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-stock.testnet",
+                "attacker.testnet",
+                100,
+                "collateral",
+                20
+            ),
+            U128(100)
+        );
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-stock.testnet",
+                "writer.testnet",
+                99,
+                "collateral",
+                20
+            ),
+            U128(99)
+        );
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-stock.testnet",
+                "writer.testnet",
+                100,
+                "collateral",
+                20
+            ),
+            U128(0)
+        );
         assert_eq!(c.get_position(0).state, EscrowState::CollateralLocked);
     }
 
     #[test]
     fn rejects_duplicate_collateral_deposit() {
         let mut c = setup(10);
-        assert_eq!(receive(&mut c, "synthetic-stock.testnet", "writer.testnet", 100, "collateral", 20), U128(0));
-        assert_eq!(receive(&mut c, "synthetic-stock.testnet", "writer.testnet", 100, "collateral", 20), U128(100));
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-stock.testnet",
+                "writer.testnet",
+                100,
+                "collateral",
+                20
+            ),
+            U128(0)
+        );
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-stock.testnet",
+                "writer.testnet",
+                100,
+                "collateral",
+                20
+            ),
+            U128(100)
+        );
     }
 
     #[test]
     fn exercise_payment_requires_holder_exact_token_amount_and_maturity() {
         let mut c = setup(10);
-        assert_eq!(receive(&mut c, "synthetic-stock.testnet", "writer.testnet", 100, "collateral", 20), U128(0));
-        assert_eq!(receive(&mut c, "synthetic-usdc.testnet", "holder.testnet", 500, "exercise_payment", 999), U128(500));
-        assert_eq!(receive(&mut c, "synthetic-usdc.testnet", "holder.testnet", 500, "exercise_payment", 1_000), U128(0));
-        assert_eq!(c.get_position(0).state, EscrowState::ExercisePaymentReceived);
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-stock.testnet",
+                "writer.testnet",
+                100,
+                "collateral",
+                20
+            ),
+            U128(0)
+        );
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-usdc.testnet",
+                "holder.testnet",
+                500,
+                "exercise_payment",
+                999
+            ),
+            U128(500)
+        );
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-usdc.testnet",
+                "holder.testnet",
+                500,
+                "exercise_payment",
+                1_000
+            ),
+            U128(0)
+        );
+        assert_eq!(
+            c.get_position(0).state,
+            EscrowState::ExercisePaymentReceived
+        );
     }
 
     #[test]
     fn exercise_payment_rejects_wrong_sender_and_wrong_amount() {
         let mut c = setup(10);
-        assert_eq!(receive(&mut c, "synthetic-stock.testnet", "writer.testnet", 100, "collateral", 20), U128(0));
-        assert_eq!(receive(&mut c, "synthetic-usdc.testnet", "attacker.testnet", 500, "exercise_payment", 1_000), U128(500));
-        assert_eq!(receive(&mut c, "synthetic-usdc.testnet", "holder.testnet", 499, "exercise_payment", 1_000), U128(499));
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-stock.testnet",
+                "writer.testnet",
+                100,
+                "collateral",
+                20
+            ),
+            U128(0)
+        );
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-usdc.testnet",
+                "attacker.testnet",
+                500,
+                "exercise_payment",
+                1_000
+            ),
+            U128(500)
+        );
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-usdc.testnet",
+                "holder.testnet",
+                499,
+                "exercise_payment",
+                1_000
+            ),
+            U128(499)
+        );
     }
 
     #[test]
     fn rejects_collateral_after_maturity() {
         let mut c = setup(10);
-        assert_eq!(receive(&mut c, "synthetic-stock.testnet", "writer.testnet", 100, "collateral", 1_000), U128(100));
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-stock.testnet",
+                "writer.testnet",
+                100,
+                "collateral",
+                1_000
+            ),
+            U128(100)
+        );
     }
 
     #[test]
     fn expired_collateral_cannot_be_released_during_grace_period() {
         let mut c = setup(10);
-        assert_eq!(receive(&mut c, "synthetic-stock.testnet", "writer.testnet", 100, "collateral", 20), U128(0));
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-stock.testnet",
+                "writer.testnet",
+                100,
+                "collateral",
+                20
+            ),
+            U128(0)
+        );
         let context = VMContextBuilder::new()
             .current_account_id(account("escrow.testnet"))
             .predecessor_account_id(account("writer.testnet"))
             .block_timestamp(1_000 + EXERCISE_GRACE_NS)
             .build();
         testing_env!(context);
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.release_expired_collateral(0)));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.release_expired_collateral(0)
+        }));
         assert!(result.is_err());
     }
 
     #[test]
     fn exercise_payment_cannot_be_replayed() {
         let mut c = setup(10);
-        assert_eq!(receive(&mut c, "synthetic-stock.testnet", "writer.testnet", 100, "collateral", 20), U128(0));
-        assert_eq!(receive(&mut c, "synthetic-usdc.testnet", "holder.testnet", 500, "exercise_payment", 1_000), U128(0));
-        assert_eq!(receive(&mut c, "synthetic-usdc.testnet", "holder.testnet", 500, "exercise_payment", 1_001), U128(500));
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-stock.testnet",
+                "writer.testnet",
+                100,
+                "collateral",
+                20
+            ),
+            U128(0)
+        );
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-usdc.testnet",
+                "holder.testnet",
+                500,
+                "exercise_payment",
+                1_000
+            ),
+            U128(0)
+        );
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-usdc.testnet",
+                "holder.testnet",
+                500,
+                "exercise_payment",
+                1_001
+            ),
+            U128(500)
+        );
     }
 }
