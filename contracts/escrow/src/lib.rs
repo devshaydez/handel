@@ -172,13 +172,10 @@ impl EscrowContract {
         let attached = env::attached_deposit().as_yoctonear();
         assert!(attached >= required_deposit, "insufficient position storage deposit");
         let mut position = self.position(id);
-        position.storage_deposit = required_deposit;
+        // Retain the full attached amount as this record's storage reserve.
+        // Excess is not refunded until a separately audited archival path exists.
+        position.storage_deposit = attached;
         self.positions.insert(id, position);
-        let refund = attached - required_deposit;
-        if refund > 0 {
-            Promise::new(env::predecessor_account_id())
-                .transfer(NearToken::from_yoctonear(refund));
-        }
         id
     }
 
