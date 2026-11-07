@@ -43,6 +43,7 @@ Tidepool can be evaluated as an optional integration harness using its own clear
 - Sequential payout callbacks track partial success; only a failed payout leg can be retried. This is not atomic settlement.
 - Added escrow unit tests and workspace CI coverage. See `docs/ESCROW_TESTNET_PROTOTYPE.md`.
 - The prototype is not connected to OptionsContract and is not ready for deployment; persistent storage, storage staking, integration and recovery review remain open.
+- Fresh workspace CI passed at `1cd2a2d481b8fd8b32ad51d321ff97717a4e19e8`: escrow tests 8/8, OptionsContract tests 19/19, Rust formatting, Wasm workspace build, SDK build, 3 SDK tests, and offline lifecycle demo. This validates compilation and unit paths only, not deployment or live token transfers.
 
 ## Remaining blockers
 

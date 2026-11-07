@@ -18,7 +18,7 @@ If no exercise payment is received, the writer may reclaim collateral only after
 - Each position binds writer, holder, collateral token, collateral amount, payment token, payment amount and expiry.
 - NEP-141 receiver accepts only the exact token contract, expected sender, exact amount and valid state.
 - Duplicate deposits and wrong-token/wrong-sender/wrong-amount deposits are rejected by returning the full amount as unused.
-- Exercise payment is accepted only from the holder at/after maturity and through the grace deadline.
+- Exercise payment is accepted only from the holder at/after maturity and through the grace deadline; the acceptance timestamp is stored so a holder can finish settlement after the grace period has elapsed.
 - Expiry release is blocked during the exercise grace period.
 - Outbound transfers use fixed recipients and amounts; retries are restricted to the one failed payout leg.
 
@@ -30,7 +30,7 @@ If no exercise payment is received, the writer may reclaim collateral only after
 - Two outgoing transfers are not atomic. The callbacks and retry state make partial success visible and recoverable, but cannot guarantee the counterparty's economic cooperation or reverse a completed transfer.
 - A failed callback caused by exhausted callback gas could leave a payout marked pending. Operational monitoring and a separately reviewed recovery procedure are required.
 - Token accounts must have registered the escrow and the fixed payout recipients under NEP-145 before transfers can succeed.
-- Pause blocks new deposits and exercise initiation, but does not block failed-payout retries or expiry refunds.
+- Pause blocks new deposits and new position registration. It does not block failed-payout retries or expiry refunds, and it does not trap an exercise payment already accepted during the valid window: that exercise can still enter settlement while paused or after the grace deadline.
 - The prototype does not yet implement NEP-245 multi-token deposits, cryptographic external-chain proofs, Tidepool, or an Ondo bridge.
 
 Do not deploy this contract until the test suite and Wasm build pass, persistent storage and recovery behavior are reviewed, and a separate integration review verifies controller authorization and the exact synthetic-token setup.
