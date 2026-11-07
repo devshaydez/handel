@@ -331,7 +331,7 @@ impl OptionsContract {
         };
         let position_id = operation.position_id;
         let kind = operation.kind;
-        self.operations.insert(evidence.operation_id, operation);
+        self.operations.insert(evidence.operation_id.clone(), operation);
         self.apply_reconciliation(position_id, kind, &evidence.operation_id, succeeded);
     }
 
