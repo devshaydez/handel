@@ -60,5 +60,8 @@ jobs:
       - name: Build SDK
         run: npm run build
 
+      - name: Run SDK unit tests
+        run: npm test
+
       - name: Run offline lifecycle demo
         run: npm run lifecycle
