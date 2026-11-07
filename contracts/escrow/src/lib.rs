@@ -52,6 +52,7 @@ pub struct EscrowPosition {
     pub state: EscrowState,
     pub collateral_received: bool,
     pub exercise_payment_received: bool,
+    pub exercise_payment_received_at_ns: Option<u64>,
     pub payment_paid: bool,
     pub collateral_paid: bool,
     pub failed_payout: Option<FailedPayout>,
@@ -419,6 +420,7 @@ impl FungibleTokenReceiver for EscrowContract {
                     false
                 } else {
                     position.exercise_payment_received = true;
+                    position.exercise_payment_received_at_ns = Some(env::block_timestamp());
                     position.state = EscrowState::ExercisePaymentReceived;
                     true
                 }
