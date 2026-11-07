@@ -37,6 +37,10 @@ Exercise payout retries are allowed only when the escrow's private callback exec
 
 The exercise payment callback is allocated 30 Tgas because it schedules the collateral transfer and its callback. This reduces the risk of exhausting the callback's prepaid gas while scheduling the second leg; it does not eliminate all callback-failure scenarios. Exercise delivery to the holder and expiry return to the writer are tracked separately.
 
+## Persistent storage status
+
+Escrow positions now use NEAR's storage-backed `LookupMap`, avoiding repeated serialization of the entire position index. Position records still consume NEAR storage stake. This prototype does not yet collect per-position storage deposits or implement storage refunds; the escrow account must be adequately funded, and a proper storage-staking policy plus Sandbox gas benchmarks remain required before any real-asset use.
+
 ## European exercise window
 
 Exercise is blocked before maturity. The holder can submit exercise from expiry_ns through a 24-hour transaction-submission grace period. Writer expiry release is blocked until that grace period has elapsed. This corrects the earlier early-exercise behavior. The grace period is an operational submission window, not American-style early exercise.
