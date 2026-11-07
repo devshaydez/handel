@@ -1,12 +1,14 @@
 /**
- * Offline lifecycle demo — shows the exact sequence a judge (or you) follows.
- * Does NOT send transactions. Prints the payloads and contract calls.
+ * Offline lifecycle proposal demo.
  *
- * Run: npx tsx src/lifecycle-demo.ts
+ * This prints contract-compatible call arguments and mock Intents payloads.
+ * It does not submit transactions or move assets.
+ *
+ * Run from sdk/: npm run lifecycle
  */
 
 import { NVDAON_ASSET_ID, USDC_ASSET_ID, INTENTS_VERIFIER } from "./assets.js";
-import { stubProposal, proposalToCreateArgs } from "./proposal.js";
+import { stubProposal, proposalToAgentProposalArgs } from "./proposal.js";
 import {
   buildCollateralLockIntent,
   buildPremiumIntent,
@@ -15,9 +17,9 @@ import {
 import { validateProposal } from "./policy.js";
 import type { AgentPermission } from "./types.js";
 
-const WRITER = "writer.near";
-const BUYER = "buyer.near";
-const AGENT = "agent.near";
+const WRITER = "writer.testnet";
+const BUYER = "buyer.testnet";
+const AGENT = "agent.testnet";
 
 const permission: AgentPermission = {
   agent: AGENT,
@@ -31,9 +33,8 @@ const permission: AgentPermission = {
   enabled: true,
 };
 
-console.log("=== Handel Options — Lifecycle Demo (offline) ===\n");
+console.log("=== Handel Options — Offline Testnet Lifecycle Proposal ===\n");
 
-// 1. AI proposal
 const proposal = stubProposal({
   underlyingAssetId: NVDAON_ASSET_ID,
   type: "Call",
@@ -42,43 +43,42 @@ const proposal = stubProposal({
   premium: "5000000",
   daysToExpiry: 7,
 });
-console.log("1. AI Proposal");
+
+console.log("1. Deterministic AI fallback proposal");
 console.log(JSON.stringify(proposal, null, 2));
 
 const policy = validateProposal(proposal, permission, { requireAgent: true });
-console.log("\n2. Policy check", policy.ok ? "PASS" : "FAIL", policy);
-
+console.log("\n2. Local policy pre-check", policy.ok ? "PASS" : "FAIL", policy);
 if (!policy.ok) process.exit(1);
 
-const create = proposalToCreateArgs(proposal, permission, WRITER);
+const create = proposalToAgentProposalArgs(proposal, BUYER, permission);
 if (!create.ok) {
   console.error(create.errors);
   process.exit(1);
 }
-console.log("\n3. create_position args");
-console.log(JSON.stringify(create.args, null, 2));
 
-// 4. Collateral lock intent (writer signs with full-access key)
+console.log("\n3. Contract-compatible create_agent_proposal call");
+console.log(JSON.stringify({ method: create.method, args: create.args }, null, 2));
+console.log("\n4. Principal must call approve_agent_proposal({ proposal_id }) before collateral can be locked.");
+
 const collateralPayload = buildCollateralLockIntent(
   WRITER,
-  INTENTS_VERIFIER, // in real flow: escrow or verifier internal balance
+  INTENTS_VERIFIER,
   NVDAON_ASSET_ID,
   proposal.quantity
 );
-console.log("\n4. Collateral lock NEP-413 payload (writer signs)");
+console.log("\n5. Illustrative collateral intent payload (mock only; not submitted)");
 console.log(JSON.stringify(collateralPayload, null, 2));
 
-// 5. Premium intent
 const premiumPayload = buildPremiumIntent(
   BUYER,
   WRITER,
   USDC_ASSET_ID,
   proposal.premium
 );
-console.log("\n5. Premium payment NEP-413 payload (buyer signs)");
+console.log("\n6. Illustrative premium intent payload (mock only; not submitted)");
 console.log(JSON.stringify(premiumPayload, null, 2));
 
-// 6. Settlement intents after exercise
 const settlement = buildCallSettlementIntents(
   BUYER,
   WRITER,
@@ -87,20 +87,20 @@ const settlement = buildCallSettlementIntents(
   proposal.quantity,
   proposal.strike
 );
-console.log("\n6. Call settlement payloads");
-console.log("Holder pays strike USDC:");
-console.log(JSON.stringify(settlement.holderPayload, null, 2));
-console.log("Writer delivers underlying:");
-console.log(JSON.stringify(settlement.writerPayload, null, 2));
+console.log("\n7. Illustrative call settlement payloads (mock only; not submitted)");
+console.log("Holder pays strike USDC:", JSON.stringify(settlement.holderPayload, null, 2));
+console.log("Writer delivers underlying:", JSON.stringify(settlement.writerPayload, null, 2));
 
 console.log(`
-=== Contract call sequence (after intents land) ===
-1. create_position(...)           → status Created
-2. confirm_collateral_locked(id)  → status CollateralLocked
-3. open_position(id, buyer)       → status Open
-4. exercise(id, op_id)            → status PendingSettlement
-5. confirm_settlement(id)         → status Settled
+=== Contract lifecycle methods ===
+1. create_agent_proposal(args)       → PendingCollateral + PendingApproval
+2. approve_agent_proposal(id)        → Approved
+3. begin_collateral_lock(id, op_id)  → PendingCollateralReconciliation
+4. reconcile_operation(evidence)    → CollateralLocked
+5. begin_premium_payment(id, op_id) → PendingPremium
+6. reconcile_operation(evidence)    → Open
+7. exercise(id, payment_id, delivery_id) → PendingSettlement
+8. reconcile both legs              → Settled
 
-Agent can be revoked any time:
-  revoke_agent({ agent: "${AGENT}" })
+Testnet limitation: the NEAR Intents legs above are mock payloads, not live settlement.
 `);
