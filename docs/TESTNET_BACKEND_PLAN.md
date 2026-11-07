@@ -2,37 +2,48 @@
 
 ## Agreed scope
 
-- NEAR contract development and deployment target: NEAR Testnet only.
+- NEAR contract development and demo target: NEAR Testnet only.
 - No mainnet deployment, signing, custody, or real-fund operation.
-- Backend-first. The frontend/UI is intentionally deferred until the user supplies their existing UI for integration.
-- AI proposals must work immediately through a deterministic local fallback. A NEAR AI Cloud provider adapter can be added later without making the provider authoritative.
-- Never commit wallet keys, seed phrases, private keys, or API credentials.
+- Backend first; defer the frontend until the user supplies their existing UI.
+- Deterministic local AI proposal fallback now; add NEAR AI Cloud adapter later when the user has access.
+- Never request or commit wallet secrets or API credentials.
 
-## Important Intents boundary
+## Intents boundary
 
-The hackathon's supplied rules state that NEAR Intents has no testnet and that Intents integration is mainnet-only. Therefore a NEAR Testnet contract demo can prove contract lifecycle and policy enforcement, but it cannot honestly be described as a live NEAR Intents settlement demo. Keep the Intents boundary behind an adapter and use a clearly labelled mock/reconciliation harness for testnet. Do not request mainnet credentials or initiate a mainnet transaction.
+The hackathon rules state that NEAR Intents has no testnet. A NEAR Testnet contract can demonstrate policy and lifecycle state, but Intents payloads must remain mock/illustrative. Do not claim live Intents settlement and do not initiate mainnet transactions.
 
-## Implementation sequence
+## Implementation status
 
-1. Contract foundations: explicit deployer ownership, secure admin configuration, initialization, storage/state model, and tests.
-2. Custody and settlement model: document who holds each asset, what transfer path is authoritative, proof/finality assumptions, partial-failure recovery, and withdrawal rules before implementing value movement.
-3. SDK alignment: make TypeScript types, method names, operation IDs, and lifecycle states match the Rust contract.
-4. Backend services: deterministic AI proposal fallback, strict schema validation, policy evaluation, audit trail, operation tracking, and reconciliation adapter.
-5. Adversarial testing: unauthorized callers, replay, wrong asset/amount/recipient, pause/revocation, expiry, duplicate receipts, partial settlement, and failed transfer recovery.
-6. Testnet release: reproducible build/deploy/call instructions, public testnet contract address and transaction evidence after the user creates and controls a testnet account.
+### Completed in the work branch
 
-## Current work branch
+- Added explicit contract owner initialized from the initializer's predecessor account.
+- Added `get_owner` and owner-authorized `transfer_ownership`.
+- Admin checks now compare the caller with the stored owner.
+- Added ownership initialization/transfer authorization unit test.
+- Removed unused payable annotation from expiry release.
+- Added GitHub Actions workflow for Rust formatting, Rust unit tests, Wasm build, SDK build, SDK tests, and offline lifecycle demo.
+- Aligned TypeScript lifecycle states with Rust `PositionState` values.
+- Replaced invalid SDK `create_position` argument builder with builders for actual Rust methods: `create_call`, `create_put`, and approval-gated `create_agent_proposal`.
+- Updated offline lifecycle demo to use real method names and clearly label Intents payloads as mock.
+- Added SDK unit tests for contract argument mapping and invalid-asset rejection.
 
-work/testnet-backend-hardening, based on feat/handel-archive-core.
+### Not yet verified
 
-## Current verified changes
+- No successful CI result has been observed in this session.
+- Rust formatting, unit tests, and Wasm build have not been run locally.
+- SDK TypeScript build/tests have not been run locally.
+- Do not claim any test passes until the workflow reports success.
 
-- Contract now stores the initializer's predecessor account as owner.
-- Added get_owner and owner-authorized transfer_ownership.
-- Admin checks compare against stored owner rather than the contract account itself.
-- Unit test added for initialization, unauthorized admin calls, and ownership transfer.
-- Removed the unused payable annotation from expiry release.
+## Remaining blockers
 
-## Not yet verified
+1. **Custody and settlement:** define where collateral is held, who can release it, and what constitutes independently authenticated transfer proof. Current trusted reconciler is a trust root, not a cryptographic verifier.
+2. **Partial settlement recovery:** a successful exercise leg followed by a failed leg currently enters `ReconciliationRequired`; a reviewed retry/compensation/recovery path is still needed.
+3. **Asset metadata:** verify registry IDs and decimals at runtime/configuration boundaries; do not rely on hard-coded assumptions.
+4. **Storage:** assess replacing in-memory `BTreeMap` state with NEAR persistent collections before deployment.
+5. **Testnet deployment:** fix/review account setup and deployment workflow; only deploy after CI and security blockers are addressed.
+6. **AI service:** keep deterministic fallback, add schema validation/audit records, and integrate a provider only after the user has API access.
+7. **UI integration:** wait for the user's existing UI; do not replace it.
 
-The GitHub edits have not been compiled or tested in a local Rust/NEAR toolchain in this session. Do not deploy until cargo fmt -- --check, cargo test --lib, and a Wasm build pass. The custody/reconciliation architecture remains a blocker before any real asset transfer.
+## Current branch
+
+`work/testnet-backend-hardening`, based on `feat/handel-archive-core`. Keep `main` untouched until the work is reviewed and the user approves a merge.
