@@ -1444,6 +1444,34 @@ mod tests {
             c.get_position(id).unwrap().state,
             PositionState::ReconciliationRequired
         );
+
+        context("holder.testnet");
+        c.retry_exercise_payment(id, "pay-f-retry".into());
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::PendingSettlement
+        );
+        context("reconciler.testnet");
+        c.reconcile_operation(evidence(
+            "pay-f-retry",
+            OptionsContract::usdc_asset_id_for_test(),
+            1_500,
+            "holder.testnet",
+            "writer.testnet",
+            EvidenceOutcome::Completed,
+        ));
+        c.reconcile_operation(evidence(
+            "deliver-f",
+            "nep141:stock.testnet".into(),
+            42,
+            "writer.testnet",
+            "holder.testnet",
+            EvidenceOutcome::Completed,
+        ));
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::Settled
+        );
     }
 
     #[test]
