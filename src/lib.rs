@@ -497,10 +497,7 @@ impl OptionsContract {
             now >= position.expiry_ns,
             "European option cannot be exercised before maturity"
         );
-        assert!(
-            now <= exercise_deadline_ns,
-            "exercise window closed"
-        );
+        assert!(now <= exercise_deadline_ns, "exercise window closed");
         assert_ne!(
             payment_operation_id, delivery_operation_id,
             "operation ids must differ"
