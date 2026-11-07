@@ -143,12 +143,12 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
     let controller = worker.dev_create_account().await?;
     let escrow = deploy(
         &worker,
-        "target/wasm32-unknown-unknown/release/handel_escrow.wasm",
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/wasm32-unknown-unknown/release/handel_escrow.wasm"),
     )
     .await?;
     let stock = deploy(
         &worker,
-        "target/wasm32-unknown-unknown/release/handel_mock_ft.wasm",
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/wasm32-unknown-unknown/release/handel_mock_ft.wasm"),
     )
     .await?;
     let usdc = deploy(
