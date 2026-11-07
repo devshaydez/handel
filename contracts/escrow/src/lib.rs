@@ -1,6 +1,6 @@
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_sdk::{
-    env, ext_contract, json_types::U128, near, near_bindgen, serde::Deserialize, AccountId,
+    env, ext_contract, json_types::U128, near, serde::Deserialize, AccountId,
     Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, PromiseResult,
 };
 use std::collections::BTreeMap;
@@ -74,7 +74,7 @@ trait ExtFungibleToken {
 
 #[ext_contract(ext_self)]
 trait ExtEscrow {
-    fn on_payment_payout(&mut self, position_id: u64) -> bool;
+    fn on_payment_payout(&mut self, position_id: u64) -> PromiseOrValue<bool>;
     fn on_collateral_payout(&mut self, position_id: u64) -> bool;
     fn on_expiry_payout(&mut self, position_id: u64) -> bool;
 }
@@ -222,21 +222,22 @@ impl EscrowContract {
     }
 
     #[private]
-    pub fn on_payment_payout(&mut self, position_id: u64) -> bool {
+    pub fn on_payment_payout(&mut self, position_id: u64) -> PromiseOrValue<bool> {
         let mut position = self.position(position_id);
         assert_eq!(position.state, EscrowState::PaymentPayoutPending, "unexpected callback");
         if Self::promise_succeeded() {
             position.payment_paid = true;
             position.state = EscrowState::CollateralPayoutPending;
             self.positions.insert(position_id, position.clone());
-            Self::transfer(position.collateral_token, position.holder, position.collateral_amount)
-                .then(ext_self::ext(env::current_account_id()).with_static_gas(CALLBACK_GAS).on_collateral_payout(position_id));
-            true
+            PromiseOrValue::Promise(
+                Self::transfer(position.collateral_token, position.holder, position.collateral_amount)
+                    .then(ext_self::ext(env::current_account_id()).with_static_gas(CALLBACK_GAS).on_collateral_payout(position_id)),
+            )
         } else {
             position.state = EscrowState::ReconciliationRequired;
             position.failed_payout = Some(FailedPayout::ExercisePayment);
             self.positions.insert(position_id, position);
-            false
+            PromiseOrValue::Value(false)
         }
     }
 

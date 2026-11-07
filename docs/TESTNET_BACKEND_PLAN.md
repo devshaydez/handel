@@ -33,8 +33,16 @@ Tidepool can be evaluated as an optional integration harness using its own clear
 ### Validation
 
 - Latest successful push and PR workflows before the European maturity change passed Rust formatting, 18 Rust tests, Wasm release build, SDK build, 3 SDK tests, and offline lifecycle demo.
-- The European maturity change and its new tests require a fresh CI run; do not treat the previous green run as validation of those latest changes.
+- The European maturity change was validated by the successful push and PR workflows at commit `b3e98329fdc3231713a4fe737ed5c58941a0e55b` (19 Rust tests, Wasm release build, SDK build, 3 SDK tests, offline lifecycle demo). The isolated escrow prototype is a new change and must pass its own workspace CI before it is considered validated.
 - No mainnet deployment or real asset transfer has been performed.
+
+### Escrow prototype added
+
+- Added a separate `contracts/escrow` NEP-141 receiver contract for synthetic Testnet assets.
+- Exact per-position writer collateral and holder exercise-payment deposits are checked against immutable token, sender, amount and time terms.
+- Sequential payout callbacks track partial success; only a failed payout leg can be retried. This is not atomic settlement.
+- Added escrow unit tests and workspace CI coverage. See `docs/ESCROW_TESTNET_PROTOTYPE.md`.
+- The prototype is not connected to OptionsContract and is not ready for deployment; persistent storage, storage staking, integration and recovery review remain open.
 
 ## Remaining blockers
 
