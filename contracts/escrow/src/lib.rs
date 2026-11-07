@@ -2,7 +2,7 @@ use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_sdk::{
     borsh::BorshSerialize, env, ext_contract, json_types::U128, near, serde::Deserialize,
     store::LookupMap, AccountId, BorshStorageKey, Gas, NearToken, PanicOnDefault, Promise,
-    PromiseOrValue, PromiseResult,
+    PromiseError, PromiseOrValue,
 };
 
 const EXERCISE_GRACE_NS: u64 = 24 * 60 * 60 * 1_000_000_000;
@@ -498,10 +498,15 @@ impl EscrowContract {
     }
 
     fn promise_succeeded() -> bool {
-        matches!(
-            env::promise_result_checked(0),
-            Ok(PromiseResult::Successful(_))
-        )
+        match env::promise_result_checked(0, 1_024) {
+            Ok(_) => true,
+            Err(PromiseError::Failed) => false,
+            // An oversized result is ambiguous: do not classify it as a failed
+            // transfer, because retrying could duplicate a successful payout.
+            Err(PromiseError::TooLong(_)) => {
+                env::panic_str("payout result too large; reconciliation required")
+            }
+        }
     }
 
     fn transfer(token: AccountId, receiver: AccountId, amount: u128) -> Promise {
