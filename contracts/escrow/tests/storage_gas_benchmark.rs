@@ -22,8 +22,7 @@ async fn benchmark_position_creation_gas_at_increasing_cardinalities() -> anyhow
         .await?
         .into_result()?;
 
-    let expiry =
-        worker.view_block().await?.header().timestamp_nanosec() + 86_400_000_000_000;
+    let expiry = worker.view_block().await?.header().timestamp_nanosec() + 86_400_000_000_000;
     for index in 1..=100u64 {
         let result = controller
             .call(escrow.id(), "create_position")
