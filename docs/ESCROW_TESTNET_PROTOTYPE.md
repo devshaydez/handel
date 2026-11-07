@@ -12,7 +12,7 @@ The escrow pays the holder's exercise payment to the writer first, then pays col
 
 If no exercise payment is received, the writer may reclaim collateral only after maturity plus the 24-hour transaction-submission grace period. Expiry return also uses an asynchronous transfer and callback.
 
-## Security properties tested
+## Implemented checks and current unit-test coverage
 
 - Only the configured OptionsContract controller can register positions.
 - Each position binds writer, holder, collateral token, collateral amount, payment token, payment amount and expiry.
@@ -22,13 +22,15 @@ If no exercise payment is received, the writer may reclaim collateral only after
 - Expiry release is blocked during the exercise grace period.
 - Outbound transfers use fixed recipients and amounts; retries are restricted to the one failed payout leg.
 
+The 8 escrow unit tests currently cover exact/wrong-token collateral, wrong sender and amount, duplicate collateral, pre-maturity exercise-payment rejection, valid maturity payment, late collateral rejection, grace-period expiry-release blocking, exercise-payment replay rejection, and completion of an already-accepted exercise while paused and after the grace deadline. The callback failure/retry branches are implemented but are **not yet covered by end-to-end cross-contract tests**.
+
 ## Explicit limitations / integration gates
 
 - Test only with synthetic NEP-141 tokens. No production assets, Ondo identifiers, or mainnet.
 - The escrow uses in-memory maps for this isolated prototype. Persistent storage collections, storage staking, and state migration must be implemented before any deployment with material value.
 - The OptionsContract controller is a trust boundary. The current OptionsContract does not yet call this escrow or prove its position terms.
 - Two outgoing transfers are not atomic. The callbacks and retry state make partial success visible and recoverable, but cannot guarantee the counterparty's economic cooperation or reverse a completed transfer.
-- A failed callback caused by exhausted callback gas could leave a payout marked pending. Operational monitoring and a separately reviewed recovery procedure are required.
+- Callback failure/retry behavior still needs near-workspaces integration tests against a mock NEP-141 token, including successful first-leg/failed second-leg, failed first-leg, callback replay and token-account registration errors. A callback that itself runs out of gas could leave a payout marked pending; operational monitoring and a separately reviewed recovery procedure are required.
 - Token accounts must have registered the escrow and the fixed payout recipients under NEP-145 before transfers can succeed.
 - Pause blocks new deposits and new position registration. It does not block failed-payout retries or expiry refunds, and it does not trap an exercise payment already accepted during the valid window: that exercise can still enter settlement while paused or after the grace deadline.
 - The prototype does not yet implement NEP-245 multi-token deposits, cryptographic external-chain proofs, Tidepool, or an Ondo bridge.
