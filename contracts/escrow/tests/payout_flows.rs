@@ -186,7 +186,7 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
     mint(&root, &stock, writer.id(), 200).await?;
     mint(&root, &usdc, holder.id(), 100).await?;
 
-    let now = worker.view_block().await?.header().timestamp_nanosec;
+    let now = worker.view_block().await?.header().timestamp_nanosec();
     let expiry = now + 30_000_000_000;
     let first = make_position(
         &controller,
