@@ -159,7 +159,10 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
     .await?;
     let usdc = deploy(
         &worker,
-        "target/wasm32-unknown-unknown/release/handel_mock_ft.wasm",
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../target/wasm32-unknown-unknown/release/handel_mock_ft.wasm"
+        ),
     )
     .await?;
 
