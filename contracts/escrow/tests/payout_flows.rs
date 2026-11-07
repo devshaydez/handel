@@ -18,6 +18,7 @@ async fn call_json<T: serde::de::DeserializeOwned>(
     let result = account
         .call(contract.id(), method)
         .args_json(args)
+        .deposit(NearToken::from_near(1))
         .transact()
         .await?;
     Ok(result.json()?)
