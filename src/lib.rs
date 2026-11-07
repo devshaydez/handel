@@ -147,6 +147,7 @@ pub struct AgentProposal {
 #[near(contract_state)]
 #[derive(PanicOnDefault)]
 pub struct OptionsContract {
+    owner: AccountId,
     next_id: u64,
     positions: BTreeMap<u64, OptionPosition>,
     asset_registry: BTreeMap<String, AssetMetadata>,
@@ -163,6 +164,7 @@ impl OptionsContract {
     #[init]
     pub fn new() -> Self {
         Self {
+            owner: env::predecessor_account_id(),
             next_id: 0,
             positions: BTreeMap::new(),
             asset_registry: BTreeMap::new(),
@@ -264,6 +266,17 @@ impl OptionsContract {
 
     /// Configure the identity allowed to submit independently verified transfer receipts.
     /// Must be a dedicated service account, not an end-user controlled key.
+    pub fn get_owner(&self) -> AccountId {
+        self.owner.clone()
+    }
+
+    /// Transfer contract administration to another account.
+    pub fn transfer_ownership(&mut self, new_owner: AccountId) {
+        self.assert_owner();
+        assert_ne!(new_owner, self.owner, "new owner must differ");
+        self.owner = new_owner;
+    }
+
     pub fn set_trusted_reconciler(&mut self, reconciler: AccountId) {
         self.assert_owner();
         assert_ne!(reconciler, env::current_account_id(), "invalid reconciler");
@@ -925,11 +938,7 @@ impl OptionsContract {
     }
 
     fn assert_owner(&self) {
-        assert_eq!(
-            env::predecessor_account_id(),
-            env::current_account_id(),
-            "owner only"
-        );
+        assert_eq!(env::predecessor_account_id(), self.owner, "owner only");
     }
 }
 
@@ -953,7 +962,7 @@ mod tests {
     }
 
     fn contract() -> OptionsContract {
-        context("handel.testnet");
+        context("owner.testnet");
         let mut c = OptionsContract::new();
         c.set_asset("nep141:stock.testnet".into(), 18, true);
         c.set_asset(OptionsContract::usdc_asset_id(), 6, true);
@@ -992,7 +1001,7 @@ mod tests {
     }
 
     fn authorize_reconciler(c: &mut OptionsContract) {
-        context("handel.testnet");
+        context("owner.testnet");
         c.set_trusted_reconciler(account("reconciler.testnet"));
     }
 
