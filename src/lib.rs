@@ -332,7 +332,7 @@ impl OptionsContract {
         let position_id = operation.position_id;
         let kind = operation.kind;
         self.operations.insert(evidence.operation_id, operation);
-        self.apply_reconciliation(position_id, kind, succeeded);
+        self.apply_reconciliation(position_id, kind, &evidence.operation_id, succeeded);
     }
 
     /// Starts premium payment only after collateral is reconciled successfully.
@@ -424,6 +424,104 @@ impl OptionsContract {
         p.exercise_delivery_operation_id = Some(delivery_operation_id);
         p.exercised_at_ns = Some(env::block_timestamp());
         p.state = PositionState::PendingSettlement;
+    }
+
+    /// Retry a failed holder-side exercise payment with a fresh operation ID.
+    /// This remains available while paused because it reduces an existing settlement risk.
+    pub fn retry_exercise_payment(&mut self, position_id: u64, new_operation_id: String) {
+        let position = self.position(position_id);
+        assert_eq!(
+            env::predecessor_account_id(),
+            position.holder,
+            "holder only"
+        );
+        assert_eq!(
+            position.state,
+            PositionState::ReconciliationRequired,
+            "position does not require reconciliation"
+        );
+        let previous_id = position
+            .exercise_payment_operation_id
+            .clone()
+            .expect("payment operation missing");
+        let previous = self.operations.get(&previous_id).expect("operation missing");
+        assert!(
+            matches!(previous.kind, OperationKind::ExercisePayment),
+            "wrong operation kind"
+        );
+        assert_eq!(
+            previous.state,
+            OperationState::Failed,
+            "payment operation is not failed"
+        );
+
+        let (asset_id, amount) = match position.kind {
+            OptionKind::Call => (Self::usdc_asset_id(), position.strike_amount_usdc),
+            OptionKind::Put => (position.asset_id.clone(), position.underlying_amount),
+        };
+        self.begin_operation(
+            new_operation_id.clone(),
+            position_id,
+            OperationKind::ExercisePayment,
+            asset_id,
+            amount,
+            position.holder.clone(),
+            position.writer.clone(),
+        );
+        self.positions
+            .get_mut(&position_id)
+            .unwrap()
+            .exercise_payment_operation_id = Some(new_operation_id);
+        self.refresh_exercise_state(position_id);
+    }
+
+    /// Retry a failed writer-side exercise delivery with a fresh operation ID.
+    /// This remains available while paused because it reduces an existing settlement risk.
+    pub fn retry_exercise_delivery(&mut self, position_id: u64, new_operation_id: String) {
+        let position = self.position(position_id);
+        assert_eq!(
+            env::predecessor_account_id(),
+            position.writer,
+            "writer only"
+        );
+        assert_eq!(
+            position.state,
+            PositionState::ReconciliationRequired,
+            "position does not require reconciliation"
+        );
+        let previous_id = position
+            .exercise_delivery_operation_id
+            .clone()
+            .expect("delivery operation missing");
+        let previous = self.operations.get(&previous_id).expect("operation missing");
+        assert!(
+            matches!(previous.kind, OperationKind::ExerciseDelivery),
+            "wrong operation kind"
+        );
+        assert_eq!(
+            previous.state,
+            OperationState::Failed,
+            "delivery operation is not failed"
+        );
+
+        let (asset_id, amount) = match position.kind {
+            OptionKind::Call => (position.asset_id.clone(), position.underlying_amount),
+            OptionKind::Put => (Self::usdc_asset_id(), position.strike_amount_usdc),
+        };
+        self.begin_operation(
+            new_operation_id.clone(),
+            position_id,
+            OperationKind::ExerciseDelivery,
+            asset_id,
+            amount,
+            position.writer.clone(),
+            position.holder.clone(),
+        );
+        self.positions
+            .get_mut(&position_id)
+            .unwrap()
+            .exercise_delivery_operation_id = Some(new_operation_id);
+        self.refresh_exercise_state(position_id);
     }
 
     pub fn request_expiry_release(&mut self, position_id: u64, operation_id: String) {
@@ -826,75 +924,146 @@ impl OptionsContract {
         );
     }
 
-    fn apply_reconciliation(&mut self, position_id: u64, kind: OperationKind, succeeded: bool) {
-        let payment_done = self
+    fn apply_reconciliation(
+        &mut self,
+        position_id: u64,
+        kind: OperationKind,
+        operation_id: &str,
+        succeeded: bool,
+    ) {
+        let payment_state = self
             .positions
             .get(&position_id)
             .and_then(|p| p.exercise_payment_operation_id.as_ref())
             .and_then(|id| self.operations.get(id))
-            .is_some_and(|op| op.state == OperationState::Succeeded);
-        let delivery_done = self
+            .map(|op| op.state);
+        let delivery_state = self
             .positions
             .get(&position_id)
             .and_then(|p| p.exercise_delivery_operation_id.as_ref())
             .and_then(|id| self.operations.get(id))
-            .is_some_and(|op| op.state == OperationState::Succeeded);
+            .map(|op| op.state);
+
         let position = self
             .positions
             .get_mut(&position_id)
             .expect("position missing");
-        match (kind, succeeded) {
-            (OperationKind::LockCollateral, true) => {
+        match kind {
+            OperationKind::LockCollateral => {
+                assert_eq!(
+                    position.collateral_operation_id.as_deref(),
+                    Some(operation_id),
+                    "stale collateral operation"
+                );
                 assert_eq!(
                     position.state,
                     PositionState::PendingCollateralReconciliation
                 );
-                position.state = PositionState::CollateralLocked;
+                position.state = if succeeded {
+                    PositionState::CollateralLocked
+                } else {
+                    PositionState::ReconciliationRequired
+                };
             }
-            (OperationKind::LockCollateral, false) => {
+            OperationKind::PayPremium => {
                 assert_eq!(
-                    position.state,
-                    PositionState::PendingCollateralReconciliation
+                    position.premium_operation_id.as_deref(),
+                    Some(operation_id),
+                    "stale premium operation"
                 );
-                position.state = PositionState::ReconciliationRequired;
-            }
-            (OperationKind::PayPremium, true) => {
                 assert_eq!(position.state, PositionState::PendingPremium);
-                position.state = PositionState::Open;
+                position.state = if succeeded {
+                    PositionState::Open
+                } else {
+                    PositionState::ReconciliationRequired
+                };
             }
-            (OperationKind::PayPremium, false) => {
-                assert_eq!(position.state, PositionState::PendingPremium);
-                position.state = PositionState::ReconciliationRequired;
+            OperationKind::ExercisePayment | OperationKind::ExerciseDelivery => {
+                assert!(
+                    matches!(
+                        position.state,
+                        PositionState::PendingSettlement | PositionState::ReconciliationRequired
+                    ),
+                    "position is not awaiting exercise reconciliation"
+                );
+                let current_operation_id = match kind {
+                    OperationKind::ExercisePayment => {
+                        position.exercise_payment_operation_id.as_deref()
+                    }
+                    OperationKind::ExerciseDelivery => {
+                        position.exercise_delivery_operation_id.as_deref()
+                    }
+                    _ => unreachable!(),
+                };
+                assert_eq!(
+                    current_operation_id,
+                    Some(operation_id),
+                    "stale exercise operation"
+                );
+
+                position.state = match (payment_state, delivery_state) {
+                    (Some(OperationState::Succeeded), Some(OperationState::Succeeded)) => {
+                        PositionState::Settled
+                    }
+                    (
+                        Some(OperationState::Failed | OperationState::ReconciliationRequired),
+                        _,
+                    )
+                    | (
+                        _,
+                        Some(OperationState::Failed | OperationState::ReconciliationRequired),
+                    ) => PositionState::ReconciliationRequired,
+                    _ => PositionState::PendingSettlement,
+                };
             }
-            (OperationKind::ExercisePayment, true) => {
-                assert_eq!(position.state, PositionState::PendingSettlement);
-                if delivery_done {
-                    position.state = PositionState::Settled;
-                }
-            }
-            (OperationKind::ExercisePayment, false) => {
-                assert_eq!(position.state, PositionState::PendingSettlement);
-                position.state = PositionState::ReconciliationRequired;
-            }
-            (OperationKind::ExerciseDelivery, false) => {
-                assert_eq!(position.state, PositionState::PendingSettlement);
-                position.state = PositionState::ReconciliationRequired;
-            }
-            (OperationKind::ExerciseDelivery, true) => {
-                assert_eq!(position.state, PositionState::PendingSettlement);
-                if payment_done {
-                    position.state = PositionState::Settled;
-                }
-            }
-            (OperationKind::ExpiryRelease, true) => {
+            OperationKind::ExpiryRelease => {
+                assert_eq!(
+                    position.expiry_release_operation_id.as_deref(),
+                    Some(operation_id),
+                    "stale expiry operation"
+                );
                 assert_eq!(position.state, PositionState::PendingExpiry);
-                position.state = PositionState::Expired;
-            }
-            (OperationKind::ExpiryRelease, false) => {
-                assert_eq!(position.state, PositionState::PendingExpiry);
-                position.state = PositionState::ReconciliationRequired;
+                position.state = if succeeded {
+                    PositionState::Expired
+                } else {
+                    PositionState::ReconciliationRequired
+                };
             }
         }
+    }
+
+    fn refresh_exercise_state(&mut self, position_id: u64) {
+        let payment_state = self
+            .positions
+            .get(&position_id)
+            .and_then(|p| p.exercise_payment_operation_id.as_ref())
+            .and_then(|id| self.operations.get(id))
+            .map(|op| op.state);
+        let delivery_state = self
+            .positions
+            .get(&position_id)
+            .and_then(|p| p.exercise_delivery_operation_id.as_ref())
+            .and_then(|id| self.operations.get(id))
+            .map(|op| op.state);
+
+        let state = match (payment_state, delivery_state) {
+            (Some(OperationState::Succeeded), Some(OperationState::Succeeded)) => {
+                PositionState::Settled
+            }
+            (
+                Some(OperationState::Failed | OperationState::ReconciliationRequired),
+                _,
+            )
+            | (
+                _,
+                Some(OperationState::Failed | OperationState::ReconciliationRequired),
+            ) => PositionState::ReconciliationRequired,
+            _ => PositionState::PendingSettlement,
+        };
+        self.positions
+            .get_mut(&position_id)
+            .expect("position missing")
+            .state = state;
     }
 
     fn position(&self, position_id: u64) -> OptionPosition {
@@ -1451,6 +1620,144 @@ mod tests {
             c.begin_collateral_lock(id2, "lock-0".to_string())
         }))
         .is_err());
+    }
+
+    #[test]
+    fn failed_exercise_leg_can_be_retried_after_other_leg_succeeds() {
+        let mut c = contract();
+        let id = create_call(&mut c);
+        authorize_reconciler(&mut c);
+        let lock = lock_call(&mut c, id);
+        reconcile_call(&mut c, &lock);
+
+        context("holder.testnet");
+        c.begin_premium_payment(id, "premium-retry".into());
+        context("reconciler.testnet");
+        c.reconcile_operation(evidence(
+            "premium-retry",
+            OptionsContract::usdc_asset_id_for_test(),
+            75,
+            "holder.testnet",
+            "writer.testnet",
+            EvidenceOutcome::Completed,
+        ));
+
+        context("holder.testnet");
+        c.exercise(id, "payment-retry".into(), "delivery-failed".into());
+        context("reconciler.testnet");
+        c.reconcile_operation(evidence(
+            "payment-retry",
+            OptionsContract::usdc_asset_id_for_test(),
+            1_500,
+            "holder.testnet",
+            "writer.testnet",
+            EvidenceOutcome::Completed,
+        ));
+        c.reconcile_operation(evidence(
+            "delivery-failed",
+            "nep141:stock.testnet".into(),
+            42,
+            "writer.testnet",
+            "holder.testnet",
+            EvidenceOutcome::Failed,
+        ));
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::ReconciliationRequired
+        );
+
+        context("writer.testnet");
+        c.retry_exercise_delivery(id, "delivery-retry-2".into());
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::PendingSettlement
+        );
+        context("reconciler.testnet");
+        c.reconcile_operation(evidence(
+            "delivery-retry-2",
+            "nep141:stock.testnet".into(),
+            42,
+            "writer.testnet",
+            "holder.testnet",
+            EvidenceOutcome::Completed,
+        ));
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::Settled
+        );
+        assert_eq!(
+            c.get_operation("delivery-failed".into()).unwrap().state,
+            OperationState::Failed
+        );
+        assert_eq!(
+            c.get_operation("delivery-retry-2".into()).unwrap().state,
+            OperationState::Succeeded
+        );
+    }
+
+    #[test]
+    fn late_success_of_other_exercise_leg_does_not_panic_after_failure() {
+        let mut c = contract();
+        let id = create_call(&mut c);
+        authorize_reconciler(&mut c);
+        let lock = lock_call(&mut c, id);
+        reconcile_call(&mut c, &lock);
+
+        context("holder.testnet");
+        c.begin_premium_payment(id, "premium-late".into());
+        context("reconciler.testnet");
+        c.reconcile_operation(evidence(
+            "premium-late",
+            OptionsContract::usdc_asset_id_for_test(),
+            75,
+            "holder.testnet",
+            "writer.testnet",
+            EvidenceOutcome::Completed,
+        ));
+
+        context("holder.testnet");
+        c.exercise(id, "payment-late".into(), "delivery-late".into());
+        context("reconciler.testnet");
+        c.reconcile_operation(evidence(
+            "delivery-late",
+            "nep141:stock.testnet".into(),
+            42,
+            "writer.testnet",
+            "holder.testnet",
+            EvidenceOutcome::Failed,
+        ));
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::ReconciliationRequired
+        );
+
+        c.reconcile_operation(evidence(
+            "payment-late",
+            OptionsContract::usdc_asset_id_for_test(),
+            1_500,
+            "holder.testnet",
+            "writer.testnet",
+            EvidenceOutcome::Completed,
+        ));
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::ReconciliationRequired
+        );
+        context("writer.testnet");
+        c.retry_exercise_delivery(id, "delivery-late-retry".into());
+        context("reconciler.testnet");
+        c.reconcile_operation(evidence(
+            "delivery-late-retry",
+            "nep141:stock.testnet".into(),
+            42,
+            "writer.testnet",
+            "holder.testnet",
+            EvidenceOutcome::Completed,
+        ));
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::Settled
+        );
     }
 
     impl OptionsContract {
