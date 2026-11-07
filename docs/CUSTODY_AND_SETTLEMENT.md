@@ -39,7 +39,7 @@ The exercise payment callback is allocated 30 Tgas because it schedules the coll
 
 ## Persistent storage status
 
-Escrow positions now use NEAR's storage-backed `LookupMap`, avoiding repeated serialization of the entire position index. Position creation requires the controller to attach a NEAR storage deposit calculated from the actual storage-byte increase; excess deposit is refunded, and the required stake is recorded with the position. Stake remains committed while the record is retained; pruning and stake refunds are not implemented. Sandbox gas benchmarks at realistic position counts remain required before any real-asset use.
+Escrow positions now use NEAR's storage-backed `LookupMap`, avoiding repeated serialization of the entire position index. Position creation requires the controller to attach a NEAR storage deposit calculated against the actual storage-byte increase; the full attached amount is recorded as the position's storage reserve. Excess is retained rather than refunded because pruning and stake refunds are not implemented. Sandbox gas benchmarks at realistic position counts remain required before any real-asset use.
 
 ## European exercise window
 
