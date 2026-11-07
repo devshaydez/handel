@@ -25,7 +25,7 @@ pub enum PositionState {
 }
 
 #[near(serializers = [json, borsh])]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum OperationKind {
     LockCollateral,
     PayPremium,
