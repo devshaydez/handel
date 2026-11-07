@@ -286,94 +286,11 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
     assert_eq!(balance(&root, &stock, holder.id()).await?, 200);
 
     // A callback replay from an ordinary account must be rejected.
-
-    // A callback replay from an ordinary account must be rejected.
     let replay = holder
         .call(escrow.id(), "on_collateral_payout")
         .args_json(json!({"position_id": second}))
         .transact()
         .await?;
-    assert!(replay.is_failure());
-
-    Ok(())
-use near_sdk::{
-    env, ext_contract, json_types::U128, near, AccountId, Gas, NearToken, PanicOnDefault, Promise,
-    PromiseOrValue, PromiseResult,
-};
-use std::collections::BTreeMap;
-
-
-#[ext_contract(ext_receiver)]
-trait ExtReceiver {
-    fn ft_on_transfer(
-        &mut self,
-        sender_id: AccountId,
-        amount: U128,
-        msg: String,
-    ) -> PromiseOrValue<U128>;
-}
-
-#[ext_contract(ext_self)]
-        self.assert_owner();
-        self.balances.entry(account_id.clone()).or_insert(0);
-        let balance = self.balances.get(&account_id).copied().unwrap_or(0);
-        self.balances.insert(
-            account_id,
-            balance.checked_add(amount.0).expect("balance overflow"),
-        );
-        self.total_supply = self
-            .total_supply
-            .checked_add(amount.0)
-            .expect("supply overflow");
-    }
-
-    pub fn set_paused(&mut self, paused: bool) {
-
-    pub fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, _memo: Option<String>) {
-        self.assert_transferable();
-        assert_eq!(
-            env::attached_deposit(),
-            NearToken::from_yoctonear(1),
-            "one yocto required"
-        );
-        let sender_id = env::predecessor_account_id();
-        self.internal_transfer(&sender_id, &receiver_id, amount.0);
-    }
-        msg: String,
-    ) -> PromiseOrValue<U128> {
-        self.assert_transferable();
-        assert_eq!(
-            env::attached_deposit(),
-            NearToken::from_yoctonear(1),
-            "one yocto required"
-        );
-        let sender_id = env::predecessor_account_id();
-        self.internal_transfer(&sender_id, &receiver_id, amount.0);
-        ext_receiver::ext(receiver_id.clone())
-
-    fn internal_transfer(&mut self, sender: &AccountId, receiver: &AccountId, amount: u128) {
-        assert_ne!(sender, receiver, "self transfer");
-        let sender_balance = self
-            .balances
-            .get(sender)
-            .copied()
-            .expect("sender not registered");
-        let receiver_balance = self
-            .balances
-            .get(receiver)
-            .copied()
-            .expect("receiver not registered");
-        assert!(sender_balance >= amount, "insufficient balance");
-        self.balances
-            .insert(sender.clone(), sender_balance - amount);
-        self.balances.insert(
-            receiver.clone(),
-            receiver_balance
-                .checked_add(amount)
-                .expect("balance overflow"),
-        );
-    }
-}
     assert!(replay.is_failure());
 
     Ok(())
