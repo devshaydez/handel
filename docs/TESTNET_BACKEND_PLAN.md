@@ -2,54 +2,51 @@
 
 ## Agreed scope
 
-- NEAR contract development and demo target: NEAR Testnet only.
-- No mainnet deployment, signing, custody, or real-fund operation.
+- NEAR contract development and demo target: NEAR Testnet.
+- No mainnet deployment, real-asset custody, or real-fund operation.
 - Backend first; defer the frontend until the user supplies their existing UI.
 - Deterministic local AI proposal fallback now; add NEAR AI Cloud adapter later when the user has access.
 - Never request or commit wallet secrets or API credentials.
 
-## Intents boundary
+## Intents/Testnet boundary
 
-The hackathon rules state that NEAR Intents has no testnet. A NEAR Testnet contract can demonstrate policy and lifecycle state, but Intents payloads must remain mock/illustrative. Do not claim live Intents settlement and do not initiate mainnet transactions.
+The hackathon materials describe no official NEAR Intents Testnet. A community-operated sandbox called Tidepool now advertises a Testnet deployment of the official, unmodified Intents verifier and a 1Click-compatible API. It is not affiliated with NEAR/1Click and uses a single maker. Its published token list does not include Handel's BNB-chain Ondo assets; the ondoTokens query is documented as ignored.
+
+Tidepool can be evaluated as an optional integration harness using its own clearly labelled test assets. It does not make the current Ondo asset IDs usable on Testnet and does not replace the offline mock. See docs/SETTLEMENT_ARCHITECTURE.md.
 
 ## Implementation status
 
 ### Completed in the work branch
 
-- Added explicit contract owner initialized from the initializer's predecessor account.
-- Added `get_owner` and owner-authorized `transfer_ownership`.
-- Admin checks now compare the caller with the stored owner.
-- Added ownership initialization/transfer authorization unit test.
-- Removed unused payable annotation from expiry release.
-- Added GitHub Actions workflow for Rust formatting, Rust unit tests, Wasm build, SDK build, SDK tests, and offline lifecycle demo.
-- Aligned TypeScript lifecycle states with Rust `PositionState` values.
-- Replaced invalid SDK `create_position` argument builder with builders for actual Rust methods: `create_call`, `create_put`, and approval-gated `create_agent_proposal`.
-- Updated offline lifecycle demo to use real method names and clearly label Intents payloads as mock.
-- Added SDK unit tests for contract argument mapping and invalid-asset rejection.
-- Added retry methods for failed collateral locks (writer-only) and failed premium payments (holder-only), in addition to exercise payment/delivery retries. Each retry requires a fresh operation ID and a definitively failed prior operation.
-- Agent policies now include `max_collateral_usdc`; agent-created put proposals are rejected when strike collateral exceeds that limit.
-- Reconciliation checks that receipts refer to the current operation IDs and derives exercise settlement state from both current operation states.
-- Added Rust tests for collateral retry, premium retry, caller authorization, operation-ID replay rejection, and the put collateral cap, alongside exercise-leg retry and late-receipt tests.
-- Added PowerShell and Bash deployment scripts that build from the repository root and explicitly target NEAR Testnet; they require an existing contract account and do not create keys/accounts.
-- Added `docs/CUSTODY_AND_SETTLEMENT.md` to distinguish simulated Testnet state from real custody, document future escrow/proof models, and define release gates.
+- Explicit contract owner initialized from the initializer's predecessor account, with owner-authorized transfer.
+- Owner authorization for administrative methods and pause state.
+- GitHub Actions for Rust formatting, contract tests, Wasm build, SDK build/tests, and offline lifecycle demo.
+- SDK lifecycle states and call builders aligned with the Rust contract methods.
+- Deterministic local proposal fallback and SDK argument-mapping tests.
+- Writer-only collateral retry and holder-only premium retry after definitive failure, with fresh operation IDs and pause checks.
+- Exercise payment/delivery retry paths and late-receipt handling.
+- Agent policy includes max_collateral_usdc and rejects put proposals above the cap.
+- European exercise timing: no exercise before maturity, a 24-hour transaction-submission grace period, and expiry release only after that grace period.
+- Testnet deployment scripts explicitly target Testnet and do not create accounts or keys.
+- Custody, settlement, Tidepool compatibility, proof requirements and release gates documented in docs/SETTLEMENT_ARCHITECTURE.md.
 
-### Not yet verified
+### Validation
 
-- No successful CI result has been observed in this session.
-- Rust formatting, unit tests, and Wasm build have not been run locally.
-- SDK TypeScript build/tests have not been run locally.
-- Do not claim any test passes until the workflow reports success.
+- Latest successful push and PR workflows before the European maturity change passed Rust formatting, 18 Rust tests, Wasm release build, SDK build, 3 SDK tests, and offline lifecycle demo.
+- The European maturity change and its new tests require a fresh CI run; do not treat the previous green run as validation of those latest changes.
+- No mainnet deployment or real asset transfer has been performed.
 
 ## Remaining blockers
 
-1. **Custody and settlement:** define where collateral is held, who can release it, and what constitutes independently authenticated transfer proof. Current trusted reconciler is a trust root, not a cryptographic verifier.
-2. **Economic recovery:** retrying a failed leg does not compensate a transfer that has already irreversibly succeeded if the counterparty never completes the other leg. Define timeout, arbitration, refund/compensation, and user-disclosure rules.
-3. **Asset metadata:** verify registry IDs and decimals at runtime/configuration boundaries; do not rely on hard-coded assumptions.
-5. **Storage:** assess replacing in-memory `BTreeMap` state with NEAR persistent collections before deployment.
-6. **Testnet deployment:** fix/review account setup and deployment workflow; only deploy after CI and security blockers are addressed.
-7. **AI service:** keep deterministic fallback, add schema validation/audit records, and integrate a provider only after the user has API access.
+1. **Custody:** no per-position escrow/reservation currently holds collateral.
+2. **Settlement:** two external transfers are not atomic; use a verified atomic verifier exchange or implement an enforceable escrow with explicit recovery/compensation.
+3. **Proofs:** the trusted reconciler remains a trust root; no cryptographic remote-event verifier is implemented.
+4. **Asset support:** exact Ondo token representations, decimals, verifier support and bridge routes must be verified.
+5. **Storage:** assess replacing in-memory BTreeMap state with NEAR persistent collections before deployment.
+6. **Testnet adapter:** optionally validate Tidepool using only its own test tokens; do not claim Ondo coverage.
+7. **AI service:** keep deterministic fallback, add schema validation/audit records, and integrate a provider only after API access is available.
 8. **UI integration:** wait for the user's existing UI; do not replace it.
 
 ## Current branch
 
-`work/testnet-backend-hardening`, based on `feat/handel-archive-core`. Keep `main` untouched until the work is reviewed and the user approves a merge.
+work/testnet-backend-hardening, based on feat/handel-archive-core. Keep main untouched until the work is reviewed and the user approves a merge.
