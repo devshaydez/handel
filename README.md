@@ -53,6 +53,8 @@ GitHub Actions runs Rust formatting, Rust unit tests, the Wasm build, SDK compil
 
 ## Security and deployment boundary
 
+See [`docs/CUSTODY_AND_SETTLEMENT.md`](docs/CUSTODY_AND_SETTLEMENT.md) for the explicit Testnet simulation boundary, custody models, partial-settlement risks, and release gates.
+
 The contract checks reconciliation caller, operation ID, asset, amount, sender, and receiver. It does not independently prove that an external NEAR Intents or verifier event occurred. The configured reconciler is a trust root. Retryable exercise-leg recovery is implemented, but it does not solve economic compensation if one transfer is irreversible and the counter-transfer cannot be completed. Authenticated proof verification, custody authority, and finality/reorg handling remain unresolved. Do not use real assets or deploy for production.
 
 The contract has not yet been confirmed by a successful CI run in this work session. Do not deploy until the GitHub Actions checks pass and the custody/reconciliation design has been reviewed.
