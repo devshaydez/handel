@@ -26,9 +26,10 @@ The hackathon rules state that NEAR Intents has no testnet. A NEAR Testnet contr
 - Replaced invalid SDK `create_position` argument builder with builders for actual Rust methods: `create_call`, `create_put`, and approval-gated `create_agent_proposal`.
 - Updated offline lifecycle demo to use real method names and clearly label Intents payloads as mock.
 - Added SDK unit tests for contract argument mapping and invalid-asset rejection.
-- Added retry methods for failed exercise payment/delivery legs, guarded by the correct party and fresh operation IDs.
-- Reconciliation now accepts the other in-flight exercise leg after a failure, checks that receipts refer to the current operation IDs, and derives settlement state from both current operation states.
-- Added Rust tests for retry after one leg fails and for a late successful receipt after the position enters `ReconciliationRequired`.
+- Added retry methods for failed collateral locks (writer-only) and failed premium payments (holder-only), in addition to exercise payment/delivery retries. Each retry requires a fresh operation ID and a definitively failed prior operation.
+- Agent policies now include `max_collateral_usdc`; agent-created put proposals are rejected when strike collateral exceeds that limit.
+- Reconciliation checks that receipts refer to the current operation IDs and derives exercise settlement state from both current operation states.
+- Added Rust tests for collateral retry, premium retry, caller authorization, operation-ID replay rejection, and the put collateral cap, alongside exercise-leg retry and late-receipt tests.
 - Added PowerShell and Bash deployment scripts that build from the repository root and explicitly target NEAR Testnet; they require an existing contract account and do not create keys/accounts.
 - Added `docs/CUSTODY_AND_SETTLEMENT.md` to distinguish simulated Testnet state from real custody, document future escrow/proof models, and define release gates.
 
