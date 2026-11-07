@@ -33,7 +33,9 @@ The Testnet state machine exposes:
 
 Both use fresh operation IDs, preserve the original operation record, reject replay, and respect the pause flag. They do not authorize timeout-based retries or automatic release.
 
-Exercise payment/delivery retries are also party-restricted and use fresh IDs. They help recover from transient failures but do not reverse an irreversible successful leg or guarantee compensation if the other leg never completes.
+Exercise payout retries are allowed only when the escrow's private callback executed and recorded a definitive token-transfer failure. If the callback receipt itself fails or never executes, the payout remains pending. The contract cannot safely infer the outcome from a pooled NEP-141 balance or retry without risking a duplicate payment. Do not retry or release funds based only on a timeout, missing indexer event, or operator assertion. A future recovery path requires independently verifiable receipt/proof support and a separately audited state transition.
+
+The exercise payment callback is allocated 30 Tgas because it schedules the collateral transfer and its callback. This reduces the risk of exhausting the callback's prepaid gas while scheduling the second leg; it does not eliminate all callback-failure scenarios. Exercise delivery to the holder and expiry return to the writer are tracked separately.
 
 ## European exercise window
 
