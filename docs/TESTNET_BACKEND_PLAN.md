@@ -30,6 +30,7 @@ The hackathon rules state that NEAR Intents has no testnet. A NEAR Testnet contr
 - Reconciliation now accepts the other in-flight exercise leg after a failure, checks that receipts refer to the current operation IDs, and derives settlement state from both current operation states.
 - Added Rust tests for retry after one leg fails and for a late successful receipt after the position enters `ReconciliationRequired`.
 - Added PowerShell and Bash deployment scripts that build from the repository root and explicitly target NEAR Testnet; they require an existing contract account and do not create keys/accounts.
+- Added `docs/CUSTODY_AND_SETTLEMENT.md` to distinguish simulated Testnet state from real custody, document future escrow/proof models, and define release gates.
 
 ### Not yet verified
 
