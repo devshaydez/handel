@@ -82,6 +82,7 @@ impl MockFt {
         U128(self.total_supply)
     }
 
+    #[payable]
     pub fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, _memo: Option<String>) {
         self.assert_transferable();
         assert_eq!(

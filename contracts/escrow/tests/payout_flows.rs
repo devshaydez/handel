@@ -187,7 +187,7 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
     mint(&root, &usdc, holder.id(), 100).await?;
 
     let now = worker.view_block().await?.header.timestamp_nanosec;
-    let expiry = now + 1;
+    let expiry = now + 30_000_000_000;
     let first = make_position(
         &controller,
         &escrow,
@@ -199,7 +199,7 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
     )
     .await?;
     transfer_call(&writer, &stock, &escrow, first, "collateral", 100).await?;
-    worker.fast_forward(5).await?;
+    worker.fast_forward(40).await?;
     transfer_call(&holder, &usdc, &escrow, first, "exercise_payment", 50).await?;
 
     // Failure case 1: payment leg fails. Retry it; collateral must then pay exactly once.
@@ -249,6 +249,7 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
     )
     .await?;
     transfer_call(&writer, &stock, &escrow, second, "collateral", 100).await?;
+    worker.fast_forward(40).await?;
     transfer_call(&holder, &usdc, &escrow, second, "exercise_payment", 50).await?;
     root.call(stock.id(), "set_paused")
         .args_json(json!({"paused": true}))
