@@ -10,9 +10,11 @@ Handel is a NEAR Testnet backend prototype for fully collateralized European-sty
 - Frontend work is intentionally deferred until the user supplies their UI.
 - Development and demo target: NEAR Testnet only. No mainnet deployment, signatures, custody, or real funds.
 
-## Critical NEAR Intents limitation
+## NEAR Intents and Testnet boundary
 
-The hackathon rules state that NEAR Intents has no testnet. Therefore this repository can demonstrate the contract lifecycle on NEAR Testnet, but its Intents payloads are illustrative/mock only. Do not describe the demo as live Intents settlement. The current reconciler is a trusted service boundary, not a cryptographic proof verifier.
+There is no official NEAR Intents Testnet in the hackathon materials. A community-operated sandbox, Tidepool, now advertises an Intents verifier deployment and 1Click-compatible Testnet API. It is not affiliated with NEAR/1Click, uses a single maker, and its published token list does not include Handel's BNB-chain Ondo assets. Tidepool may be used for isolated test-token integration experiments; it does not prove Ondo collateral support.
+
+The default demo remains offline/mock. Do not describe it as live Intents settlement. The current reconciler is a trusted service boundary, not a cryptographic proof verifier.
 
 ## Build and test
 
@@ -49,12 +51,12 @@ GitHub Actions runs Rust formatting, Rust unit tests, the Wasm build, SDK compil
 - Collateral: `begin_collateral_lock`, then trusted-reconciler evidence through `reconcile_operation`. A definitively failed lock can be retried by the writer with `retry_collateral_lock`.
 - Premium: `begin_premium_payment`, then reconciliation. A definitively failed payment can be retried by the holder with `retry_premium_payment`; collateral must already be confirmed.
 - Agent policy: configure `max_collateral_usdc` as well as underlying and premium limits; put proposals are rejected when their strike collateral exceeds this cap.
-- Exercise: `exercise` creates separate payment and delivery operations; both must reconcile successfully before `Settled`. If a leg fails, the relevant party can retry it with a fresh operation ID using `retry_exercise_payment` or `retry_exercise_delivery`; the other leg may still reconcile while the position is in `ReconciliationRequired`.
-- Expiry: `request_expiry_release` creates an external release operation; this is not a native token transfer by the contract.
+- Exercise: `exercise` is blocked before maturity and may be submitted during the 24-hour post-maturity transaction grace period. It creates separate payment and delivery operations; both must reconcile successfully before `Settled`. If a leg fails, the relevant party can retry it with a fresh operation ID using `retry_exercise_payment` or `retry_exercise_delivery`.
+- Expiry: `request_expiry_release` is available only after the exercise grace period and creates an external release operation; this is not a native token transfer by the contract.
 
 ## Security and deployment boundary
 
-See [`docs/CUSTODY_AND_SETTLEMENT.md`](docs/CUSTODY_AND_SETTLEMENT.md) for the explicit Testnet simulation boundary, custody models, partial-settlement risks, and release gates.
+See [`docs/CUSTODY_AND_SETTLEMENT.md`](docs/CUSTODY_AND_SETTLEMENT.md) and [`docs/SETTLEMENT_ARCHITECTURE.md`](docs/SETTLEMENT_ARCHITECTURE.md) for the Testnet boundary, Tidepool compatibility, custody architecture, partial-settlement risks, maturity rules, and release gates.
 
 The contract checks reconciliation caller, operation ID, asset, amount, sender, and receiver. It does not independently prove that an external NEAR Intents or verifier event occurred. The configured reconciler is a trust root. Retryable exercise-leg recovery is implemented, but it does not solve economic compensation if one transfer is irreversible and the counter-transfer cannot be completed. Authenticated proof verification, custody authority, and finality/reorg handling remain unresolved. Do not use real assets or deploy for production.
 
