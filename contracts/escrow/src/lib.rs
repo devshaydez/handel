@@ -7,6 +7,9 @@ use std::collections::BTreeMap;
 
 const EXERCISE_GRACE_NS: u64 = 24 * 60 * 60 * 1_000_000_000;
 const FT_TRANSFER_GAS: Gas = Gas::from_tgas(10);
+// The payment callback schedules the collateral transfer and its callback.
+// Reserve enough prepaid gas for both downstream receipts plus callback work.
+const PAYMENT_CALLBACK_GAS: Gas = Gas::from_tgas(30);
 const CALLBACK_GAS: Gas = Gas::from_tgas(10);
 
 #[derive(Deserialize)]
@@ -54,7 +57,8 @@ pub struct EscrowPosition {
     pub exercise_payment_received: bool,
     pub exercise_payment_received_at_ns: Option<u64>,
     pub payment_paid: bool,
-    pub collateral_paid: bool,
+    pub collateral_delivered_to_holder: bool,
+    pub collateral_returned_to_writer: bool,
     pub failed_payout: Option<FailedPayout>,
 }
 
@@ -145,7 +149,8 @@ impl EscrowContract {
                 exercise_payment_received: false,
                 exercise_payment_received_at_ns: None,
                 payment_paid: false,
-                collateral_paid: false,
+                collateral_delivered_to_holder: false,
+                collateral_returned_to_writer: false,
                 failed_payout: None,
             },
         );
@@ -188,12 +193,13 @@ impl EscrowContract {
         )
         .then(
             ext_self::ext(env::current_account_id())
-                .with_static_gas(CALLBACK_GAS)
+                .with_static_gas(PAYMENT_CALLBACK_GAS)
                 .on_payment_payout(position_id),
         )
     }
 
-    /// Anyone may retry a definitively failed payout: destinations and amounts are immutable.
+    /// Anyone may retry only a payout whose transfer callback definitively recorded failure.
+    /// A missing callback remains pending: retrying it could duplicate a successful transfer.
     /// A successful leg is never repeated.
     pub fn retry_failed_payout(&mut self, position_id: u64) -> Promise {
         let mut position = self.position(position_id);
@@ -222,7 +228,10 @@ impl EscrowContract {
             }
             FailedPayout::ExerciseCollateral => {
                 assert!(position.payment_paid, "payment leg not confirmed");
-                assert!(!position.collateral_paid, "collateral already paid");
+                assert!(
+                    !position.collateral_delivered_to_holder,
+                    "collateral already delivered to holder"
+                );
                 position.state = EscrowState::CollateralPayoutPending;
                 self.positions.insert(position_id, position.clone());
                 Self::transfer(
@@ -237,7 +246,10 @@ impl EscrowContract {
                 )
             }
             FailedPayout::ExpiryCollateral => {
-                assert!(!position.collateral_paid, "collateral already returned");
+                assert!(
+                    !position.collateral_returned_to_writer,
+                    "collateral already returned to writer"
+                );
                 position.state = EscrowState::ExpiryPayoutPending;
                 self.positions.insert(position_id, position.clone());
                 Self::transfer(
@@ -297,6 +309,9 @@ impl EscrowContract {
         self.position(position_id)
     }
 
+    // This callback has a larger gas budget because it schedules the second transfer
+    // and its callback. If this receipt itself fails, state remains pending by design;
+    // no automatic retry is safe without independently proving the first transfer outcome.
     #[private]
     pub fn on_payment_payout(&mut self, position_id: u64) -> PromiseOrValue<bool> {
         let mut position = self.position(position_id);
@@ -338,7 +353,7 @@ impl EscrowContract {
             "unexpected callback"
         );
         if Self::promise_succeeded() {
-            position.collateral_paid = true;
+            position.collateral_delivered_to_holder = true;
             position.state = EscrowState::Settled;
             self.positions.insert(position_id, position);
             true
@@ -359,7 +374,7 @@ impl EscrowContract {
             "unexpected callback"
         );
         if Self::promise_succeeded() {
-            position.collateral_paid = true;
+            position.collateral_returned_to_writer = true;
             position.state = EscrowState::Expired;
             self.positions.insert(position_id, position);
             true
@@ -805,4 +820,23 @@ mod tests {
             U128(500)
         );
     }
+    #[test]
+    fn payout_still_pending_cannot_be_retried_without_a_definitive_failure() {
+        let mut c = setup(10);
+        let mut position = c.position(0);
+        position.state = EscrowState::PaymentPayoutPending;
+        c.positions.insert(0, position);
+        let context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("writer.testnet"))
+            .block_timestamp(2_000)
+            .build();
+        testing_env!(context);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.retry_failed_payout(0)
+        }));
+        assert!(result.is_err());
+        assert_eq!(c.get_position(0).state, EscrowState::PaymentPayoutPending);
+    }
+
 }
