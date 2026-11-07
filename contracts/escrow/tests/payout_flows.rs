@@ -161,7 +161,7 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
         &worker,
         concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../target/near/handel_mock_ft.wasm"
+            "/../../target/near/handel_mock_ft/handel_mock_ft.wasm"
         ),
     )
     .await?;
