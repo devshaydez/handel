@@ -497,7 +497,10 @@ impl OptionsContract {
             .exercise_delivery_operation_id
             .clone()
             .expect("delivery operation missing");
-        let previous = self.operations.get(&previous_id).expect("operation missing");
+        let previous = self
+            .operations
+            .get(&previous_id)
+            .expect("operation missing");
         assert!(
             matches!(previous.kind, OperationKind::ExerciseDelivery),
             "wrong operation kind"
@@ -1702,10 +1705,7 @@ mod tests {
             "holder.testnet",
             EvidenceOutcome::Completed,
         ));
-        assert_eq!(
-            c.get_position(id).unwrap().state,
-            PositionState::Settled
-        );
+        assert_eq!(c.get_position(id).unwrap().state, PositionState::Settled);
         assert_eq!(
             c.get_operation("delivery-failed".into()).unwrap().state,
             OperationState::Failed
@@ -1775,10 +1775,7 @@ mod tests {
             "holder.testnet",
             EvidenceOutcome::Completed,
         ));
-        assert_eq!(
-            c.get_position(id).unwrap().state,
-            PositionState::Settled
-        );
+        assert_eq!(c.get_position(id).unwrap().state, PositionState::Settled);
     }
 
     impl OptionsContract {
