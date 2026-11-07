@@ -846,6 +846,7 @@ mod tests {
             U128(500)
         );
     }
+
     #[test]
     fn payout_still_pending_cannot_be_retried_without_a_definitive_failure() {
         let mut c = setup(10);
