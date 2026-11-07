@@ -170,7 +170,10 @@ impl EscrowContract {
             .checked_mul(env::storage_byte_cost().as_yoctonear())
             .expect("storage deposit overflow");
         let attached = env::attached_deposit().as_yoctonear();
-        assert!(attached >= required_deposit, "insufficient position storage deposit");
+        assert!(
+            attached >= required_deposit,
+            "insufficient position storage deposit"
+        );
         let mut position = self.position(id);
         // Retain the full attached amount as this record's storage reserve.
         // Excess is not refunded until a separately audited archival path exists.
@@ -887,4 +890,5 @@ mod tests {
         assert_eq!(c.get_position(64).id, 64);
         assert_eq!(c.get_position(128).id, 128);
         assert_eq!(c.get_position(128).state, EscrowState::AwaitingCollateral);
-    }}
+    }
+}
