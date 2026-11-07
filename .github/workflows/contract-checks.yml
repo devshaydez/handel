@@ -1,4 +1,4 @@
-name: Rust contract checks
+name: Handel backend checks
 
 on:
   push:
@@ -8,13 +8,14 @@ on:
     branches:
       - main
       - work/testnet-backend-hardening
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   contract:
-    name: Format, unit tests, and Wasm build
+    name: Rust format, unit tests, and Wasm build
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -37,3 +38,29 @@ jobs:
 
       - name: Build contract Wasm
         run: cargo build --target wasm32-unknown-unknown --release
+
+  sdk:
+    name: TypeScript SDK build and offline demo
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: sdk/package-lock.json
+
+      - name: Install SDK dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build SDK
+        run: npm run build
+
+      - name: Run offline lifecycle demo
+        run: npm run lifecycle
