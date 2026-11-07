@@ -1,6 +1,10 @@
 use near_sdk::{env, near, AccountId, PanicOnDefault};
 use std::collections::BTreeMap;
 
+/// Holders get a 24-hour post-maturity window to submit exercise transactions.
+/// This is a transaction-submission grace period, not an American early-exercise window.
+const EXERCISE_GRACE_NS: u64 = 24 * 60 * 60 * 1_000_000_000;
+
 #[near(serializers = [json, borsh])]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum OptionKind {
@@ -482,8 +486,17 @@ impl OptionsContract {
             "holder only"
         );
         assert_eq!(position.state, PositionState::Open, "position not open");
+        let now = env::block_timestamp();
+        let exercise_deadline_ns = position
+            .expiry_ns
+            .checked_add(EXERCISE_GRACE_NS)
+            .expect("exercise deadline overflow");
         assert!(
-            env::block_timestamp() < position.expiry_ns,
+            now >= position.expiry_ns,
+            "European option cannot be exercised before maturity"
+        );
+        assert!(
+            now <= exercise_deadline_ns,
             "exercise window closed"
         );
         assert_ne!(
@@ -637,7 +650,14 @@ impl OptionsContract {
         self.assert_not_paused();
         let position = self.position_owned_by_writer(position_id);
         assert_eq!(position.state, PositionState::Open, "position not open");
-        assert!(env::block_timestamp() >= position.expiry_ns, "not expired");
+        let exercise_deadline_ns = position
+            .expiry_ns
+            .checked_add(EXERCISE_GRACE_NS)
+            .expect("exercise deadline overflow");
+        assert!(
+            env::block_timestamp() > exercise_deadline_ns,
+            "exercise grace period still open"
+        );
         self.begin_operation(
             operation_id.clone(),
             position_id,
@@ -1230,11 +1250,15 @@ mod tests {
     }
 
     fn context(predecessor: &str) {
+        context_at(predecessor, 10);
+    }
+
+    fn context_at(predecessor: &str, timestamp_ns: u64) {
         let mut builder = VMContextBuilder::new();
         builder
             .current_account_id(account("handel.testnet"))
             .predecessor_account_id(account(predecessor))
-            .block_timestamp(10);
+            .block_timestamp(timestamp_ns);
         testing_env!(builder.build());
     }
 
@@ -1472,12 +1496,12 @@ mod tests {
             "writer.testnet",
             EvidenceOutcome::Completed,
         ));
-        context("attacker.testnet");
+        context_at("attacker.testnet", 20);
         let bad = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.exercise(id, "pay-x".into(), "deliver-x".into());
         }));
         assert!(bad.is_err());
-        context("holder.testnet");
+        context_at("holder.testnet", 20);
         c.exercise(id, "pay-x".into(), "deliver-x".into());
         let p = c.get_position(id).unwrap();
         assert_eq!(p.state, PositionState::PendingSettlement);
@@ -1538,7 +1562,7 @@ mod tests {
             "writer.testnet",
             EvidenceOutcome::Completed,
         ));
-        context("holder.testnet");
+        context_at("holder.testnet", 20);
         c.exercise(id, "pay-f".into(), "deliver-f".into());
         context("reconciler.testnet");
         c.reconcile_operation(evidence(
@@ -1796,7 +1820,7 @@ mod tests {
     }
 
     #[test]
-    fn exercise_ids_must_be_unique_and_expiry_is_enforced() {
+    fn european_exercise_is_blocked_before_maturity_and_after_grace() {
         let mut c = contract();
         let id = create_call(&mut c);
         authorize_reconciler(&mut c);
@@ -1813,21 +1837,57 @@ mod tests {
             "writer.testnet",
             EvidenceOutcome::Completed,
         ));
-        context("holder.testnet");
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+
+        context_at("holder.testnet", 19);
+        let early = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.exercise(id, "pay-early".into(), "deliver-early".into())
+        }));
+        assert!(early.is_err());
+
+        context_at("holder.testnet", 20);
+        let duplicate = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.exercise(id, "same".into(), "same".into())
         }));
-        assert!(result.is_err());
-        let mut builder = VMContextBuilder::new();
-        builder
-            .current_account_id(account("handel.testnet"))
-            .predecessor_account_id(account("holder.testnet"))
-            .block_timestamp(100);
-        testing_env!(builder.build());
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            c.exercise(id, "pay-exp".into(), "deliver-exp".into())
+        assert!(duplicate.is_err());
+        c.exercise(id, "pay-at-maturity".into(), "deliver-at-maturity".into());
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::PendingSettlement
+        );
+    }
+
+    #[test]
+    fn writer_cannot_release_expired_collateral_during_exercise_grace() {
+        let mut c = contract();
+        let id = create_call(&mut c);
+        authorize_reconciler(&mut c);
+        let lock = lock_call(&mut c, id);
+        reconcile_call(&mut c, &lock);
+        context("holder.testnet");
+        c.begin_premium_payment(id, "premium-release".into());
+        context("reconciler.testnet");
+        c.reconcile_operation(evidence(
+            "premium-release",
+            OptionsContract::usdc_asset_id_for_test(),
+            75,
+            "holder.testnet",
+            "writer.testnet",
+            EvidenceOutcome::Completed,
+        ));
+
+        let deadline = 20 + EXERCISE_GRACE_NS;
+        context_at("writer.testnet", deadline);
+        let too_early = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.request_expiry_release(id, "release-early".into())
         }));
-        assert!(result.is_err());
+        assert!(too_early.is_err());
+
+        context_at("writer.testnet", deadline + 1);
+        c.request_expiry_release(id, "release-after-grace".into());
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::PendingExpiry
+        );
     }
 
     #[test]
@@ -1921,7 +1981,7 @@ mod tests {
             EvidenceOutcome::Completed,
         ));
 
-        context("holder.testnet");
+        context_at("holder.testnet", 20);
         c.exercise(id, "payment-retry".into(), "delivery-failed".into());
         context("reconciler.testnet");
         c.reconcile_operation(evidence(
@@ -1991,7 +2051,7 @@ mod tests {
             EvidenceOutcome::Completed,
         ));
 
-        context("holder.testnet");
+        context_at("holder.testnet", 20);
         c.exercise(id, "payment-late".into(), "delivery-late".into());
         context("reconciler.testnet");
         c.reconcile_operation(evidence(
