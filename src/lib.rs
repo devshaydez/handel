@@ -331,7 +331,8 @@ impl OptionsContract {
         };
         let position_id = operation.position_id;
         let kind = operation.kind;
-        self.operations.insert(evidence.operation_id.clone(), operation);
+        self.operations
+            .insert(evidence.operation_id.clone(), operation);
         self.apply_reconciliation(position_id, kind, &evidence.operation_id, succeeded);
     }
 
@@ -444,7 +445,10 @@ impl OptionsContract {
             .exercise_payment_operation_id
             .clone()
             .expect("payment operation missing");
-        let previous = self.operations.get(&previous_id).expect("operation missing");
+        let previous = self
+            .operations
+            .get(&previous_id)
+            .expect("operation missing");
         assert!(
             matches!(previous.kind, OperationKind::ExercisePayment),
             "wrong operation kind"
@@ -1005,14 +1009,10 @@ impl OptionsContract {
                     (Some(OperationState::Succeeded), Some(OperationState::Succeeded)) => {
                         PositionState::Settled
                     }
-                    (
-                        Some(OperationState::Failed | OperationState::ReconciliationRequired),
-                        _,
-                    )
-                    | (
-                        _,
-                        Some(OperationState::Failed | OperationState::ReconciliationRequired),
-                    ) => PositionState::ReconciliationRequired,
+                    (Some(OperationState::Failed | OperationState::ReconciliationRequired), _)
+                    | (_, Some(OperationState::Failed | OperationState::ReconciliationRequired)) => {
+                        PositionState::ReconciliationRequired
+                    }
                     _ => PositionState::PendingSettlement,
                 };
             }
@@ -1050,14 +1050,10 @@ impl OptionsContract {
             (Some(OperationState::Succeeded), Some(OperationState::Succeeded)) => {
                 PositionState::Settled
             }
-            (
-                Some(OperationState::Failed | OperationState::ReconciliationRequired),
-                _,
-            )
-            | (
-                _,
-                Some(OperationState::Failed | OperationState::ReconciliationRequired),
-            ) => PositionState::ReconciliationRequired,
+            (Some(OperationState::Failed | OperationState::ReconciliationRequired), _)
+            | (_, Some(OperationState::Failed | OperationState::ReconciliationRequired)) => {
+                PositionState::ReconciliationRequired
+            }
             _ => PositionState::PendingSettlement,
         };
         self.positions
@@ -1468,10 +1464,7 @@ mod tests {
             "holder.testnet",
             EvidenceOutcome::Completed,
         ));
-        assert_eq!(
-            c.get_position(id).unwrap().state,
-            PositionState::Settled
-        );
+        assert_eq!(c.get_position(id).unwrap().state, PositionState::Settled);
     }
 
     #[test]
