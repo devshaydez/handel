@@ -143,6 +143,7 @@ impl EscrowContract {
                 state: EscrowState::AwaitingCollateral,
                 collateral_received: false,
                 exercise_payment_received: false,
+                exercise_payment_received_at_ns: None,
                 payment_paid: false,
                 collateral_paid: false,
                 failed_payout: None,
