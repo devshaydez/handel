@@ -1,6 +1,6 @@
 use near_sdk::{
-    env, ext_contract, json_types::U128, near, AccountId, Gas, NearToken, PanicOnDefault,
-    Promise, PromiseOrValue, PromiseResult,
+    env, ext_contract, json_types::U128, near, AccountId, Gas, NearToken, PanicOnDefault, Promise,
+    PromiseOrValue, PromiseResult,
 };
 use std::collections::BTreeMap;
 
@@ -9,8 +9,12 @@ const CALLBACK_GAS: Gas = Gas::from_tgas(10);
 
 #[ext_contract(ext_receiver)]
 trait ExtReceiver {
-    fn ft_on_transfer(&mut self, sender_id: AccountId, amount: U128, msg: String)
-        -> PromiseOrValue<U128>;
+    fn ft_on_transfer(
+        &mut self,
+        sender_id: AccountId,
+        amount: U128,
+        msg: String,
+    ) -> PromiseOrValue<U128>;
 }
 
 #[ext_contract(ext_self)]
@@ -55,8 +59,14 @@ impl MockFt {
         self.assert_owner();
         self.balances.entry(account_id.clone()).or_insert(0);
         let balance = self.balances.get(&account_id).copied().unwrap_or(0);
-        self.balances.insert(account_id, balance.checked_add(amount.0).expect("balance overflow"));
-        self.total_supply = self.total_supply.checked_add(amount.0).expect("supply overflow");
+        self.balances.insert(
+            account_id,
+            balance.checked_add(amount.0).expect("balance overflow"),
+        );
+        self.total_supply = self
+            .total_supply
+            .checked_add(amount.0)
+            .expect("supply overflow");
     }
 
     pub fn set_paused(&mut self, paused: bool) {
@@ -74,7 +84,11 @@ impl MockFt {
 
     pub fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, _memo: Option<String>) {
         self.assert_transferable();
-        assert_eq!(env::attached_deposit(), NearToken::from_yoctonear(1), "one yocto required");
+        assert_eq!(
+            env::attached_deposit(),
+            NearToken::from_yoctonear(1),
+            "one yocto required"
+        );
         let sender_id = env::predecessor_account_id();
         self.internal_transfer(&sender_id, &receiver_id, amount.0);
     }
@@ -88,7 +102,11 @@ impl MockFt {
         msg: String,
     ) -> PromiseOrValue<U128> {
         self.assert_transferable();
-        assert_eq!(env::attached_deposit(), NearToken::from_yoctonear(1), "one yocto required");
+        assert_eq!(
+            env::attached_deposit(),
+            NearToken::from_yoctonear(1),
+            "one yocto required"
+        );
         let sender_id = env::predecessor_account_id();
         self.internal_transfer(&sender_id, &receiver_id, amount.0);
         ext_receiver::ext(receiver_id.clone())
@@ -136,13 +154,24 @@ impl MockFt {
 
     fn internal_transfer(&mut self, sender: &AccountId, receiver: &AccountId, amount: u128) {
         assert_ne!(sender, receiver, "self transfer");
-        let sender_balance = self.balances.get(sender).copied().expect("sender not registered");
-        let receiver_balance = self.balances.get(receiver).copied().expect("receiver not registered");
+        let sender_balance = self
+            .balances
+            .get(sender)
+            .copied()
+            .expect("sender not registered");
+        let receiver_balance = self
+            .balances
+            .get(receiver)
+            .copied()
+            .expect("receiver not registered");
         assert!(sender_balance >= amount, "insufficient balance");
-        self.balances.insert(sender.clone(), sender_balance - amount);
+        self.balances
+            .insert(sender.clone(), sender_balance - amount);
         self.balances.insert(
             receiver.clone(),
-            receiver_balance.checked_add(amount).expect("balance overflow"),
+            receiver_balance
+                .checked_add(amount)
+                .expect("balance overflow"),
         );
     }
 }

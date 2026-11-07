@@ -1,5 +1,5 @@
-use near_workspaces::{network::Sandbox, Account, Contract, Worker};
 use near_sdk::NearToken;
+use near_workspaces::{network::Sandbox, Account, Contract, Worker};
 use serde_json::json;
 
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
@@ -15,7 +15,11 @@ async fn call_json<T: serde::de::DeserializeOwned>(
     method: &str,
     args: serde_json::Value,
 ) -> anyhow::Result<T> {
-    let result = account.call(contract.id(), method).args_json(args).transact().await?;
+    let result = account
+        .call(contract.id(), method)
+        .args_json(args)
+        .transact()
+        .await?;
     Ok(result.json()?)
 }
 
@@ -24,9 +28,12 @@ async fn register_token_account(
     token: &Contract,
     account_id: &near_workspaces::AccountId,
 ) -> anyhow::Result<()> {
-    owner.call(token.id(), "register_account")
+    owner
+        .call(token.id(), "register_account")
         .args_json(json!({"account_id": account_id}))
-        .transact().await?.into_result()?;
+        .transact()
+        .await?
+        .into_result()?;
     Ok(())
 }
 
@@ -36,9 +43,12 @@ async fn mint(
     account_id: &near_workspaces::AccountId,
     amount: u128,
 ) -> anyhow::Result<()> {
-    owner.call(token.id(), "mint")
+    owner
+        .call(token.id(), "mint")
         .args_json(json!({"account_id": account_id, "amount": amount.to_string()}))
-        .transact().await?.into_result()?;
+        .transact()
+        .await?
+        .into_result()?;
     Ok(())
 }
 
@@ -50,7 +60,8 @@ async fn transfer_call(
     leg: &str,
     amount: u128,
 ) -> anyhow::Result<()> {
-    sender.call(token.id(), "ft_transfer_call")
+    sender
+        .call(token.id(), "ft_transfer_call")
         .args_json(json!({
             "receiver_id": escrow.id(),
             "amount": amount.to_string(),
@@ -59,13 +70,21 @@ async fn transfer_call(
         }))
         .deposit(ONE_YOCTO)
         .max_gas()
-        .transact().await?.into_result()?;
+        .transact()
+        .await?
+        .into_result()?;
     Ok(())
 }
 
-async fn balance(account: &Account, token: &Contract, id: &near_workspaces::AccountId) -> anyhow::Result<u128> {
-    let view = account.view(token.id(), "ft_balance_of")
-        .args_json(json!({"account_id": id})).await?;
+async fn balance(
+    account: &Account,
+    token: &Contract,
+    id: &near_workspaces::AccountId,
+) -> anyhow::Result<u128> {
+    let view = account
+        .view(token.id(), "ft_balance_of")
+        .args_json(json!({"account_id": id}))
+        .await?;
     Ok(view.json::<near_sdk::json_types::U128>()?.0)
 }
 
@@ -78,15 +97,21 @@ async fn make_position(
     usdc: &Contract,
     expiry_ns: u64,
 ) -> anyhow::Result<u64> {
-    call_json(controller, escrow, "create_position", json!({
-        "writer": writer.id(),
-        "holder": holder.id(),
-        "collateral_token": stock.id(),
-        "collateral_amount": "100",
-        "payment_token": usdc.id(),
-        "payment_amount": "50",
-        "expiry_ns": expiry_ns
-    })).await
+    call_json(
+        controller,
+        escrow,
+        "create_position",
+        json!({
+            "writer": writer.id(),
+            "holder": holder.id(),
+            "collateral_token": stock.id(),
+            "collateral_amount": "100",
+            "payment_token": usdc.id(),
+            "payment_amount": "50",
+            "expiry_ns": expiry_ns
+        }),
+    )
+    .await
 }
 
 async fn settle_and_read(
@@ -94,30 +119,64 @@ async fn settle_and_read(
     escrow: &Contract,
     position_id: u64,
 ) -> anyhow::Result<serde_json::Value> {
-    holder.call(escrow.id(), "settle_exercise")
+    holder
+        .call(escrow.id(), "settle_exercise")
         .args_json(json!({"position_id": position_id}))
         .max_gas()
-        .transact().await?.into_result()?;
-    let view = holder.view(escrow.id(), "get_position")
-        .args_json(json!({"position_id": position_id})).await?;
+        .transact()
+        .await?
+        .into_result()?;
+    let view = holder
+        .view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": position_id}))
+        .await?;
     Ok(view.json()?)
 }
 
 #[tokio::test]
-async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -> anyhow::Result<()> {
+async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -> anyhow::Result<()>
+{
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account()?;
     let writer = worker.dev_create_account().await?;
     let holder = worker.dev_create_account().await?;
     let controller = worker.dev_create_account().await?;
-    let escrow = deploy(&worker, "target/wasm32-unknown-unknown/release/handel_escrow.wasm").await?;
-    let stock = deploy(&worker, "target/wasm32-unknown-unknown/release/handel_mock_ft.wasm").await?;
-    let usdc = deploy(&worker, "target/wasm32-unknown-unknown/release/handel_mock_ft.wasm").await?;
+    let escrow = deploy(
+        &worker,
+        "target/wasm32-unknown-unknown/release/handel_escrow.wasm",
+    )
+    .await?;
+    let stock = deploy(
+        &worker,
+        "target/wasm32-unknown-unknown/release/handel_mock_ft.wasm",
+    )
+    .await?;
+    let usdc = deploy(
+        &worker,
+        "target/wasm32-unknown-unknown/release/handel_mock_ft.wasm",
+    )
+    .await?;
 
-    root.call(escrow.id(), "new").args_json(json!({})).transact().await?.into_result()?;
-    root.call(stock.id(), "new").args_json(json!({"owner_id": root.id()})).transact().await?.into_result()?;
-    root.call(usdc.id(), "new").args_json(json!({"owner_id": root.id()})).transact().await?.into_result()?;
-    root.call(escrow.id(), "set_controller").args_json(json!({"controller": controller.id()})).transact().await?.into_result()?;
+    root.call(escrow.id(), "new")
+        .args_json(json!({}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(stock.id(), "new")
+        .args_json(json!({"owner_id": root.id()}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(usdc.id(), "new")
+        .args_json(json!({"owner_id": root.id()}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(escrow.id(), "set_controller")
+        .args_json(json!({"controller": controller.id()}))
+        .transact()
+        .await?
+        .into_result()?;
 
     for token in [&stock, &usdc] {
         for account in [escrow.id(), writer.id(), holder.id()] {
@@ -129,44 +188,192 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
 
     let now = worker.view_block().await?.header.timestamp_nanosec;
     let expiry = now + 1;
-    let first = make_position(&controller, &escrow, &writer, &holder, &stock, &usdc, expiry).await?;
+    let first = make_position(
+        &controller,
+        &escrow,
+        &writer,
+        &holder,
+        &stock,
+        &usdc,
+        expiry,
+    )
+    .await?;
     transfer_call(&writer, &stock, &escrow, first, "collateral", 100).await?;
     worker.fast_forward(5).await?;
     transfer_call(&holder, &usdc, &escrow, first, "exercise_payment", 50).await?;
 
     // Failure case 1: payment leg fails. Retry it; collateral must then pay exactly once.
-    root.call(usdc.id(), "set_paused").args_json(json!({"paused": true})).transact().await?.into_result()?;
+    root.call(usdc.id(), "set_paused")
+        .args_json(json!({"paused": true}))
+        .transact()
+        .await?
+        .into_result()?;
     let _ = settle_and_read(&holder, &escrow, first).await?;
-    let state = holder.view(escrow.id(), "get_position").args_json(json!({"position_id": first})).await?.json::<serde_json::Value>()?;
+    let state = holder
+        .view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": first}))
+        .await?
+        .json::<serde_json::Value>()?;
     assert_eq!(state["state"], "ReconciliationRequired");
     assert_eq!(balance(&root, &usdc, writer.id()).await?, 0);
-    root.call(usdc.id(), "set_paused").args_json(json!({"paused": false})).transact().await?.into_result()?;
-    holder.call(escrow.id(), "retry_failed_payout").args_json(json!({"position_id": first})).max_gas().transact().await?.into_result()?;
-    let first_state = holder.view(escrow.id(), "get_position").args_json(json!({"position_id": first})).await?.json::<serde_json::Value>()?;
+    root.call(usdc.id(), "set_paused")
+        .args_json(json!({"paused": false}))
+        .transact()
+        .await?
+        .into_result()?;
+    holder
+        .call(escrow.id(), "retry_failed_payout")
+        .args_json(json!({"position_id": first}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+    let first_state = holder
+        .view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": first}))
+        .await?
+        .json::<serde_json::Value>()?;
     assert_eq!(first_state["state"], "Settled");
     assert_eq!(balance(&root, &usdc, writer.id()).await?, 50);
     assert_eq!(balance(&root, &stock, holder.id()).await?, 100);
 
     // Failure case 2: payment succeeds, collateral fails. Retry only collateral.
-    let second = make_position(&controller, &escrow, &writer, &holder, &stock, &usdc, expiry).await?;
+    let second = make_position(
+        &controller,
+        &escrow,
+        &writer,
+        &holder,
+        &stock,
+        &usdc,
+        expiry,
+    )
+    .await?;
     transfer_call(&writer, &stock, &escrow, second, "collateral", 100).await?;
     transfer_call(&holder, &usdc, &escrow, second, "exercise_payment", 50).await?;
-    root.call(stock.id(), "set_paused").args_json(json!({"paused": true})).transact().await?.into_result()?;
+    root.call(stock.id(), "set_paused")
+        .args_json(json!({"paused": true}))
+        .transact()
+        .await?
+        .into_result()?;
     let _ = settle_and_read(&holder, &escrow, second).await?;
-    let second_state = holder.view(escrow.id(), "get_position").args_json(json!({"position_id": second})).await?.json::<serde_json::Value>()?;
+    let second_state = holder
+        .view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": second}))
+        .await?
+        .json::<serde_json::Value>()?;
     assert_eq!(second_state["state"], "ReconciliationRequired");
     assert_eq!(balance(&root, &usdc, writer.id()).await?, 100);
     assert_eq!(balance(&root, &stock, holder.id()).await?, 100);
-    root.call(stock.id(), "set_paused").args_json(json!({"paused": false})).transact().await?.into_result()?;
-    holder.call(escrow.id(), "retry_failed_payout").args_json(json!({"position_id": second})).max_gas().transact().await?.into_result()?;
-    let second_done = holder.view(escrow.id(), "get_position").args_json(json!({"position_id": second})).await?.json::<serde_json::Value>()?;
+    root.call(stock.id(), "set_paused")
+        .args_json(json!({"paused": false}))
+        .transact()
+        .await?
+        .into_result()?;
+    holder
+        .call(escrow.id(), "retry_failed_payout")
+        .args_json(json!({"position_id": second}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+    let second_done = holder
+        .view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": second}))
+        .await?
+        .json::<serde_json::Value>()?;
     assert_eq!(second_done["state"], "Settled");
     assert_eq!(balance(&root, &usdc, writer.id()).await?, 100);
     assert_eq!(balance(&root, &stock, holder.id()).await?, 200);
 
     // A callback replay from an ordinary account must be rejected.
-    let replay = holder.call(escrow.id(), "on_collateral_payout")
-        .args_json(json!({"position_id": second})).transact().await?;
+
+    // A callback replay from an ordinary account must be rejected.
+    let replay = holder
+        .call(escrow.id(), "on_collateral_payout")
+        .args_json(json!({"position_id": second}))
+        .transact()
+        .await?;
+    assert!(replay.is_failure());
+
+    Ok(())
+use near_sdk::{
+    env, ext_contract, json_types::U128, near, AccountId, Gas, NearToken, PanicOnDefault, Promise,
+    PromiseOrValue, PromiseResult,
+};
+use std::collections::BTreeMap;
+
+
+#[ext_contract(ext_receiver)]
+trait ExtReceiver {
+    fn ft_on_transfer(
+        &mut self,
+        sender_id: AccountId,
+        amount: U128,
+        msg: String,
+    ) -> PromiseOrValue<U128>;
+}
+
+#[ext_contract(ext_self)]
+        self.assert_owner();
+        self.balances.entry(account_id.clone()).or_insert(0);
+        let balance = self.balances.get(&account_id).copied().unwrap_or(0);
+        self.balances.insert(
+            account_id,
+            balance.checked_add(amount.0).expect("balance overflow"),
+        );
+        self.total_supply = self
+            .total_supply
+            .checked_add(amount.0)
+            .expect("supply overflow");
+    }
+
+    pub fn set_paused(&mut self, paused: bool) {
+
+    pub fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, _memo: Option<String>) {
+        self.assert_transferable();
+        assert_eq!(
+            env::attached_deposit(),
+            NearToken::from_yoctonear(1),
+            "one yocto required"
+        );
+        let sender_id = env::predecessor_account_id();
+        self.internal_transfer(&sender_id, &receiver_id, amount.0);
+    }
+        msg: String,
+    ) -> PromiseOrValue<U128> {
+        self.assert_transferable();
+        assert_eq!(
+            env::attached_deposit(),
+            NearToken::from_yoctonear(1),
+            "one yocto required"
+        );
+        let sender_id = env::predecessor_account_id();
+        self.internal_transfer(&sender_id, &receiver_id, amount.0);
+        ext_receiver::ext(receiver_id.clone())
+
+    fn internal_transfer(&mut self, sender: &AccountId, receiver: &AccountId, amount: u128) {
+        assert_ne!(sender, receiver, "self transfer");
+        let sender_balance = self
+            .balances
+            .get(sender)
+            .copied()
+            .expect("sender not registered");
+        let receiver_balance = self
+            .balances
+            .get(receiver)
+            .copied()
+            .expect("receiver not registered");
+        assert!(sender_balance >= amount, "insufficient balance");
+        self.balances
+            .insert(sender.clone(), sender_balance - amount);
+        self.balances.insert(
+            receiver.clone(),
+            receiver_balance
+                .checked_add(amount)
+                .expect("balance overflow"),
+        );
+    }
+}
     assert!(replay.is_failure());
 
     Ok(())
