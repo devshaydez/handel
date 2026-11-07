@@ -20,6 +20,7 @@ import type { AgentPermission } from "./types.js";
 const WRITER = "writer.testnet";
 const BUYER = "buyer.testnet";
 const AGENT = "agent.testnet";
+const CONTRACT = "handel-options.shaydez.testnet";
 
 const permission: AgentPermission = {
   agent: AGENT,
