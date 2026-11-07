@@ -836,9 +836,8 @@ mod tests {
             .block_timestamp(2_000)
             .build();
         testing_env!(context);
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            c.retry_failed_payout(0)
-        }));
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.retry_failed_payout(0)));
         assert!(result.is_err());
         assert_eq!(c.get_position(0).state, EscrowState::PaymentPayoutPending);
     }
