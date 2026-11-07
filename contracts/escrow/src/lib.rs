@@ -154,7 +154,6 @@ impl EscrowContract {
     /// Holder starts the sequential two-leg payout only after both deposits are in escrow.
     /// The two NEP-141 transfers are NOT atomic; callbacks preserve partial success.
     pub fn settle_exercise(&mut self, position_id: u64) -> Promise {
-        assert!(!self.paused, "escrow paused");
         let mut position = self.position(position_id);
         assert_eq!(
             env::predecessor_account_id(),
@@ -167,14 +166,16 @@ impl EscrowContract {
             "exercise payment missing"
         );
         assert!(position.collateral_received, "collateral missing");
+        let received_at = position
+            .exercise_payment_received_at_ns
+            .expect("exercise receipt timestamp missing");
         let deadline = position
             .expiry_ns
             .checked_add(EXERCISE_GRACE_NS)
             .expect("deadline overflow");
-        let now = env::block_timestamp();
         assert!(
-            now >= position.expiry_ns && now <= deadline,
-            "outside exercise window"
+            received_at >= position.expiry_ns && received_at <= deadline,
+            "exercise payment was not received in the exercise window"
         );
         position.state = EscrowState::PaymentPayoutPending;
         position.failed_payout = None;
