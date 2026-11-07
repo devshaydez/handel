@@ -41,9 +41,8 @@ The hackathon rules state that NEAR Intents has no testnet. A NEAR Testnet contr
 ## Remaining blockers
 
 1. **Custody and settlement:** define where collateral is held, who can release it, and what constitutes independently authenticated transfer proof. Current trusted reconciler is a trust root, not a cryptographic verifier.
-2. **Partial settlement recovery:** a successful exercise leg followed by a failed leg currently enters `ReconciliationRequired`; a reviewed retry/compensation/recovery path is still needed.
-3. **Economic recovery:** retrying a failed leg does not compensate a transfer that has already irreversibly succeeded if the counterparty never completes the other leg. Define timeout, arbitration, refund/compensation, and user-disclosure rules.
-4. **Asset metadata:** verify registry IDs and decimals at runtime/configuration boundaries; do not rely on hard-coded assumptions.
+2. **Economic recovery:** retrying a failed leg does not compensate a transfer that has already irreversibly succeeded if the counterparty never completes the other leg. Define timeout, arbitration, refund/compensation, and user-disclosure rules.
+3. **Asset metadata:** verify registry IDs and decimals at runtime/configuration boundaries; do not rely on hard-coded assumptions.
 5. **Storage:** assess replacing in-memory `BTreeMap` state with NEAR persistent collections before deployment.
 6. **Testnet deployment:** fix/review account setup and deployment workflow; only deploy after CI and security blockers are addressed.
 7. **AI service:** keep deterministic fallback, add schema validation/audit records, and integrate a provider only after the user has API access.
