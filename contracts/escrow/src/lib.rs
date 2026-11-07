@@ -1,9 +1,8 @@
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_sdk::{
     env, ext_contract, json_types::U128, near, serde::Deserialize, AccountId, Gas, NearToken,
-    PanicOnDefault, Promise, PromiseOrValue, PromiseResult,
+    store::LookupMap, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue, PromiseResult,
 };
-use std::collections::BTreeMap;
 
 const EXERCISE_GRACE_NS: u64 = 24 * 60 * 60 * 1_000_000_000;
 const FT_TRANSFER_GAS: Gas = Gas::from_tgas(10);
@@ -11,6 +10,11 @@ const FT_TRANSFER_GAS: Gas = Gas::from_tgas(10);
 // Reserve enough prepaid gas for both downstream receipts plus callback work.
 const PAYMENT_CALLBACK_GAS: Gas = Gas::from_tgas(30);
 const CALLBACK_GAS: Gas = Gas::from_tgas(10);
+
+#[derive(BorshStorageKey)]
+enum StorageKey {
+    Positions,
+}
 
 #[derive(Deserialize)]
 #[serde(crate = "near_sdk::serde")]
@@ -68,7 +72,7 @@ pub struct EscrowContract {
     owner: AccountId,
     controller: Option<AccountId>,
     next_position_id: u64,
-    positions: BTreeMap<u64, EscrowPosition>,
+    positions: LookupMap<u64, EscrowPosition>,
     paused: bool,
 }
 
@@ -92,7 +96,7 @@ impl EscrowContract {
             owner: env::predecessor_account_id(),
             controller: None,
             next_position_id: 0,
-            positions: BTreeMap::new(),
+            positions: LookupMap::new(StorageKey::Positions),
             paused: false,
         }
     }
