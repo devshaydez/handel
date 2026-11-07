@@ -340,6 +340,9 @@ impl EscrowContract {
     // no automatic retry is safe without independently proving the first transfer outcome.
     #[private]
     pub fn on_payment_payout(&mut self, position_id: u64) -> PromiseOrValue<bool> {
+        #[cfg(feature = "fault-injection")]
+        env::panic_str("injected callback receipt failure (test-only Wasm)");
+
         let mut position = self.position(position_id);
         assert_eq!(
             position.state,
