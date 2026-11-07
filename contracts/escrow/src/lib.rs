@@ -1,7 +1,8 @@
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_sdk::{
-    env, ext_contract, json_types::U128, near, serde::Deserialize, store::LookupMap, AccountId,
-    BorshStorageKey, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, PromiseResult,
+    borsh::BorshSerialize, env, ext_contract, json_types::U128, near, serde::Deserialize,
+    store::LookupMap, AccountId, BorshStorageKey, Gas, NearToken, PanicOnDefault, Promise,
+    PromiseOrValue, PromiseResult,
 };
 
 const EXERCISE_GRACE_NS: u64 = 24 * 60 * 60 * 1_000_000_000;
@@ -11,7 +12,7 @@ const FT_TRANSFER_GAS: Gas = Gas::from_tgas(10);
 const PAYMENT_CALLBACK_GAS: Gas = Gas::from_tgas(30);
 const CALLBACK_GAS: Gas = Gas::from_tgas(10);
 
-#[derive(BorshStorageKey)]
+#[derive(BorshSerialize, BorshStorageKey)]
 enum StorageKey {
     Positions,
 }
@@ -497,7 +498,10 @@ impl EscrowContract {
     }
 
     fn promise_succeeded() -> bool {
-        matches!(env::promise_result(0), PromiseResult::Successful(_))
+        matches!(
+            env::promise_result_checked(0),
+            Ok(PromiseResult::Successful(_))
+        )
     }
 
     fn transfer(token: AccountId, receiver: AccountId, amount: u128) -> Promise {
