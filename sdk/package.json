@@ -1,0 +1,24 @@
+{
+  "name": "@handel/sdk",
+  "version": "0.1.0",
+  "description": "Off-chain helpers for Handel Options — NEP-413 intent builders, policy checks, AI proposal schema",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsx --test src/*.test.ts",
+    "lifecycle": "tsx src/lifecycle-demo.ts"
+  },
+  "dependencies": {
+    "borsh": "^2.0.0",
+    "bs58": "^6.0.0",
+    "tweetnacl": "^1.0.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "tsx": "^4.19.0",
+    "@types/node": "^22.0.0"
+  },
+  "license": "MIT"
+}
