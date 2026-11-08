@@ -336,6 +336,7 @@ impl OptionsContract {
         position.escrow_contract_id = Some(escrow.clone());
         position.escrow_collateral_token = Some(collateral_token.clone());
         position.escrow_payment_token = Some(payment_token.clone());
+        let premium_token = if position.kind == OptionKind::Call { payment_token.clone() } else { collateral_token.clone() };
         let args = near_sdk::serde_json::json!({
             "source_position_id": position.id,
             "writer": position.writer,
@@ -344,13 +345,15 @@ impl OptionsContract {
             "collateral_amount": Self::required_collateral(&position).to_string(),
             "payment_token": payment_token,
             "payment_amount": Self::exercise_payment_amount(&position).to_string(),
-            "expiry_ns": position.expiry_ns
+            "expiry_ns": position.expiry_ns,
+            "premium_token": premium_token,
+            "premium_amount": position.premium_amount_usdc.to_string()
         });
         position.escrow_registration_pending = true;
         self.positions.insert(position_id, position);
         Promise::new(escrow)
             .function_call(
-                "create_position".to_string(),
+                "create_position_v2".to_string(),
                 near_sdk::serde_json::to_vec(&args).expect("serialize escrow registration"),
                 ESCROW_STORAGE_DEPOSIT,
                 ESCROW_REGISTER_GAS,
@@ -486,6 +489,10 @@ impl OptionsContract {
 
         let next_state = match event.state.as_str() {
             "CollateralLocked" => PositionState::CollateralLocked,
+            "PremiumPaid" => PositionState::Open,
+            "PremiumPayoutFailed" => PositionState::ReconciliationRequired,
+            "PremiumRefunded" => PositionState::Expired,
+            "PremiumRefundFailed" => PositionState::ReconciliationRequired,
             "ExercisePaymentReceived" | "PaymentPayoutPending" | "CollateralPayoutPending" => PositionState::PendingSettlement,
             "ReconciliationRequired" => PositionState::ReconciliationRequired,
             "Settled" => PositionState::Settled,
@@ -887,6 +894,7 @@ impl OptionsContract {
     pub fn request_expiry_release(&mut self, position_id: u64, operation_id: String) {
         self.assert_not_paused();
         let position = self.position_owned_by_writer(position_id);
+        assert!(position.escrow_position_id.is_none(), "escrow position cannot use external expiry rail");
         assert_eq!(position.state, PositionState::Open, "position not open");
         let exercise_deadline_ns = position
             .expiry_ns

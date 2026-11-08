@@ -41,6 +41,14 @@ pub enum EscrowState {
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone)]
+pub struct PremiumSidecar {
+    pub token: AccountId, pub amount: u128, pub received: bool, pub paid: bool,
+    pub payout_pending: bool, pub payout_failed: bool, pub refund_pending: bool,
+    pub refund_failed: bool, pub refunded: bool,
+}
+
+#[near(serializers = [json, borsh])]
+#[derive(Clone)]
 pub struct EscrowLifecycleEvent {
     pub source_position_id: u64,
     pub escrow_position_id: u64,
@@ -101,6 +109,8 @@ trait ExtEscrow {
     fn on_payment_payout(&mut self, position_id: u64) -> PromiseOrValue<bool>;
     fn on_collateral_payout(&mut self, position_id: u64) -> bool;
     fn on_expiry_payout(&mut self, position_id: u64) -> bool;
+    fn on_premium_payout(&mut self, position_id: u64) -> bool;
+    fn on_premium_refund(&mut self, position_id: u64) -> bool;
 }
 
 #[near]
@@ -126,6 +136,96 @@ impl EscrowContract {
     pub fn set_paused(&mut self, paused: bool) {
         self.assert_owner();
         self.paused = paused;
+    }
+
+
+    #[payable]
+    pub fn create_position_v2(
+        &mut self, source_position_id: u64, writer: AccountId, holder: AccountId,
+        collateral_token: AccountId, collateral_amount: U128, payment_token: AccountId,
+        payment_amount: U128, expiry_ns: u64, premium_token: AccountId, premium_amount: U128,
+    ) -> u64 {
+        self.assert_controller();
+        assert!(premium_amount.0 > 0, "premium must be positive");
+        let storage_before = env::storage_usage();
+        let id = self.create_position(source_position_id, writer, holder, collateral_token,
+            collateral_amount, payment_token, payment_amount, expiry_ns);
+        let key = Self::premium_key(id);
+        if let Some(bytes) = env::storage_read(&key) {
+            let old: PremiumSidecar = near_sdk::serde_json::from_slice(&bytes).expect("invalid premium sidecar");
+            assert_eq!(old.token, premium_token, "premium token mismatch");
+            assert_eq!(old.amount, premium_amount.0, "premium amount mismatch");
+        } else {
+            let sidecar = PremiumSidecar {
+                token: premium_token, amount: premium_amount.0, received: false, paid: false,
+                payout_pending: false, payout_failed: false, refund_pending: false,
+                refund_failed: false, refunded: false,
+            };
+            let bytes = near_sdk::serde_json::to_vec(&sidecar).expect("serialize premium sidecar");
+            env::storage_write(&key, &bytes);
+            let position = self.position(id);
+            let added = env::storage_usage().checked_sub(storage_before).expect("storage usage underflow");
+            let cost = u128::from(added).checked_mul(env::storage_byte_cost().as_yoctonear())
+                .expect("storage cost overflow");
+            assert!(position.storage_deposit >= cost, "insufficient V2 storage deposit");
+        }
+        id
+    }
+
+    pub fn get_premium_status(&self, id: u64) -> Option<PremiumSidecar> {
+        env::storage_read(&Self::premium_key(id)).and_then(|b| near_sdk::serde_json::from_slice(&b).ok())
+    }
+
+    pub fn settle_premium(&mut self, id: u64) -> Promise {
+        let p = self.position(id);
+        assert_eq!(env::predecessor_account_id(), p.holder, "holder only");
+        assert_eq!(p.state, EscrowState::CollateralLocked, "collateral not locked");
+        assert!(env::block_timestamp() < p.expiry_ns, "premium window closed");
+        let mut premium = self.get_premium_status(id).expect("premium terms missing");
+        assert!(premium.received && !premium.paid && !premium.payout_pending, "premium not payable");
+        assert!(!premium.refund_pending && !premium.refunded, "premium refund started");
+        premium.payout_pending = true; premium.payout_failed = false;
+        self.store_premium_status(id, &premium);
+        Self::transfer(premium.token, p.writer, premium.amount).then(
+            ext_self::ext(env::current_account_id()).with_static_gas(CALLBACK_GAS).on_premium_payout(id))
+    }
+
+    pub fn retry_failed_premium_payout(&mut self, id: u64) -> Promise {
+        let p = self.position(id);
+        let mut premium = self.get_premium_status(id).expect("premium terms missing");
+        assert!(premium.received && !premium.paid && premium.payout_failed && !premium.payout_pending,
+            "no definitive premium payout failure");
+        let deadline = p.expiry_ns.checked_add(EXERCISE_GRACE_NS).expect("deadline overflow");
+        assert!(env::block_timestamp() <= deadline, "premium refund window active");
+        assert!(!premium.refund_pending && !premium.refund_failed && !premium.refunded, "refund has priority");
+        premium.payout_pending = true; premium.payout_failed = false;
+        self.store_premium_status(id, &premium);
+        Self::transfer(premium.token, p.writer, premium.amount).then(
+            ext_self::ext(env::current_account_id()).with_static_gas(CALLBACK_GAS).on_premium_payout(id))
+    }
+
+    pub fn refund_unpaid_premium(&mut self, id: u64) -> Promise {
+        let p = self.position(id);
+        assert_eq!(env::predecessor_account_id(), p.holder, "holder only");
+        let deadline = p.expiry_ns.checked_add(EXERCISE_GRACE_NS).expect("deadline overflow");
+        assert!(env::block_timestamp() > deadline, "exercise grace period active");
+        let mut premium = self.get_premium_status(id).expect("premium terms missing");
+        assert!(premium.received && !premium.paid, "premium not refundable");
+        assert!(!premium.payout_pending && !premium.refund_pending && !premium.refunded, "premium transfer unresolved");
+        premium.refund_pending = true; premium.refund_failed = false;
+        self.store_premium_status(id, &premium);
+        Self::transfer(premium.token, p.holder, premium.amount).then(
+            ext_self::ext(env::current_account_id()).with_static_gas(CALLBACK_GAS).on_premium_refund(id))
+    }
+
+    pub fn retry_failed_premium_refund(&mut self, id: u64) -> Promise {
+        let p = self.position(id);
+        let mut premium = self.get_premium_status(id).expect("premium terms missing");
+        assert!(premium.refund_failed && !premium.refund_pending && !premium.refunded, "no definitive refund failure");
+        premium.refund_pending = true; premium.refund_failed = false;
+        self.store_premium_status(id, &premium);
+        Self::transfer(premium.token, p.holder, premium.amount).then(
+            ext_self::ext(env::current_account_id()).with_static_gas(CALLBACK_GAS).on_premium_refund(id))
     }
 
     /// Registers immutable position terms before any token transfer is accepted.
@@ -252,6 +352,9 @@ impl EscrowContract {
             "exercise payment missing"
         );
         assert!(position.collateral_received, "collateral missing");
+        if let Some(premium) = self.get_premium_status(position_id) {
+            assert!(premium.paid, "premium payout not confirmed");
+        }
         let received_at = position
             .exercise_payment_received_at_ns
             .expect("exercise receipt timestamp missing");
@@ -363,6 +466,10 @@ impl EscrowContract {
             !position.exercise_payment_received,
             "exercise already initiated"
         );
+        if let Some(premium) = self.get_premium_status(position_id) {
+            assert!(!premium.received || premium.paid || premium.refunded,
+                "unpaid premium must be refunded before collateral release");
+        }
         let deadline = position
             .expiry_ns
             .checked_add(EXERCISE_GRACE_NS)
@@ -413,6 +520,43 @@ impl EscrowContract {
     // This callback has a larger gas budget because it schedules the second transfer
     // and its callback. If this receipt itself fails, state remains pending by design;
     // no automatic retry is safe without independently proving the first transfer outcome.
+
+    #[private]
+    pub fn on_premium_payout(&mut self, id: u64) -> bool {
+        let p = self.position(id);
+        let mut premium = self.get_premium_status(id).expect("premium terms missing");
+        assert!(premium.payout_pending, "premium payout not pending");
+        if Self::promise_succeeded() {
+            premium.paid = true; premium.payout_pending = false; premium.payout_failed = false;
+            self.store_premium_status(id, &premium);
+            self.emit_lifecycle_event_with_state(&p, "PremiumPaid");
+            true
+        } else {
+            premium.payout_pending = false; premium.payout_failed = true;
+            self.store_premium_status(id, &premium);
+            self.emit_lifecycle_event_with_state(&p, "PremiumPayoutFailed");
+            false
+        }
+    }
+
+    #[private]
+    pub fn on_premium_refund(&mut self, id: u64) -> bool {
+        let p = self.position(id);
+        let mut premium = self.get_premium_status(id).expect("premium terms missing");
+        assert!(premium.refund_pending, "premium refund not pending");
+        if Self::promise_succeeded() {
+            premium.refunded = true; premium.refund_pending = false; premium.refund_failed = false;
+            self.store_premium_status(id, &premium);
+            self.emit_lifecycle_event_with_state(&p, "PremiumRefunded");
+            true
+        } else {
+            premium.refund_pending = false; premium.refund_failed = true;
+            self.store_premium_status(id, &premium);
+            self.emit_lifecycle_event_with_state(&p, "PremiumRefundFailed");
+            false
+        }
+    }
+
     #[private]
     pub fn on_payment_payout(&mut self, position_id: u64) -> PromiseOrValue<bool> {
         #[cfg(feature = "fault-injection")]
@@ -533,6 +677,20 @@ impl FungibleTokenReceiver for EscrowContract {
                     true
                 }
             }
+            "premium" => {
+                let Some(mut premium) = self.get_premium_status(message.position_id) else {
+                    return PromiseOrValue::Value(amount);
+                };
+                if position.state != EscrowState::CollateralLocked || !position.collateral_received
+                    || premium.received || sender_id != position.holder || token_id != premium.token
+                    || amount.0 != premium.amount || env::block_timestamp() >= position.expiry_ns {
+                    false
+                } else {
+                    premium.received = true;
+                    self.store_premium_status(position.id, &premium);
+                    true
+                }
+            }
             "exercise_payment" => {
                 let deadline = position.expiry_ns.checked_add(EXERCISE_GRACE_NS);
                 if position.state != EscrowState::CollateralLocked
@@ -541,6 +699,7 @@ impl FungibleTokenReceiver for EscrowContract {
                     || sender_id != position.holder
                     || token_id != position.payment_token
                     || amount.0 != position.payment_amount
+                    || self.get_premium_status(position.id).is_some_and(|premium| !premium.paid)
                     || env::block_timestamp() < position.expiry_ns
                     || deadline.is_none_or(|end| env::block_timestamp() > end)
                 {
@@ -557,8 +716,8 @@ impl FungibleTokenReceiver for EscrowContract {
 
         if accepted {
             self.positions.insert(position.id, position.clone());
-            if position.state == EscrowState::CollateralLocked
-                || position.state == EscrowState::ExercisePaymentReceived
+            if message.leg != "premium" && (position.state == EscrowState::CollateralLocked
+                || position.state == EscrowState::ExercisePaymentReceived)
             {
                 self.emit_lifecycle_event(&position);
             }
@@ -570,6 +729,13 @@ impl FungibleTokenReceiver for EscrowContract {
 }
 
 impl EscrowContract {
+    fn premium_key(id: u64) -> Vec<u8> { format!("handel:escrow:v2:premium:{id}").into_bytes() }
+
+    fn store_premium_status(&self, id: u64, premium: &PremiumSidecar) {
+        let bytes = near_sdk::serde_json::to_vec(premium).expect("serialize premium sidecar");
+        env::storage_write(&Self::premium_key(id), &bytes);
+    }
+
     fn sequence_key(position_id: u64) -> Vec<u8> {
         format!("handel:escrow:v2:event-seq:{position_id}").into_bytes()
     }
@@ -579,14 +745,6 @@ impl EscrowContract {
     }
 
     fn emit_lifecycle_event(&self, position: &EscrowPosition) {
-        let controller = self.controller.clone().expect("controller not configured");
-        let sequence_key = Self::sequence_key(position.id);
-        let previous = env::storage_read(&sequence_key)
-            .and_then(|bytes| if bytes.len() == 8 {
-                Some(u64::from_le_bytes(bytes.try_into().ok()?))
-            } else { None })
-            .unwrap_or(0);
-        let sequence = previous.checked_add(1).expect("event sequence overflow");
         let state = match position.state {
             EscrowState::AwaitingCollateral => "AwaitingCollateral",
             EscrowState::CollateralLocked => "CollateralLocked",
@@ -598,6 +756,16 @@ impl EscrowContract {
             EscrowState::Settled => "Settled",
             EscrowState::Expired => "Expired",
         };
+        self.emit_lifecycle_event_with_state(position, state);
+    }
+
+    fn emit_lifecycle_event_with_state(&self, position: &EscrowPosition, state: &str) {
+        let controller = self.controller.clone().expect("controller not configured");
+        let key = Self::sequence_key(position.id);
+        let previous = env::storage_read(&key).and_then(|b| {
+            if b.len() == 8 { Some(u64::from_le_bytes(b.try_into().ok()?)) } else { None }
+        }).unwrap_or(0);
+        let sequence = previous.checked_add(1).expect("event sequence overflow");
         let event = EscrowLifecycleEvent {
             source_position_id: position.source_position_id,
             escrow_position_id: position.id,
@@ -605,7 +773,7 @@ impl EscrowContract {
             state: state.to_string(),
         };
         let bytes = near_sdk::serde_json::to_vec(&event).expect("serialize lifecycle event");
-        env::storage_write(&sequence_key, &sequence.to_le_bytes());
+        env::storage_write(&key, &sequence.to_le_bytes());
         env::storage_write(&Self::event_key(position.id, sequence), &bytes);
         Self::dispatch_lifecycle_event(controller, event);
     }
