@@ -429,7 +429,6 @@ async fn callback_receipt_failure_keeps_payout_pending_and_blocks_retry() -> any
     Ok(())
 }
 
-
 #[tokio::test]
 async fn expiry_release_returns_only_unexercised_collateral_and_retries_definitive_failure(
 ) -> anyhow::Result<()> {
@@ -494,8 +493,16 @@ async fn expiry_release_returns_only_unexercised_collateral_and_retries_definiti
     // First position: normal expiry release after maturity plus the full grace period.
     let first_expiry = worker.view_block().await?.header().timestamp_nanosec() + 30_000_000_000;
     let first = make_position(
-        &controller, &escrow, &writer, &holder, &stock, &usdc, 2001, first_expiry,
-    ).await?;
+        &controller,
+        &escrow,
+        &writer,
+        &holder,
+        &stock,
+        &usdc,
+        2001,
+        first_expiry,
+    )
+    .await?;
     transfer_call(&writer, &stock, &escrow, first, "collateral", 100).await?;
     worker.fast_forward(100_000).await?;
     writer
@@ -506,9 +513,11 @@ async fn expiry_release_returns_only_unexercised_collateral_and_retries_definiti
         .await?
         .into_result()?;
 
-    let first_state = root.view(escrow.id(), "get_position")
+    let first_state = root
+        .view(escrow.id(), "get_position")
         .args_json(json!({"position_id": first}))
-        .await?.json::<serde_json::Value>()?;
+        .await?
+        .json::<serde_json::Value>()?;
     assert_eq!(first_state["state"], "Expired");
     assert_eq!(first_state["collateral_returned_to_writer"], true);
     assert_eq!(first_state["exercise_payment_received"], false);
@@ -518,8 +527,16 @@ async fn expiry_release_returns_only_unexercised_collateral_and_retries_definiti
     // unpaid expiry leg may be retried after the token is unpaused.
     let second_expiry = worker.view_block().await?.header().timestamp_nanosec() + 30_000_000_000;
     let second = make_position(
-        &controller, &escrow, &writer, &holder, &stock, &usdc, 2002, second_expiry,
-    ).await?;
+        &controller,
+        &escrow,
+        &writer,
+        &holder,
+        &stock,
+        &usdc,
+        2002,
+        second_expiry,
+    )
+    .await?;
     transfer_call(&writer, &stock, &escrow, second, "collateral", 100).await?;
     worker.fast_forward(100_000).await?;
     root.call(stock.id(), "set_paused")
@@ -535,9 +552,11 @@ async fn expiry_release_returns_only_unexercised_collateral_and_retries_definiti
         .await?
         .into_result()?;
 
-    let failed = root.view(escrow.id(), "get_position")
+    let failed = root
+        .view(escrow.id(), "get_position")
         .args_json(json!({"position_id": second}))
-        .await?.json::<serde_json::Value>()?;
+        .await?
+        .json::<serde_json::Value>()?;
     assert_eq!(failed["state"], "ReconciliationRequired");
     assert_eq!(failed["failed_payout"], "ExpiryCollateral");
     assert_eq!(failed["collateral_returned_to_writer"], false);
@@ -556,9 +575,11 @@ async fn expiry_release_returns_only_unexercised_collateral_and_retries_definiti
         .await?
         .into_result()?;
 
-    let recovered = root.view(escrow.id(), "get_position")
+    let recovered = root
+        .view(escrow.id(), "get_position")
         .args_json(json!({"position_id": second}))
-        .await?.json::<serde_json::Value>()?;
+        .await?
+        .json::<serde_json::Value>()?;
     assert_eq!(recovered["state"], "Expired");
     assert_eq!(recovered["collateral_returned_to_writer"], true);
     assert_eq!(balance(&root, &stock, writer.id()).await?, 300);
