@@ -339,7 +339,10 @@ impl OptionsContract {
         );
         // A callback receipt may have failed after escrow committed the registration.
         // Clear the local in-flight marker and safely repeat the idempotent escrow call.
-        self.positions.get_mut(&position_id).unwrap().escrow_registration_pending = false;
+        self.positions
+            .get_mut(&position_id)
+            .unwrap()
+            .escrow_registration_pending = false;
         self.register_escrow_position(position_id)
     }
 
@@ -351,10 +354,7 @@ impl OptionsContract {
                 let escrow_id: u64 = near_sdk::serde_json::from_slice(&bytes)
                     .expect("invalid escrow registration result");
                 if let Some(existing_id) = position.escrow_position_id {
-                    assert_eq!(
-                    existing_id, escrow_id,
-                    "escrow registration ID changed"
-                );
+                    assert_eq!(existing_id, escrow_id, "escrow registration ID changed");
                 }
                 position.escrow_position_id = Some(escrow_id);
                 position.escrow_registration_pending = false;
