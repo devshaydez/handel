@@ -241,7 +241,11 @@ impl OptionsContract {
     /// OptionsContract account as its controller before registration is attempted.
     pub fn set_escrow_contract(&mut self, escrow_contract: AccountId) {
         self.assert_owner();
-        assert_ne!(escrow_contract, env::current_account_id(), "invalid escrow contract");
+        assert_ne!(
+            escrow_contract,
+            env::current_account_id(),
+            "invalid escrow contract"
+        );
         self.escrow_contract = Some(escrow_contract);
     }
 
@@ -251,7 +255,9 @@ impl OptionsContract {
     pub fn set_escrow_token_account(&mut self, asset_id: String, token_account: AccountId) {
         self.assert_owner();
         assert!(
-            self.asset_registry.get(&asset_id).is_some_and(|asset| asset.enabled),
+            self.asset_registry
+                .get(&asset_id)
+                .is_some_and(|asset| asset.enabled),
             "asset must be enabled"
         );
         self.escrow_token_accounts.insert(asset_id, token_account);
@@ -263,15 +269,34 @@ impl OptionsContract {
     pub fn register_escrow_position(&mut self, position_id: u64) -> Promise {
         self.assert_not_paused();
         let mut position = self.position_owned_by_writer(position_id);
-        assert_eq!(position.state, PositionState::PendingCollateral, "option already entered another lifecycle");
-        assert!(position.escrow_position_id.is_none(), "escrow position already registered");
-        assert!(!position.escrow_registration_pending, "escrow registration already pending");
-        let escrow = self.escrow_contract.clone().expect("escrow contract not configured");
+        assert_eq!(
+            position.state,
+            PositionState::PendingCollateral,
+            "option already entered another lifecycle"
+        );
+        assert!(
+            position.escrow_position_id.is_none(),
+            "escrow position already registered"
+        );
+        assert!(
+            !position.escrow_registration_pending,
+            "escrow registration already pending"
+        );
+        let escrow = self
+            .escrow_contract
+            .clone()
+            .expect("escrow contract not configured");
         let collateral_asset = Self::collateral_asset_id(&position);
         let payment_asset = Self::exercise_payment_asset_id(&position);
-        let collateral_token = self.escrow_token_accounts.get(&collateral_asset).cloned()
+        let collateral_token = self
+            .escrow_token_accounts
+            .get(&collateral_asset)
+            .cloned()
             .expect("collateral NEP-141 token not configured");
-        let payment_token = self.escrow_token_accounts.get(&payment_asset).cloned()
+        let payment_token = self
+            .escrow_token_accounts
+            .get(&payment_asset)
+            .cloned()
             .expect("payment NEP-141 token not configured");
         let args = near_sdk::serde_json::json!({
             "source_position_id": position.id,
@@ -293,22 +318,25 @@ impl OptionsContract {
                 ESCROW_REGISTER_GAS,
             )
             .then(
-                Promise::new(env::current_account_id())
-                    .function_call(
-                        "on_escrow_position_registered".to_string(),
-                        near_sdk::serde_json::to_vec(&near_sdk::serde_json::json!({
-                            "position_id": position_id
-                        })).expect("serialize escrow callback"),
-                        NearToken::from_yoctonear(0),
-                        ESCROW_CALLBACK_GAS,
-                    )
+                Promise::new(env::current_account_id()).function_call(
+                    "on_escrow_position_registered".to_string(),
+                    near_sdk::serde_json::to_vec(&near_sdk::serde_json::json!({
+                        "position_id": position_id
+                    }))
+                    .expect("serialize escrow callback"),
+                    NearToken::from_yoctonear(0),
+                    ESCROW_CALLBACK_GAS,
+                ),
             )
     }
 
     /// Retry an ambiguous/failed registration. Escrow registration is idempotent by source ID.
     pub fn retry_escrow_registration(&mut self, position_id: u64) -> Promise {
         let position = self.position_owned_by_writer(position_id);
-        assert!(position.escrow_position_id.is_none(), "escrow position already registered");
+        assert!(
+            position.escrow_position_id.is_none(),
+            "escrow position already registered"
+        );
         // A callback receipt may have failed after escrow committed the registration.
         // Clear the local in-flight marker and safely repeat the idempotent escrow call.
         self.positions.get_mut(&position_id).unwrap().escrow_registration_pending = false;
@@ -323,7 +351,10 @@ impl OptionsContract {
                 let escrow_id: u64 = near_sdk::serde_json::from_slice(&bytes)
                     .expect("invalid escrow registration result");
                 if let Some(existing_id) = position.escrow_position_id {
-                    assert_eq!(existing_id, escrow_id, "escrow registration ID changed");
+                    assert_eq!(
+                    existing_id, escrow_id,
+                    "escrow registration ID changed"
+                );
                 }
                 position.escrow_position_id = Some(escrow_id);
                 position.escrow_registration_pending = false;
@@ -343,7 +374,10 @@ impl OptionsContract {
     pub fn begin_collateral_lock(&mut self, position_id: u64, operation_id: String) {
         self.assert_not_paused();
         let position = self.position_owned_by_writer(position_id);
-        assert!(position.escrow_position_id.is_none() && !position.escrow_registration_pending, "position belongs to escrow lifecycle");
+        assert!(
+            position.escrow_position_id.is_none() && !position.escrow_registration_pending,
+            "position belongs to escrow lifecycle"
+        );
         assert_eq!(
             position.state,
             PositionState::PendingCollateral,
