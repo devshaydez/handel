@@ -65,7 +65,7 @@ async fn call_and_put_registration_create_matching_escrow_records_without_moving
             .transact()
             .await?
             .into_result()?;
-        for account in [writer.id(), escrow.id()] {
+        for account in [writer.id(), holder.id(), escrow.id()] {
             root.call(token.id(), "register_account")
                 .args_json(json!({"account_id": account}))
                 .transact()
@@ -80,6 +80,16 @@ async fn call_and_put_registration_create_matching_escrow_records_without_moving
         .into_result()?;
     root.call(usdc_token.id(), "mint")
         .args_json(json!({"account_id": writer.id(), "amount": "2500000"}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(stock_token.id(), "mint")
+        .args_json(json!({"account_id": holder.id(), "amount": "1000000"}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(usdc_token.id(), "mint")
+        .args_json(json!({"account_id": holder.id(), "amount": "2500000"}))
         .transact()
         .await?
         .into_result()?;
@@ -300,6 +310,89 @@ async fn call_and_put_registration_create_matching_escrow_records_without_moving
         .await?
         .json::<near_sdk::json_types::U128>()?;
     assert_eq!(usdc_escrow_balance.0, 2500000);
+
+    // Exercise both options after maturity. The holder pays the exact exercise
+    // asset for each option, then escrow performs its two asynchronous payout legs.
+    worker.fast_forward(100).await?;
+    holder
+        .call(usdc_token.id(), "ft_transfer_call")
+        .args_json(json!({
+            "receiver_id": escrow.id(),
+            "amount": "2500000",
+            "memo": null,
+            "msg": "{\\"position_id\\":0,\\"leg\\":\\"exercise_payment\\"}"
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+    holder
+        .call(stock_token.id(), "ft_transfer_call")
+        .args_json(json!({
+            "receiver_id": escrow.id(),
+            "amount": "1000000",
+            "memo": null,
+            "msg": "{\\"position_id\\":1,\\"leg\\":\\"exercise_payment\\"}"
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+    for position_id in [0u64, 1u64] {
+        holder
+            .call(escrow.id(), "settle_exercise")
+            .args_json(json!({"position_id": position_id}))
+            .max_gas()
+            .transact()
+            .await?
+            .into_result()?;
+        let settled = root
+            .view(escrow.id(), "get_position")
+            .args_json(json!({"position_id": position_id}))
+            .await?
+            .json::<serde_json::Value>()?;
+        assert_eq!(settled["state"], "Settled");
+        assert_eq!(settled["payment_paid"], true);
+        assert_eq!(settled["collateral_delivered_to_holder"], true);
+    }
+
+    // Both token balances should be fully paid out of escrow. The writer receives
+    // exercise consideration; the holder receives the writer's collateral.
+    for token in [&stock_token, &usdc_token] {
+        let remaining = root
+            .view(token.id(), "ft_balance_of")
+            .args_json(json!({"account_id": escrow.id()}))
+            .await?
+            .json::<near_sdk::json_types::U128>()?;
+        assert_eq!(remaining.0, 0);
+    }
+    let writer_stock = root
+        .view(stock_token.id(), "ft_balance_of")
+        .args_json(json!({"account_id": writer.id()}))
+        .await?
+        .json::<near_sdk::json_types::U128>()?;
+    assert_eq!(writer_stock.0, 1000000);
+    let writer_usdc = root
+        .view(usdc_token.id(), "ft_balance_of")
+        .args_json(json!({"account_id": writer.id()}))
+        .await?
+        .json::<near_sdk::json_types::U128>()?;
+    assert_eq!(writer_usdc.0, 2500000);
+    let holder_stock = root
+        .view(stock_token.id(), "ft_balance_of")
+        .args_json(json!({"account_id": holder.id()}))
+        .await?
+        .json::<near_sdk::json_types::U128>()?;
+    assert_eq!(holder_stock.0, 1000000);
+    let holder_usdc = root
+        .view(usdc_token.id(), "ft_balance_of")
+        .args_json(json!({"account_id": holder.id()}))
+        .await?
+        .json::<near_sdk::json_types::U128>()?;
+    assert_eq!(holder_usdc.0, 2500000);
 
     // The independent reconciliation rail must now be blocked for this position.
     let competing_rail = writer
