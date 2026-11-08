@@ -7,7 +7,7 @@ async fn deploy(worker: &Worker<Sandbox>, path: &str) -> anyhow::Result<Contract
 }
 
 #[tokio::test]
-async fn options_registration_creates_matching_escrow_record_without_moving_tokens(
+async fn call_and_put_registration_create_matching_escrow_records_without_moving_tokens(
 ) -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account()?;
@@ -140,6 +140,61 @@ async fn options_registration_creates_matching_escrow_record_without_moving_toke
     assert_eq!(escrow_position["payment_token"], usdc_token.id().as_str());
     assert_eq!(escrow_position["payment_amount"], 2500000);
     assert_eq!(escrow_position["state"], "AwaitingCollateral");
+
+    // A Put reverses the token orientation: USDC is collateral and the
+    // underlying token is the exercise payment asset.
+    writer
+        .call(options.id(), "create_put")
+        .args_json(json!({
+            "holder": holder.id(),
+            "asset_id": STOCK_ASSET,
+            "underlying_amount": 1000000,
+            "strike_amount_usdc": 2500000,
+            "expiry_ns": expiry,
+            "premium_amount_usdc": 100000
+        }))
+        .transact()
+        .await?
+        .into_result()?;
+
+    writer
+        .call(options.id(), "register_escrow_position")
+        .args_json(json!({"position_id": 1}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+    let put_option = root
+        .view(options.id(), "get_position")
+        .args_json(json!({"id": 1}))
+        .await?
+        .json::<serde_json::Value>()?;
+    assert_eq!(put_option["kind"], "Put");
+    assert_eq!(put_option["escrow_position_id"], 1);
+    assert_eq!(put_option["escrow_registration_pending"], false);
+    assert_eq!(put_option["escrow_collateral_token"], usdc_token.id().as_str());
+    assert_eq!(put_option["escrow_payment_token"], stock_token.id().as_str());
+
+    let put_escrow_position = root
+        .view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": 1}))
+        .await?
+        .json::<serde_json::Value>()?;
+    assert_eq!(put_escrow_position["source_position_id"], 1);
+    assert_eq!(put_escrow_position["writer"], writer.id().as_str());
+    assert_eq!(put_escrow_position["holder"], holder.id().as_str());
+    assert_eq!(
+        put_escrow_position["collateral_token"],
+        usdc_token.id().as_str()
+    );
+    assert_eq!(put_escrow_position["collateral_amount"], 2500000);
+    assert_eq!(
+        put_escrow_position["payment_token"],
+        stock_token.id().as_str()
+    );
+    assert_eq!(put_escrow_position["payment_amount"], 1000000);
+    assert_eq!(put_escrow_position["state"], "AwaitingCollateral");
 
     // Registration is metadata-only: no collateral or payment tokens have moved.
     // These accounts are token identifiers in this test; balances are not fabricated.
