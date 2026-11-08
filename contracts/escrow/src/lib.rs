@@ -135,7 +135,6 @@ impl EscrowContract {
         expiry_ns: u64,
     ) -> u64 {
         self.assert_controller();
-        assert!(!self.paused, "escrow paused");
         // A controller may retry after an ambiguous cross-contract callback. Return the
         // original escrow ID only when every immutable term matches; never create a
         // second custody record for one OptionsContract position.
@@ -143,14 +142,35 @@ impl EscrowContract {
             let existing = self.position(existing_id);
             assert_eq!(existing.writer, writer, "registration writer mismatch");
             assert_eq!(existing.holder, holder, "registration holder mismatch");
-            assert_eq!(existing.collateral_token, collateral_token, "registration collateral token mismatch");
-            assert_eq!(existing.collateral_amount, collateral_amount.0, "registration collateral amount mismatch");
-            assert_eq!(existing.payment_token, payment_token, "registration payment token mismatch");
-            assert_eq!(existing.payment_amount, payment_amount.0, "registration payment amount mismatch");
+            assert_eq!(
+                existing.collateral_token,
+                collateral_token,
+                "registration collateral token mismatch"
+            );
+            assert_eq!(
+                existing.collateral_amount,
+                collateral_amount.0,
+                "registration collateral amount mismatch"
+            );
+            assert_eq!(
+                existing.payment_token,
+                payment_token,
+                "registration payment token mismatch"
+            );
+            assert_eq!(
+                existing.payment_amount,
+                payment_amount.0,
+                "registration payment amount mismatch"
+            );
             assert_eq!(existing.expiry_ns, expiry_ns, "registration expiry mismatch");
-            assert_eq!(env::attached_deposit().as_yoctonear(), 0, "duplicate registration must not attach deposit");
+            assert_eq!(
+                env::attached_deposit().as_yoctonear(),
+                0,
+                "duplicate registration must not attach deposit"
+            );
             return existing_id;
         }
+        assert!(!self.paused, "escrow paused");
         assert_ne!(writer, holder, "writer and holder must differ");
         assert_ne!(collateral_token, payment_token, "assets must differ");
         assert!(collateral_amount.0 > 0, "collateral must be positive");
