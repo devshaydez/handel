@@ -116,6 +116,9 @@ pub struct OptionPosition {
     pub exercised_at_ns: Option<u64>,
     pub escrow_position_id: Option<u64>,
     pub escrow_registration_pending: bool,
+    pub escrow_contract_id: Option<AccountId>,
+    pub escrow_collateral_token: Option<AccountId>,
+    pub escrow_payment_token: Option<AccountId>,
 }
 
 #[near(serializers = [json, borsh])]
@@ -282,22 +285,28 @@ impl OptionsContract {
             !position.escrow_registration_pending,
             "escrow registration already pending"
         );
-        let escrow = self
-            .escrow_contract
+        let escrow = position
+            .escrow_contract_id
             .clone()
+            .or_else(|| self.escrow_contract.clone())
             .expect("escrow contract not configured");
         let collateral_asset = Self::collateral_asset_id(&position);
         let payment_asset = Self::exercise_payment_asset_id(&position);
-        let collateral_token = self
-            .escrow_token_accounts
-            .get(&collateral_asset)
-            .cloned()
+        let collateral_token = position
+            .escrow_collateral_token
+            .clone()
+            .or_else(|| self.escrow_token_accounts.get(&collateral_asset).cloned())
             .expect("collateral NEP-141 token not configured");
-        let payment_token = self
-            .escrow_token_accounts
-            .get(&payment_asset)
-            .cloned()
+        let payment_token = position
+            .escrow_payment_token
+            .clone()
+            .or_else(|| self.escrow_token_accounts.get(&payment_asset).cloned())
             .expect("payment NEP-141 token not configured");
+        // Pin all external contract/token addresses on the option at first attempt so
+        // configuration changes cannot redirect an ambiguous retry to a different escrow.
+        position.escrow_contract_id = Some(escrow.clone());
+        position.escrow_collateral_token = Some(collateral_token.clone());
+        position.escrow_payment_token = Some(payment_token.clone());
         let args = near_sdk::serde_json::json!({
             "source_position_id": position.id,
             "writer": position.writer,
@@ -1172,6 +1181,9 @@ impl OptionsContract {
                 exercised_at_ns: None,
                 escrow_position_id: None,
                 escrow_registration_pending: false,
+                escrow_contract_id: None,
+                escrow_collateral_token: None,
+                escrow_payment_token: None,
             },
         );
         id
