@@ -88,7 +88,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .await?
         .into_result()?;
     root.call(usdc_token.id(), "mint")
-        .args_json(json!({"account_id": holder.id(), "amount": "2500000"}))
+        .args_json(json!({"account_id": holder.id(), "amount": "3000000"}))
         .transact()
         .await?
         .into_result()?;
@@ -310,6 +310,48 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .json::<near_sdk::json_types::U128>()?;
     assert_eq!(usdc_escrow_balance.0, 2500000);
 
+
+    // Collect and pay both premiums in USDC before either option can become Open.
+    // Call and Put both use USDC premium, although their collateral/exercise legs differ.
+    for position_id in [0u64, 1u64] {
+        holder
+            .call(usdc_token.id(), "ft_transfer_call")
+            .args_json(json!({
+                "receiver_id": escrow.id(),
+                "amount": "100000",
+                "memo": null,
+                "msg": format!(r#"{{"position_id":{},"leg":"premium"}}"#, position_id)
+            }))
+            .deposit(NearToken::from_yoctonear(1))
+            .max_gas()
+            .transact()
+            .await?
+            .into_result()?;
+
+        holder
+            .call(escrow.id(), "settle_premium")
+            .args_json(json!({"position_id": position_id}))
+            .max_gas()
+            .transact()
+            .await?
+            .into_result()?;
+
+        let premium = root
+            .view(escrow.id(), "get_premium_status")
+            .args_json(json!({"position_id": position_id}))
+            .await?
+            .json::<serde_json::Value>()?;
+        assert_eq!(premium["received"], true);
+        assert_eq!(premium["paid"], true);
+
+        let opened = root
+            .view(options.id(), "get_position")
+            .args_json(json!({"id": position_id}))
+            .await?
+            .json::<serde_json::Value>()?;
+        assert_eq!(opened["state"], "Open");
+    }
+
     // Exercise both options after maturity. The holder pays the exact exercise
     // asset for each option, then escrow performs its two asynchronous payout legs.
     // Sandbox block timestamps may advance more slowly than the local test wall clock.
@@ -357,6 +399,12 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
             .await?
             .json::<serde_json::Value>()?;
         assert_eq!(settled["state"], "Settled");
+        let option_settled = root
+            .view(options.id(), "get_position")
+            .args_json(json!({"id": position_id}))
+            .await?
+            .json::<serde_json::Value>()?;
+        assert_eq!(option_settled["state"], "Settled");
         assert_eq!(settled["payment_paid"], true);
         assert_eq!(settled["collateral_delivered_to_holder"], true);
     }
@@ -382,7 +430,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .args_json(json!({"account_id": writer.id()}))
         .await?
         .json::<near_sdk::json_types::U128>()?;
-    assert_eq!(writer_usdc.0, 2500000);
+    assert_eq!(writer_usdc.0, 2700000);
     let holder_stock = root
         .view(stock_token.id(), "ft_balance_of")
         .args_json(json!({"account_id": holder.id()}))
@@ -394,7 +442,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .args_json(json!({"account_id": holder.id()}))
         .await?
         .json::<near_sdk::json_types::U128>()?;
-    assert_eq!(holder_usdc.0, 2500000);
+    assert_eq!(holder_usdc.0, 2800000);
 
     // The independent reconciliation rail must now be blocked for this position.
     let competing_rail = writer
