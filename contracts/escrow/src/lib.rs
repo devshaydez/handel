@@ -959,7 +959,7 @@ mod tests {
             near_sdk::test_vm_config(),
             near_sdk::RuntimeFeesConfig::test(),
             std::collections::HashMap::default(),
-            vec![PromiseResult::Successful(vec![])],
+            vec![near_sdk::PromiseResult::Successful(vec![])],
         );
         assert!(c.on_expiry_payout(0));
         let position = c.get_position(0);
@@ -1001,7 +1001,7 @@ mod tests {
             near_sdk::test_vm_config(),
             near_sdk::RuntimeFeesConfig::test(),
             std::collections::HashMap::default(),
-            vec![PromiseResult::Failed],
+            vec![near_sdk::PromiseResult::Failed],
         );
         assert!(!c.on_expiry_payout(0));
         let failed = c.get_position(0);
@@ -1028,7 +1028,7 @@ mod tests {
             near_sdk::test_vm_config(),
             near_sdk::RuntimeFeesConfig::test(),
             std::collections::HashMap::default(),
-            vec![PromiseResult::Successful(vec![])],
+            vec![near_sdk::PromiseResult::Successful(vec![])],
         );
         assert!(c.on_expiry_payout(0));
         let recovered = c.get_position(0);
