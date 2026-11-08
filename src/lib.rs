@@ -2145,7 +2145,7 @@ mod tests {
     #[test]
     fn agent_proposal_cannot_bypass_principal_approval_through_escrow_registration() {
         let mut c = contract();
-        context("owner.testnet");
+        context("writer.testnet");
         c.set_agent_policy(
             account("agent.testnet"),
             vec!["nep141:stock.testnet".into()],
@@ -2155,6 +2155,8 @@ mod tests {
             2,
             80,
         );
+
+        context("owner.testnet");
         c.set_escrow_contract(account("escrow.testnet"));
         c.set_escrow_token_account(
             "nep141:stock.testnet".into(),
