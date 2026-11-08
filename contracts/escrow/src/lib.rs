@@ -5,7 +5,12 @@ use near_sdk::{
     PromiseError, PromiseOrValue,
 };
 
+#[cfg(not(feature = "fault-injection"))]
 const EXERCISE_GRACE_NS: u64 = 24 * 60 * 60 * 1_000_000_000;
+// The isolated fault-injection Wasm shortens the grace period so the expiry
+// callback recovery path can be tested in Sandbox without advancing one day.
+#[cfg(feature = "fault-injection")]
+const EXERCISE_GRACE_NS: u64 = 0;
 const FT_TRANSFER_GAS: Gas = Gas::from_tgas(10);
 // The payment callback schedules the collateral transfer and its callback.
 // Reserve enough prepaid gas for both downstream receipts plus callback work.
@@ -1026,6 +1031,9 @@ impl EscrowContract {
 
     #[private]
     pub fn on_expiry_payout(&mut self, position_id: u64) -> bool {
+        #[cfg(feature = "fault-injection")]
+        env::panic_str("injected expiry callback receipt failure (test-only Wasm)");
+
         let mut position = self.position(position_id);
         assert_eq!(
             position.state,
