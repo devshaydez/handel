@@ -1,8 +1,8 @@
 # Backend gap register
 
-Status snapshot: 2026-11-08, PR #2 head `9b73d10f819e322221f0f3b05e478c3273bf7831`.
+Status snapshot: 2026-11-08, PR #2.
 
-Batch 1 runtime changes passed CI run #42529923092 (run 249) on commit `1c0871bef8eeecf3c2fa0fe7abd6ca21f1a1685a`. Rust formatting, unit tests, optimized contract Wasm, isolated callback-failure Wasm, and the combined Sandbox integration test passed. The TypeScript SDK build, SDK unit tests, and offline lifecycle demo also passed. The Sandbox flow verifies Call and Put premium custody/payout, OptionsContract Open/Settled synchronization, and replay of missing ordered lifecycle events. All token tests use mocks, not live assets.
+Batch 1 runtime code commit `1c0871bef8eeecf3c2fa0fe7abd6ca21f1a1685a` passed CI run #42529923092 (run 249). Rust formatting, unit tests, optimized contract Wasm, isolated callback-failure Wasm, and combined Sandbox integration passed. The TypeScript SDK build, SDK unit tests, and offline lifecycle demo also passed. The Sandbox flow verifies Call/Put premium custody and payout, OptionsContract Open/Settled synchronization, and replay of missing ordered lifecycle events. Assets are mocks, not live tokens.
 
 ## P0 — Required before claiming a complete Testnet backend
 

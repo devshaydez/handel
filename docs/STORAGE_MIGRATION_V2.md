@@ -1,6 +1,6 @@
 # Versioned lifecycle storage and migration design
 
-Status: implementation and migration gate, 2026-11-08. Premium sidecars/transfers/refunds, lifecycle outbox/callbacks, and evidence-attested payout recovery have been added to the PR branch. Current-head CI run #42529923092 passed Rust formatting, unit tests, optimized Wasm builds, the isolated callback-failure Wasm build, Sandbox integration, and the SDK build/tests/offline demo. Migration entrypoints and legacy deployment migration are still not implemented. Versioned root-state migration entrypoints and legacy deployment migration are not implemented.
+Status: implementation and migration gate, 2026-11-08. Premium sidecars/transfers/refunds, lifecycle outbox/callbacks, and evidence-attested payout recovery are implemented in the PR branch. Runtime code commit `1c0871bef8eeecf3c2fa0fe7abd6ca21f1a1685a` passed CI run #42529923092 (Rust format/tests/Wasm/Sandbox and SDK build/tests/demo). Versioned root-state migration entrypoints and legacy deployment migration are not implemented.
 
 ## Safety invariant
 
