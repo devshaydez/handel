@@ -1259,7 +1259,8 @@ impl EscrowContract {
     fn dispatch_lifecycle_event(controller: AccountId, event: EscrowLifecycleEvent) -> Promise {
         Promise::new(controller).function_call(
             "on_escrow_lifecycle_event".to_string(),
-            near_sdk::serde_json::to_vec(&event).expect("serialize lifecycle callback"),
+            near_sdk::serde_json::to_vec(&near_sdk::serde_json::json!({ "event": event }))
+                .expect("serialize lifecycle callback"),
             NearToken::from_yoctonear(0),
             Gas::from_tgas(20),
         )
