@@ -2,7 +2,7 @@
 
 ## Scope and status
 
-This is a NEP-141 custody contract for synthetic Testnet tokens. OptionsContract now has an explicit asynchronous registration call and private callback that can create and persist the matching escrow position ID. This is registration-only integration: it does not deposit collateral, settle an option, or connect the external-reconciliation lifecycle. It does not support the BNB-chain Ondo assets and must not be presented as production custody.
+This is a NEP-141 custody contract prototype exercised with synthetic mock tokens in NEAR Sandbox. OptionsContract now registers authoritative Call and Put terms asynchronously, persists the escrow ID through a private callback, and the combined Sandbox test deposits exact collateral through mock NEP-141 `ft_transfer_call` receipts. This is still not a Testnet deployment, does not use live Ondo assets, and does not connect exercise/expiry settlement back to the OptionsContract lifecycle. It must not be presented as production custody.
 
 The escrow stores position records in NEAR's persistent `LookupMap`. Each record reserves the attached NEAR storage deposit; the current implementation retains the full attached amount and has no archival/refund path. The OptionsContract is still a separate contract. Its position, asset, operation, agent-policy, and proposal records now use NEAR persistent `UnorderedMap` collections; this does not itself provide a migration path for any already-deployed legacy state.
 
