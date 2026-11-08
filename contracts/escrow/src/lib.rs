@@ -924,6 +924,118 @@ mod tests {
         assert_eq!(c.get_position(0).state, EscrowState::PaymentPayoutPending);
     }
 
+
+    #[test]
+    fn expired_collateral_release_succeeds_after_grace_period() {
+        let mut c = setup(10);
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-stock.testnet",
+                "writer.testnet",
+                100,
+                "collateral",
+                20
+            ),
+            U128(0)
+        );
+
+        let release_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("writer.testnet"))
+            .block_timestamp(1_000 + EXERCISE_GRACE_NS + 1)
+            .build();
+        testing_env!(release_context);
+        let _payout = c.release_expired_collateral(0);
+        assert_eq!(c.get_position(0).state, EscrowState::ExpiryPayoutPending);
+
+        let callback_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("escrow.testnet"))
+            .block_timestamp(1_000 + EXERCISE_GRACE_NS + 2)
+            .build();
+        testing_env!(
+            callback_context,
+            near_sdk::test_vm_config(),
+            near_sdk::RuntimeFeesConfig::test(),
+            std::collections::HashMap::default(),
+            vec![PromiseResult::Successful(vec![])],
+        );
+        assert!(c.on_expiry_payout(0));
+        let position = c.get_position(0);
+        assert_eq!(position.state, EscrowState::Expired);
+        assert!(position.collateral_returned_to_writer);
+        assert!(!position.exercise_payment_received);
+    }
+
+    #[test]
+    fn failed_expiry_payout_can_be_retried_without_duplicate_release() {
+        let mut c = setup(10);
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-stock.testnet",
+                "writer.testnet",
+                100,
+                "collateral",
+                20
+            ),
+            U128(0)
+        );
+
+        let release_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("writer.testnet"))
+            .block_timestamp(1_000 + EXERCISE_GRACE_NS + 1)
+            .build();
+        testing_env!(release_context);
+        let _payout = c.release_expired_collateral(0);
+
+        let failed_callback_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("escrow.testnet"))
+            .block_timestamp(1_000 + EXERCISE_GRACE_NS + 2)
+            .build();
+        testing_env!(
+            failed_callback_context,
+            near_sdk::test_vm_config(),
+            near_sdk::RuntimeFeesConfig::test(),
+            std::collections::HashMap::default(),
+            vec![PromiseResult::Failed],
+        );
+        assert!(!c.on_expiry_payout(0));
+        let failed = c.get_position(0);
+        assert_eq!(failed.state, EscrowState::ReconciliationRequired);
+        assert_eq!(failed.failed_payout, Some(FailedPayout::ExpiryCollateral));
+        assert!(!failed.collateral_returned_to_writer);
+
+        let retry_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("writer.testnet"))
+            .block_timestamp(1_000 + EXERCISE_GRACE_NS + 3)
+            .build();
+        testing_env!(retry_context);
+        let _retry = c.retry_failed_payout(0);
+        assert_eq!(c.get_position(0).state, EscrowState::ExpiryPayoutPending);
+
+        let recovered_callback_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("escrow.testnet"))
+            .block_timestamp(1_000 + EXERCISE_GRACE_NS + 4)
+            .build();
+        testing_env!(
+            recovered_callback_context,
+            near_sdk::test_vm_config(),
+            near_sdk::RuntimeFeesConfig::test(),
+            std::collections::HashMap::default(),
+            vec![PromiseResult::Successful(vec![])],
+        );
+        assert!(c.on_expiry_payout(0));
+        let recovered = c.get_position(0);
+        assert_eq!(recovered.state, EscrowState::Expired);
+        assert!(recovered.collateral_returned_to_writer);
+    }
+
     #[test]
     fn duplicate_controller_registration_returns_same_id_only_for_identical_terms() {
         let mut c = setup(10);
