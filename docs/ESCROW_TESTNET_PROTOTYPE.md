@@ -2,7 +2,7 @@
 
 ## Scope and status
 
-This is a NEP-141 custody contract prototype exercised with synthetic mock tokens in NEAR Sandbox. OptionsContract now registers authoritative Call and Put terms asynchronously, persists the escrow ID through a private callback, and the combined Sandbox test deposits exact collateral through mock NEP-141 `ft_transfer_call` receipts. This is still not a Testnet deployment, does not use live Ondo assets, and does not connect exercise/expiry settlement back to the OptionsContract lifecycle. It must not be presented as production custody.
+This is a NEP-141 custody contract prototype exercised with synthetic mock tokens in NEAR Sandbox. OptionsContract now registers authoritative Call and Put terms asynchronously, persists the escrow ID through a private callback, and the combined Sandbox test deposits exact collateral through mock NEP-141 `ft_transfer_call` receipts. This is still not a Testnet deployment and does not use live Ondo assets. The combined Sandbox happy path now tests exercise-payment deposits and sequential payouts directly through Escrow, but does not synchronize settlement/expiry state back to OptionsContract. It must not be presented as production custody.
 
 The escrow stores position records in NEAR's persistent `LookupMap`. Each record reserves the attached NEAR storage deposit; the current implementation retains the full attached amount and has no archival/refund path. The OptionsContract is still a separate contract. Its position, asset, operation, agent-policy, and proposal records now use NEAR persistent `UnorderedMap` collections; this does not itself provide a migration path for any already-deployed legacy state.
 
@@ -35,13 +35,13 @@ The escrow unit and Sandbox suites cover:
 - A test-only callback receipt panic after a successful payment transfer; the durable state remains pending and retry is blocked to avoid duplicate payout.
 - A storage-gas benchmark for position creation at increasing record counts.
 
-The isolated escrow tests validate mock-token custody and payout behavior. `options_registration.rs` deploys OptionsContract, Escrow, and two mock NEP-141 token contracts in Sandbox. It verifies Call and Put registration, callback persistence, authoritative term binding, exact collateral `ft_transfer_call` deposits, escrow state transitions to `CollateralLocked`, token balances held by escrow, and exclusion from the competing external-reconciliation rail. A follow-on combined-flow test now also exercises both options after maturity: holder exercise-payment deposits, sequential writer-payment/collateral-delivery payouts, final escrow balances, and recipient balances. This new lifecycle extension is committed and awaits fresh CI. Combined-flow failed registration, callback-receipt failure, and retry after an ambiguous registration callback remain untested. Nothing here validates live Testnet tokens, Ondo assets, or atomic settlement.
+The isolated escrow tests validate mock-token custody and payout behavior. `options_registration.rs` deploys OptionsContract, Escrow, and two mock NEP-141 token contracts in Sandbox. It verifies Call and Put registration, callback persistence, authoritative term binding, exact collateral `ft_transfer_call` deposits, escrow state transitions to `CollateralLocked`, token balances held by escrow, and exclusion from the competing external-reconciliation rail. The combined-flow test now exercises both options after maturity: holder exercise-payment deposits, sequential writer-payment/collateral-delivery payouts, final escrow balances, and recipient balances. CI run #42508978797 passed on commit `1792d600`. Combined-flow failed registration, callback-receipt failure, retry after an ambiguous registration callback, and expiry return remain untested. Nothing here validates live Testnet tokens, Ondo assets, or atomic settlement.
 
 ## Required integration gates
 
 Before connecting or deploying the two contracts:
 1. Extend the combined Sandbox flow to cover failed escrow calls, callback receipt failure, and retry after an ambiguous callback.
-2. Exercise the holder's exact payment deposit and both settlement payout legs in the combined flow.
+2. Extend the combined flow with expiry return and state synchronization; exercise-payment deposits and both settlement payout legs are already covered by the passing combined test.
 3. Define how OptionsContract lifecycle states map to escrow states. Do not mark collateral locked or a position settled based only on a requested cross-contract call; reconcile confirmed receipts and ambiguous callbacks.
 4. Decide whether escrow is the sole custody/settlement path for a position or whether external-intent reconciliation remains enabled. Never allow both paths to settle the same economic leg.
 5. Design and test recovery for the non-atomic two-transfer path. Retry only after a definitive failure; a missing callback is ambiguous, not proof of failure.
