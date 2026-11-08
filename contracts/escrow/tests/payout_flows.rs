@@ -428,3 +428,140 @@ async fn callback_receipt_failure_keeps_payout_pending_and_blocks_retry() -> any
     assert_eq!(balance(&root, &usdc, writer.id()).await?, 50);
     Ok(())
 }
+
+
+#[tokio::test]
+async fn expiry_release_returns_only_unexercised_collateral_and_retries_definitive_failure(
+) -> anyhow::Result<()> {
+    let worker = near_workspaces::sandbox().await?;
+    let root = worker.root_account()?;
+    let writer = worker.dev_create_account().await?;
+    let holder = worker.dev_create_account().await?;
+    let controller = worker.dev_create_account().await?;
+    let escrow = deploy(
+        &worker,
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../target/near/handel_escrow/handel_escrow.wasm"
+        ),
+    )
+    .await?;
+    let stock = deploy(
+        &worker,
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../target/near/handel_mock_ft/handel_mock_ft.wasm"
+        ),
+    )
+    .await?;
+    let usdc = deploy(
+        &worker,
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../target/near/handel_mock_ft/handel_mock_ft.wasm"
+        ),
+    )
+    .await?;
+
+    root.call(escrow.id(), "new")
+        .args_json(json!({}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(stock.id(), "new")
+        .args_json(json!({"owner_id": root.id()}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(usdc.id(), "new")
+        .args_json(json!({"owner_id": root.id()}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(escrow.id(), "set_controller")
+        .args_json(json!({"controller": controller.id()}))
+        .transact()
+        .await?
+        .into_result()?;
+
+    for token in [&stock, &usdc] {
+        for account in [escrow.id(), writer.id(), holder.id()] {
+            register_token_account(&root, token, account).await?;
+        }
+    }
+    mint(&root, &stock, writer.id(), 200).await?;
+
+    // First position: normal expiry release after maturity plus the full grace period.
+    let first_expiry = worker.view_block().await?.header().timestamp_nanosec() + 30_000_000_000;
+    let first = make_position(
+        &controller, &escrow, &writer, &holder, &stock, &usdc, 2001, first_expiry,
+    ).await?;
+    transfer_call(&writer, &stock, &escrow, first, "collateral", 100).await?;
+    worker.fast_forward(100_000).await?;
+    writer
+        .call(escrow.id(), "release_expired_collateral")
+        .args_json(json!({"position_id": first}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+    let first_state = root.view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": first}))
+        .await?.json::<serde_json::Value>()?;
+    assert_eq!(first_state["state"], "Expired");
+    assert_eq!(first_state["collateral_returned_to_writer"], true);
+    assert_eq!(first_state["exercise_payment_received"], false);
+    assert_eq!(balance(&root, &stock, writer.id()).await?, 200);
+
+    // Second position: definitive token-transfer failure is recorded and only that
+    // unpaid expiry leg may be retried after the token is unpaused.
+    let second_expiry = worker.view_block().await?.header().timestamp_nanosec() + 30_000_000_000;
+    let second = make_position(
+        &controller, &escrow, &writer, &holder, &stock, &usdc, 2002, second_expiry,
+    ).await?;
+    transfer_call(&writer, &stock, &escrow, second, "collateral", 100).await?;
+    worker.fast_forward(100_000).await?;
+    root.call(stock.id(), "set_paused")
+        .args_json(json!({"paused": true}))
+        .transact()
+        .await?
+        .into_result()?;
+    writer
+        .call(escrow.id(), "release_expired_collateral")
+        .args_json(json!({"position_id": second}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+    let failed = root.view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": second}))
+        .await?.json::<serde_json::Value>()?;
+    assert_eq!(failed["state"], "ReconciliationRequired");
+    assert_eq!(failed["failed_payout"], "ExpiryCollateral");
+    assert_eq!(failed["collateral_returned_to_writer"], false);
+    assert_eq!(balance(&root, &stock, writer.id()).await?, 200);
+
+    root.call(stock.id(), "set_paused")
+        .args_json(json!({"paused": false}))
+        .transact()
+        .await?
+        .into_result()?;
+    writer
+        .call(escrow.id(), "retry_failed_payout")
+        .args_json(json!({"position_id": second}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+    let recovered = root.view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": second}))
+        .await?.json::<serde_json::Value>()?;
+    assert_eq!(recovered["state"], "Expired");
+    assert_eq!(recovered["collateral_returned_to_writer"], true);
+    assert_eq!(balance(&root, &stock, writer.id()).await?, 300);
+
+    Ok(())
+}
