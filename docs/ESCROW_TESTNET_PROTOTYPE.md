@@ -35,18 +35,18 @@ The escrow unit and Sandbox suites cover:
 - A test-only callback receipt panic after a successful payment transfer; the durable state remains pending and retry is blocked to avoid duplicate payout.
 - A storage-gas benchmark for position creation at increasing record counts.
 
-These tests validate the isolated escrow contract and its mock-token behavior. The registration callback has been implemented in OptionsContract, but a cross-contract Sandbox test is still required. Nothing here validates live Testnet tokens, Ondo assets, or atomic settlement.
+The isolated escrow tests validate mock-token custody and payout behavior. `options_registration.rs` additionally deploys both OptionsContract and Escrow in Sandbox and verifies successful registration, callback persistence, authoritative term binding, and exclusion from the external-reconciliation rail. Failed cross-contract registration, callback-receipt failure, retry after an ambiguous callback, token deposits through the combined flow, and full settlement remain untested. Nothing here validates live Testnet tokens, Ondo assets, or atomic settlement.
 
 ## Required integration gates
 
 Before connecting or deploying the two contracts:
-1. Add an explicit OptionsContract-to-escrow registration handshake. The escrow must accept position terms only from the configured OptionsContract, and OptionsContract must persist the returned escrow position ID only after a successful callback.
-2. Bind every escrow field to the authoritative OptionPosition: writer, holder, collateral token/amount, payment token/amount, expiry, and call/put asset orientation. Reject mismatches and duplicate registration.
+1. Extend the registration Sandbox coverage to failed escrow calls, callback receipt failure, and retry after an ambiguous callback.
+2. Keep every escrow field bound to the authoritative OptionPosition: writer, holder, collateral token/amount, payment token/amount, expiry, and call/put asset orientation. The current successful-call test covers call orientation; add put-orientation coverage.
 3. Define how the OptionsContract lifecycle maps to escrow states. Do not mark collateral locked or a position settled based solely on a requested cross-contract call; use confirmed receipts and handle callback failure as an ambiguous state.
 4. Decide whether escrow is the sole custody/settlement path for a position or whether the existing external-intent reconciliation path remains enabled. Never allow both paths to settle the same economic leg.
 5. Design and test compensation/recovery for the non-atomic two-transfer path. A retry is permitted only after a definitive failure; a missing callback is ambiguous, not proof of failure.
 6. Review the persistent `UnorderedMap` storage layout and define a state-migration plan for any already-deployed legacy state before material-value deployment.
 7. Review storage staking/refunds, NEP-145 registration, pause semantics, controller key security, and monitoring.
-8. Run end-to-end near-workspaces tests for calls and puts, successful and failed cross-contract registration, duplicate registration, callback failure, partial settlement, expiry, and replay attempts.
+8. Extend near-workspaces coverage to puts, failed registration, callback failure, partial settlement, expiry, and replay attempts. The current combined-contract test covers successful call registration only.
 
 Do not deploy this prototype with real assets. Synthetic NEP-141 Testnet tokens only. No independent security audit, authenticated external-chain proof verifier, or production recovery procedure is claimed.
