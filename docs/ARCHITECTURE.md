@@ -34,7 +34,7 @@ A safe integration needs an explicit asynchronous registration handshake:
 4. OptionsContract stores that ID only in a successful private callback. Failed or ambiguous callbacks must not be treated as a confirmed escrow registration.
 5. Collateral-locked, exercised, settled, and expired states must be reconciled against escrow's durable state. The external-intent route and escrow route must not both be able to settle the same position.
 
-`contracts/escrow/tests/options_registration.rs` deploys both contracts plus mock NEP-141 tokens in Sandbox. It verifies Call and Put registration, private callback persistence, exact collateral deposits, escrow balances/state, and blocking the competing reconciliation rail. Failed registration, callback receipt failure, ambiguous retry, exercise-payment deposit, and settlement/expiry still need combined coverage before enabling end-to-end lifecycle claims.
+`contracts/escrow/tests/options_registration.rs` deploys both contracts plus mock NEP-141 tokens in Sandbox. It verifies Call and Put registration, private callback persistence, exact collateral deposits, escrow balances/state, and blocking the competing reconciliation rail. A follow-on combined Sandbox test now exercises both Call and Put payment deposits and sequential settlement payouts, with final token-balance assertions; that extension awaits fresh CI. Failed registration, callback receipt failure, ambiguous registration retry, and expiry still need combined coverage before end-to-end lifecycle claims.
 
 ## Agent path
 
