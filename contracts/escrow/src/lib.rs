@@ -924,7 +924,6 @@ mod tests {
         assert_eq!(c.get_position(0).state, EscrowState::PaymentPayoutPending);
     }
 
-
     #[test]
     fn expired_collateral_release_succeeds_after_grace_period() {
         let mut c = setup(10);
