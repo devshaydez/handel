@@ -32,7 +32,7 @@ The preceding feature-branch work passed the Rust formatting, Rust/Sandbox tests
 
 ## Critical remaining blockers
 
-1. **Cross-contract integration:** add a Sandbox test for OptionsContract-to-escrow registration, callback success/failure, and retry after an ambiguous callback. The contract call, authoritative term binding, private callback, persisted escrow ID, and escrow idempotency guard are implemented; test coverage of the combined flow remains.
+1. **Cross-contract integration:** successful OptionsContract-to-escrow registration, authoritative term binding, private callback persistence, and exclusion from the competing reconciliation rail now have a combined Sandbox test. Add failed registration, callback-receipt failure, ambiguous retry, duplicate-request, and put-orientation tests.
 2. **Lifecycle mapping:** reconcile collateral, exercise, settlement, and expiry states across both contracts. Prevent the external-intent path and escrow path from settling the same position.
 3. **Ambiguous callbacks:** a missing callback is not proof that a transfer failed. Do not automatically retry an ambiguous payout.
 4. **Non-atomic settlement:** escrow pays two NEP-141 legs sequentially. Design and test recovery/compensation for partial success; do not claim atomicity.
