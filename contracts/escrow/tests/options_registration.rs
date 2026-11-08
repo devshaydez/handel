@@ -8,8 +8,7 @@ async fn deploy(worker: &Worker<Sandbox>, path: &str) -> anyhow::Result<Contract
 }
 
 #[tokio::test]
-async fn call_and_put_registration_deposit_and_settle_through_escrow(
-) -> anyhow::Result<()> {
+async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account()?;
     let writer = worker.dev_create_account().await?;
