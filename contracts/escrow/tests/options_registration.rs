@@ -1,4 +1,3 @@
-use near_sdk::NearToken;
 use near_workspaces::{network::Sandbox, Account, Contract, Worker};
 use serde_json::json;
 
@@ -152,7 +151,5 @@ async fn options_registration_creates_matching_escrow_record_without_moving_toke
         .await?;
     assert!(competing_rail.is_failure());
 
-    // The escrow registration attached its 1 NEAR storage reserve successfully.
-    let _ = NearToken::from_near(1);
     Ok(())
 }
