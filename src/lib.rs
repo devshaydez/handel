@@ -307,23 +307,31 @@ impl OptionsContract {
 
     /// Retry an ambiguous/failed registration. Escrow registration is idempotent by source ID.
     pub fn retry_escrow_registration(&mut self, position_id: u64) -> Promise {
+        let position = self.position_owned_by_writer(position_id);
+        assert!(position.escrow_position_id.is_none(), "escrow position already registered");
+        // A callback receipt may have failed after escrow committed the registration.
+        // Clear the local in-flight marker and safely repeat the idempotent escrow call.
+        self.positions.get_mut(&position_id).unwrap().escrow_registration_pending = false;
         self.register_escrow_position(position_id)
     }
 
     #[private]
     pub fn on_escrow_position_registered(&mut self, position_id: u64) -> bool {
         let mut position = self.position(position_id);
-        assert!(position.escrow_registration_pending, "no escrow registration pending");
-        position.escrow_registration_pending = false;
         match env::promise_result(0) {
             PromiseResult::Successful(bytes) => {
                 let escrow_id: u64 = near_sdk::serde_json::from_slice(&bytes)
                     .expect("invalid escrow registration result");
+                if let Some(existing_id) = position.escrow_position_id {
+                    assert_eq!(existing_id, escrow_id, "escrow registration ID changed");
+                }
                 position.escrow_position_id = Some(escrow_id);
+                position.escrow_registration_pending = false;
                 self.positions.insert(position_id, position);
                 true
             }
             PromiseResult::Failed => {
+                position.escrow_registration_pending = false;
                 self.positions.insert(position_id, position);
                 false
             }
