@@ -1,3 +1,4 @@
+use near_sdk::NearToken;
 use near_workspaces::{network::Sandbox, Contract, Worker};
 use serde_json::json;
 
@@ -13,8 +14,22 @@ async fn call_and_put_registration_create_matching_escrow_records_without_moving
     let root = worker.root_account()?;
     let writer = worker.dev_create_account().await?;
     let holder = worker.dev_create_account().await?;
-    let stock_token = worker.dev_create_account().await?;
-    let usdc_token = worker.dev_create_account().await?;
+    let stock_token = deploy(
+        &worker,
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../target/near/handel_mock_ft.wasm"
+        ),
+    )
+    .await?;
+    let usdc_token = deploy(
+        &worker,
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../target/near/handel_mock_ft.wasm"
+        ),
+    )
+    .await?;
 
     let options = deploy(
         &worker,
@@ -40,6 +55,31 @@ async fn call_and_put_registration_create_matching_escrow_records_without_moving
         .into_result()?;
     root.call(escrow.id(), "new")
         .args_json(json!({}))
+        .transact()
+        .await?
+        .into_result()?;
+
+    for token in [&stock_token, &usdc_token] {
+        root.call(token.id(), "new")
+            .args_json(json!({"owner_id": root.id()}))
+            .transact()
+            .await?
+            .into_result()?;
+        for account in [writer.id(), escrow.id()] {
+            root.call(token.id(), "register_account")
+                .args_json(json!({"account_id": account}))
+                .transact()
+                .await?
+                .into_result()?;
+        }
+    }
+    root.call(stock_token.id(), "mint")
+        .args_json(json!({"account_id": writer.id(), "amount": "1000000"}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(usdc_token.id(), "mint")
+        .args_json(json!({"account_id": writer.id(), "amount": "2500000"}))
         .transact()
         .await?
         .into_result()?;
@@ -196,8 +236,65 @@ async fn call_and_put_registration_create_matching_escrow_records_without_moving
     assert_eq!(put_escrow_position["payment_amount"], 1000000);
     assert_eq!(put_escrow_position["state"], "AwaitingCollateral");
 
-    // Registration is metadata-only: no collateral or payment tokens have moved.
-    // These accounts are token identifiers in this test; balances are not fabricated.
+    // Deposit the exact collateral for both option types through real NEP-141
+    // transfer_call receipts using the repository's mock fungible-token Wasm.
+    writer
+        .call(stock_token.id(), "ft_transfer_call")
+        .args_json(json!({
+            "receiver_id": escrow.id(),
+            "amount": "1000000",
+            "memo": null,
+            "msg": "{\"position_id\":0,\"leg\":\"collateral\"}"
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+    writer
+        .call(usdc_token.id(), "ft_transfer_call")
+        .args_json(json!({
+            "receiver_id": escrow.id(),
+            "amount": "2500000",
+            "memo": null,
+            "msg": "{\"position_id\":1,\"leg\":\"collateral\"}"
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+    let call_after_deposit = root
+        .view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": 0}))
+        .await?
+        .json::<serde_json::Value>()?;
+    assert_eq!(call_after_deposit["state"], "CollateralLocked");
+    assert_eq!(call_after_deposit["collateral_received"], true);
+
+    let put_after_deposit = root
+        .view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": 1}))
+        .await?
+        .json::<serde_json::Value>()?;
+    assert_eq!(put_after_deposit["state"], "CollateralLocked");
+    assert_eq!(put_after_deposit["collateral_received"], true);
+
+    let stock_escrow_balance = root
+        .view(stock_token.id(), "ft_balance_of")
+        .args_json(json!({"account_id": escrow.id()}))
+        .await?
+        .json::<near_sdk::json_types::U128>()?;
+    assert_eq!(stock_escrow_balance.0, 1000000);
+    let usdc_escrow_balance = root
+        .view(usdc_token.id(), "ft_balance_of")
+        .args_json(json!({"account_id": escrow.id()}))
+        .await?
+        .json::<near_sdk::json_types::U128>()?;
+    assert_eq!(usdc_escrow_balance.0, 2500000);
+
     // The independent reconciliation rail must now be blocked for this position.
     let competing_rail = writer
         .call(options.id(), "begin_collateral_lock")
