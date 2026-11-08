@@ -2463,7 +2463,6 @@ mod tests {
         assert_eq!(c.get_position(id).unwrap().state, PositionState::Settled);
     }
 
-
     #[test]
     fn authenticated_escrow_expiry_event_marks_option_expired() {
         let mut c = contract();
