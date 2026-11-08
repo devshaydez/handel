@@ -54,6 +54,10 @@ pub struct PremiumSidecar {
 pub struct PayoutReconciliationRecord {
     pub position_id: u64,
     pub leg: String,
+    pub token: AccountId,
+    pub amount: u128,
+    pub sender: AccountId,
+    pub receiver: AccountId,
     pub succeeded: bool,
     pub evidence_hash: String,
     pub transfer_reference: String,
@@ -537,8 +541,15 @@ impl EscrowContract {
         assert!(!evidence_hash.trim().is_empty() && evidence_hash.len() <= 256, "invalid evidence hash");
         assert!(!transfer_reference.trim().is_empty() && transfer_reference.len() <= 512, "invalid transfer reference");
         let mut p = self.position(id);
+        let (token, amount, receiver) = match leg.as_str() {
+            "exercise_payment" => (p.payment_token.clone(), p.payment_amount, p.writer.clone()),
+            "exercise_collateral" => (p.collateral_token.clone(), p.collateral_amount, p.holder.clone()),
+            "expiry_collateral" => (p.collateral_token.clone(), p.collateral_amount, p.writer.clone()),
+            _ => env::panic_str("unsupported ambiguous payout leg"),
+        };
         let record = PayoutReconciliationRecord {
-            position_id: id, leg: leg.clone(), succeeded, evidence_hash, transfer_reference,
+            position_id: id, leg: leg.clone(), token, amount,
+            sender: env::current_account_id(), receiver, succeeded, evidence_hash, transfer_reference,
             reconciler, recorded_at_ns: env::block_timestamp(),
         };
         match leg.as_str() {
@@ -615,8 +626,10 @@ impl EscrowContract {
         premium.payout_failed = !succeeded;
         self.store_premium_status(id, &premium);
         self.store_payout_reconciliation(&PayoutReconciliationRecord {
-            position_id: id, leg: "premium_payout".into(), succeeded, evidence_hash,
-            transfer_reference, reconciler, recorded_at_ns: env::block_timestamp(),
+            position_id: id, leg: "premium_payout".into(), token: premium.token.clone(),
+            amount: premium.amount, sender: env::current_account_id(), receiver: p.writer.clone(),
+            succeeded, evidence_hash, transfer_reference, reconciler,
+            recorded_at_ns: env::block_timestamp(),
         });
         self.emit_lifecycle_event_with_state(&p, if succeeded { "PremiumPaid" } else { "PremiumPayoutFailed" });
         succeeded
@@ -639,8 +652,10 @@ impl EscrowContract {
         premium.refund_failed = !succeeded;
         self.store_premium_status(id, &premium);
         self.store_payout_reconciliation(&PayoutReconciliationRecord {
-            position_id: id, leg: "premium_refund".into(), succeeded, evidence_hash,
-            transfer_reference, reconciler, recorded_at_ns: env::block_timestamp(),
+            position_id: id, leg: "premium_refund".into(), token: premium.token.clone(),
+            amount: premium.amount, sender: env::current_account_id(), receiver: p.holder.clone(),
+            succeeded, evidence_hash, transfer_reference, reconciler,
+            recorded_at_ns: env::block_timestamp(),
         });
         self.emit_lifecycle_event_with_state(&p, if succeeded { "PremiumRefunded" } else { "PremiumRefundFailed" });
         succeeded
