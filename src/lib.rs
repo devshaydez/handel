@@ -97,6 +97,15 @@ pub struct AssetMetadata {
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone)]
+pub struct EscrowLifecycleEvent {
+    pub source_position_id: u64,
+    pub escrow_position_id: u64,
+    pub sequence: u64,
+    pub state: String,
+}
+
+#[near(serializers = [json, borsh])]
+#[derive(Clone)]
 pub struct OptionPosition {
     pub id: u64,
     pub kind: OptionKind,
@@ -445,6 +454,52 @@ impl OptionsContract {
         position.collateral_operation_id = Some(operation_id);
     }
 
+    /// Accept a lifecycle event only from the escrow contract pinned to this position.
+    /// Sequence and digest are stored in disjoint raw-storage keys, preserving all existing
+    /// Borsh root and OptionPosition layouts.
+    pub fn on_escrow_lifecycle_event(&mut self, event: EscrowLifecycleEvent) -> bool {
+        let position = self.positions.get(&event.source_position_id)
+            .cloned().expect("source option position missing");
+        let escrow = position.escrow_contract_id.as_ref().expect("escrow contract not pinned");
+        assert_eq!(env::predecessor_account_id(), *escrow, "pinned escrow contract only");
+        assert_eq!(position.escrow_position_id, Some(event.escrow_position_id), "escrow position ID mismatch");
+        assert_eq!(position.id, event.source_position_id, "source position ID mismatch");
+
+        let sequence_key = format!("handel:options:v2:escrow-seq:{}", position.id).into_bytes();
+        let digest_key = format!("handel:options:v2:escrow-digest:{}", position.id).into_bytes();
+        let last_sequence = env::storage_read(&sequence_key)
+            .and_then(|bytes| if bytes.len() == 8 {
+                Some(u64::from_le_bytes(bytes.try_into().ok()?))
+            } else { None })
+            .unwrap_or(0);
+        let encoded = near_sdk::serde_json::to_vec(&event).expect("serialize event");
+        let digest = env::sha256(&encoded);
+        if event.sequence == last_sequence {
+            assert_eq!(env::storage_read(&digest_key), Some(digest), "conflicting lifecycle event replay");
+            return true;
+        }
+        assert_eq!(
+            event.sequence,
+            last_sequence.checked_add(1).expect("event sequence overflow"),
+            "stale or out-of-order lifecycle event"
+        );
+
+        let next_state = match event.state.as_str() {
+            "CollateralLocked" => PositionState::CollateralLocked,
+            "ExercisePaymentReceived" | "PaymentPayoutPending" | "CollateralPayoutPending" => PositionState::PendingSettlement,
+            "ReconciliationRequired" => PositionState::ReconciliationRequired,
+            "Settled" => PositionState::Settled,
+            "Expired" => PositionState::Expired,
+            "AwaitingCollateral" => PositionState::PendingCollateral,
+            "ExpiryPayoutPending" => PositionState::PendingExpiry,
+            other => env::panic_str(&format!("unsupported escrow lifecycle state: {other}")),
+        };
+        self.positions.get_mut(&position.id).unwrap().state = next_state;
+        env::storage_write(&sequence_key, &event.sequence.to_le_bytes());
+        env::storage_write(&digest_key, &digest);
+        true
+    }
+
     /// Configure the identity allowed to submit independently verified transfer receipts.
     /// Must be a dedicated service account, not an end-user controlled key.
     pub fn get_owner(&self) -> AccountId {
@@ -564,6 +619,10 @@ impl OptionsContract {
     pub fn begin_premium_payment(&mut self, position_id: u64, premium_operation_id: String) {
         self.assert_not_paused();
         let position = self.position(position_id);
+        assert!(
+            position.escrow_position_id.is_none(),
+            "escrow position cannot use external premium rail"
+        );
         assert_eq!(
             position.state,
             PositionState::CollateralLocked,
@@ -658,6 +717,10 @@ impl OptionsContract {
     ) {
         self.assert_not_paused();
         let position = self.position(position_id);
+        assert!(
+            position.escrow_position_id.is_none(),
+            "escrow position cannot use external exercise rail"
+        );
         assert_eq!(
             env::predecessor_account_id(),
             position.holder,

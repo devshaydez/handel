@@ -40,6 +40,15 @@ pub enum EscrowState {
 }
 
 #[near(serializers = [json, borsh])]
+#[derive(Clone)]
+pub struct EscrowLifecycleEvent {
+    pub source_position_id: u64,
+    pub escrow_position_id: u64,
+    pub sequence: u64,
+    pub state: String,
+}
+
+#[near(serializers = [json, borsh])]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum FailedPayout {
     ExercisePayment,
@@ -380,6 +389,27 @@ impl EscrowContract {
         self.position(position_id)
     }
 
+    pub fn get_lifecycle_event(&self, position_id: u64, sequence: u64) -> Option<EscrowLifecycleEvent> {
+        env::storage_read(&Self::event_key(position_id, sequence))
+            .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok())
+    }
+
+    /// Redeliver a persisted event without initiating any token transfer.
+    pub fn retry_lifecycle_event(&self, position_id: u64, sequence: u64) -> Promise {
+        let event = self.get_lifecycle_event(position_id, sequence)
+            .expect("lifecycle event not found");
+        let controller = self.controller.clone().expect("controller not configured");
+        Self::dispatch_lifecycle_event(controller, event)
+    }
+
+    pub fn get_latest_lifecycle_sequence(&self, position_id: u64) -> u64 {
+        env::storage_read(&Self::sequence_key(position_id))
+            .and_then(|bytes| if bytes.len() == 8 {
+                Some(u64::from_le_bytes(bytes.try_into().ok()?))
+            } else { None })
+            .unwrap_or(0)
+    }
+
     // This callback has a larger gas budget because it schedules the second transfer
     // and its callback. If this receipt itself fails, state remains pending by design;
     // no automatic retry is safe without independently proving the first transfer outcome.
@@ -398,6 +428,7 @@ impl EscrowContract {
             position.payment_paid = true;
             position.state = EscrowState::CollateralPayoutPending;
             self.positions.insert(position_id, position.clone());
+            self.emit_lifecycle_event(&position);
             PromiseOrValue::Promise(
                 Self::transfer(
                     position.collateral_token,
@@ -413,7 +444,8 @@ impl EscrowContract {
         } else {
             position.state = EscrowState::ReconciliationRequired;
             position.failed_payout = Some(FailedPayout::ExercisePayment);
-            self.positions.insert(position_id, position);
+            self.positions.insert(position_id, position.clone());
+            self.emit_lifecycle_event(&position);
             PromiseOrValue::Value(false)
         }
     }
@@ -429,12 +461,14 @@ impl EscrowContract {
         if Self::promise_succeeded() {
             position.collateral_delivered_to_holder = true;
             position.state = EscrowState::Settled;
-            self.positions.insert(position_id, position);
+            self.positions.insert(position_id, position.clone());
+            self.emit_lifecycle_event(&position);
             true
         } else {
             position.state = EscrowState::ReconciliationRequired;
             position.failed_payout = Some(FailedPayout::ExerciseCollateral);
-            self.positions.insert(position_id, position);
+            self.positions.insert(position_id, position.clone());
+            self.emit_lifecycle_event(&position);
             false
         }
     }
@@ -450,12 +484,14 @@ impl EscrowContract {
         if Self::promise_succeeded() {
             position.collateral_returned_to_writer = true;
             position.state = EscrowState::Expired;
-            self.positions.insert(position_id, position);
+            self.positions.insert(position_id, position.clone());
+            self.emit_lifecycle_event(&position);
             true
         } else {
             position.state = EscrowState::ReconciliationRequired;
             position.failed_payout = Some(FailedPayout::ExpiryCollateral);
-            self.positions.insert(position_id, position);
+            self.positions.insert(position_id, position.clone());
+            self.emit_lifecycle_event(&position);
             false
         }
     }
@@ -520,7 +556,12 @@ impl FungibleTokenReceiver for EscrowContract {
         };
 
         if accepted {
-            self.positions.insert(position.id, position);
+            self.positions.insert(position.id, position.clone());
+            if position.state == EscrowState::CollateralLocked
+                || position.state == EscrowState::ExercisePaymentReceived
+            {
+                self.emit_lifecycle_event(&position);
+            }
             PromiseOrValue::Value(U128(0))
         } else {
             PromiseOrValue::Value(amount)
@@ -529,6 +570,55 @@ impl FungibleTokenReceiver for EscrowContract {
 }
 
 impl EscrowContract {
+    fn sequence_key(position_id: u64) -> Vec<u8> {
+        format!("handel:escrow:v2:event-seq:{position_id}").into_bytes()
+    }
+
+    fn event_key(position_id: u64, sequence: u64) -> Vec<u8> {
+        format!("handel:escrow:v2:event:{position_id}:{sequence}").into_bytes()
+    }
+
+    fn emit_lifecycle_event(&self, position: &EscrowPosition) {
+        let controller = self.controller.clone().expect("controller not configured");
+        let sequence_key = Self::sequence_key(position.id);
+        let previous = env::storage_read(&sequence_key)
+            .and_then(|bytes| if bytes.len() == 8 {
+                Some(u64::from_le_bytes(bytes.try_into().ok()?))
+            } else { None })
+            .unwrap_or(0);
+        let sequence = previous.checked_add(1).expect("event sequence overflow");
+        let state = match position.state {
+            EscrowState::AwaitingCollateral => "AwaitingCollateral",
+            EscrowState::CollateralLocked => "CollateralLocked",
+            EscrowState::ExercisePaymentReceived => "ExercisePaymentReceived",
+            EscrowState::PaymentPayoutPending => "PaymentPayoutPending",
+            EscrowState::CollateralPayoutPending => "CollateralPayoutPending",
+            EscrowState::ExpiryPayoutPending => "ExpiryPayoutPending",
+            EscrowState::ReconciliationRequired => "ReconciliationRequired",
+            EscrowState::Settled => "Settled",
+            EscrowState::Expired => "Expired",
+        };
+        let event = EscrowLifecycleEvent {
+            source_position_id: position.source_position_id,
+            escrow_position_id: position.id,
+            sequence,
+            state: state.to_string(),
+        };
+        let bytes = near_sdk::serde_json::to_vec(&event).expect("serialize lifecycle event");
+        env::storage_write(&sequence_key, &sequence.to_le_bytes());
+        env::storage_write(&Self::event_key(position.id, sequence), &bytes);
+        Self::dispatch_lifecycle_event(controller, event);
+    }
+
+    fn dispatch_lifecycle_event(controller: AccountId, event: EscrowLifecycleEvent) -> Promise {
+        Promise::new(controller).function_call(
+            "on_escrow_lifecycle_event".to_string(),
+            near_sdk::serde_json::to_vec(&event).expect("serialize lifecycle callback"),
+            NearToken::from_yoctonear(0),
+            Gas::from_tgas(10),
+        )
+    }
+
     fn position(&self, id: u64) -> EscrowPosition {
         self.positions.get(&id).cloned().expect("unknown position")
     }
