@@ -2178,13 +2178,15 @@ mod tests {
             "sha256:approval-gate".into(),
         );
 
-        context("writer.testnet");
+        context("owner.testnet");
         let bypass = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.register_escrow_position(0);
         }));
         assert!(bypass.is_err(), "unapproved proposal must not enter escrow");
 
+        context("writer.testnet");
         c.approve_agent_proposal("escrow-approval-gate".into());
+        context("owner.testnet");
         let approved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.register_escrow_position(0)
         }));
