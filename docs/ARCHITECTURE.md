@@ -7,7 +7,7 @@ Handel currently contains two contract paths with **registration plus collateral
 1. **OptionsContract (lifecycle and policy):** records option terms, agent permissions, operation IDs, and trusted-reconciler outcomes. It does not hold tokens.
 2. **EscrowContract (isolated custody prototype):** holds synthetic NEP-141 Testnet collateral and exercise-payment deposits. OptionsContract can now register a corresponding record asynchronously and persist the returned escrow ID, but token deposits and lifecycle settlement are not yet wired back to OptionsContract.
 
-Do not describe the system as having end-to-end escrow custody: only the registration handshake is implemented; collateral transfer, settlement, expiry, and lifecycle reconciliation remain separate.
+Do not describe the system as having end-to-end escrow settlement: Call/Put registration and mock-token collateral deposits are Sandbox-tested, but exercise-payment deposits, payout, expiry, and lifecycle reconciliation are not connected end-to-end.
 
 ## OptionsContract rail (existing)
 
