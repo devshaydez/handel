@@ -139,7 +139,7 @@ impl EscrowContract {
         // original escrow ID only when every immutable term matches; never create a
         // second custody record for one OptionsContract position.
         if let Some(existing_id) = self.source_positions.get(&source_position_id).copied() {
-            let existing = self.position(existing_id);
+            let mut existing = self.position(existing_id);
             assert_eq!(existing.writer, writer, "registration writer mismatch");
             assert_eq!(existing.holder, holder, "registration holder mismatch");
             assert_eq!(
@@ -162,11 +162,14 @@ impl EscrowContract {
                 existing.expiry_ns, expiry_ns,
                 "registration expiry mismatch"
             );
-            assert_eq!(
-                env::attached_deposit().as_yoctonear(),
-                0,
-                "duplicate registration must not attach deposit"
-            );
+            // A retry may not know whether the original registration receipt committed.
+            // Retain any retry deposit as additional storage reserve while returning the
+            // same record ID; never create a second custody record.
+            existing.storage_deposit = existing
+                .storage_deposit
+                .checked_add(env::attached_deposit().as_yoctonear())
+                .expect("storage reserve overflow");
+            self.positions.insert(existing_id, existing);
             return existing_id;
         }
         assert!(!self.paused, "escrow paused");
