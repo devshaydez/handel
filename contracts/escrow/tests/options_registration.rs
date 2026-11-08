@@ -8,7 +8,7 @@ async fn deploy(worker: &Worker<Sandbox>, path: &str) -> anyhow::Result<Contract
 }
 
 #[tokio::test]
-async fn call_and_put_registration_create_matching_escrow_records_without_moving_tokens(
+async fn call_and_put_registration_deposit_and_settle_through_escrow(
 ) -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account()?;
@@ -313,7 +313,10 @@ async fn call_and_put_registration_create_matching_escrow_records_without_moving
 
     // Exercise both options after maturity. The holder pays the exact exercise
     // asset for each option, then escrow performs its two asynchronous payout legs.
-    worker.fast_forward(100).await?;
+    // Sandbox block timestamps may advance more slowly than the local test wall clock.
+    // Advance well beyond the 60-second maturity offset while remaining inside
+    // the escrow's 24-hour exercise grace window.
+    worker.fast_forward(10_000).await?;
     holder
         .call(usdc_token.id(), "ft_transfer_call")
         .args_json(json!({
