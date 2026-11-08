@@ -320,7 +320,7 @@ async fn call_and_put_registration_create_matching_escrow_records_without_moving
             "receiver_id": escrow.id(),
             "amount": "2500000",
             "memo": null,
-            "msg": "{\\"position_id\\":0,\\"leg\\":\\"exercise_payment\\"}"
+            "msg": "{\"position_id\":0,\"leg\":\"exercise_payment\"}"
         }))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
@@ -333,7 +333,7 @@ async fn call_and_put_registration_create_matching_escrow_records_without_moving
             "receiver_id": escrow.id(),
             "amount": "1000000",
             "memo": null,
-            "msg": "{\\"position_id\\":1,\\"leg\\":\\"exercise_payment\\"}"
+            "msg": "{\"position_id\":1,\"leg\":\"exercise_payment\"}"
         }))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
