@@ -2145,7 +2145,7 @@ mod tests {
     #[test]
     fn agent_proposal_cannot_bypass_principal_approval_through_escrow_registration() {
         let mut c = contract();
-        context("writer.testnet");
+        context("owner.testnet");
         c.set_agent_policy(
             account("agent.testnet"),
             vec!["nep141:stock.testnet".into()],
