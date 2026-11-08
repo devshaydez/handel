@@ -1,17 +1,4 @@
-use near_sdk::{
-    borsh::BorshSerialize, env, near, store::UnorderedMap, AccountId, BorshStorageKey,
-    PanicOnDefault,
-};
-
-#[derive(BorshSerialize, BorshStorageKey)]
-enum StorageKey {
-    Positions,
-    AssetRegistry,
-    Operations,
-    UsedOperationIds,
-    AgentPolicies,
-    Proposals,
-}
+use near_sdk::{env, near, store::UnorderedMap, AccountId, PanicOnDefault};
 
 /// Holders get a 24-hour post-maturity window to submit exercise transactions.
 /// This is a transaction-submission grace period, not an American early-exercise window.
@@ -183,14 +170,14 @@ impl OptionsContract {
         Self {
             owner: env::predecessor_account_id(),
             next_id: 0,
-            positions: UnorderedMap::new(StorageKey::Positions),
-            asset_registry: UnorderedMap::new(StorageKey::AssetRegistry),
-            operations: UnorderedMap::new(StorageKey::Operations),
-            used_operation_ids: UnorderedMap::new(StorageKey::UsedOperationIds),
+            positions: UnorderedMap::new(b"p".to_vec()),
+            asset_registry: UnorderedMap::new(b"a".to_vec()),
+            operations: UnorderedMap::new(b"o".to_vec()),
+            used_operation_ids: UnorderedMap::new(b"u".to_vec()),
             paused: false,
             trusted_reconciler: None,
-            agent_policies: UnorderedMap::new(StorageKey::AgentPolicies),
-            proposals: UnorderedMap::new(StorageKey::Proposals),
+            agent_policies: UnorderedMap::new(b"g".to_vec()),
+            proposals: UnorderedMap::new(b"r".to_vec()),
         }
     }
 
