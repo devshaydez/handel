@@ -35,7 +35,7 @@ The escrow unit and Sandbox suites cover:
 - A test-only callback receipt panic after a successful payment transfer; the durable state remains pending and retry is blocked to avoid duplicate payout.
 - A storage-gas benchmark for position creation at increasing record counts.
 
-The isolated escrow tests validate mock-token custody and payout behavior. `options_registration.rs` additionally deploys both OptionsContract and Escrow in Sandbox and verifies successful registration, callback persistence, authoritative term binding, and exclusion from the external-reconciliation rail. Failed cross-contract registration, callback-receipt failure, retry after an ambiguous callback, token deposits through the combined flow, and full settlement remain untested. Nothing here validates live Testnet tokens, Ondo assets, or atomic settlement.
+The isolated escrow tests validate mock-token custody and payout behavior. `options_registration.rs` deploys OptionsContract, Escrow, and two mock NEP-141 token contracts in Sandbox. It verifies Call and Put registration, callback persistence, authoritative term binding, exact collateral `ft_transfer_call` deposits, escrow state transitions to `CollateralLocked`, token balances held by escrow, and exclusion from the competing external-reconciliation rail. Combined-flow failed registration, callback-receipt failure, retry after an ambiguous callback, exercise-payment deposit, and full settlement remain untested. Nothing here validates live Testnet tokens, Ondo assets, or atomic settlement.
 
 ## Required integration gates
 
