@@ -132,7 +132,10 @@ async fn options_registration_creates_matching_escrow_record_without_moving_toke
     assert_eq!(escrow_position["source_position_id"], 0);
     assert_eq!(escrow_position["writer"], writer.id().as_str());
     assert_eq!(escrow_position["holder"], holder.id().as_str());
-    assert_eq!(escrow_position["collateral_token"], stock_token.id().as_str());
+    assert_eq!(
+        escrow_position["collateral_token"],
+        stock_token.id().as_str()
+    );
     assert_eq!(escrow_position["collateral_amount"], 1000000);
     assert_eq!(escrow_position["payment_token"], usdc_token.id().as_str());
     assert_eq!(escrow_position["payment_amount"], 2500000);
