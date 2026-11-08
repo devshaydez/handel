@@ -895,12 +895,16 @@ mod tests {
         leg: &str,
         timestamp: u64,
     ) -> U128 {
+        let premium_before = contract.get_premium_status(0);
         let context = VMContextBuilder::new()
             .current_account_id(account("escrow.testnet"))
             .predecessor_account_id(account(token))
             .block_timestamp(timestamp)
             .build();
         testing_env!(context);
+        if let Some(premium) = premium_before.as_ref() {
+            contract.store_premium_status(0, premium);
+        }
         match contract.ft_on_transfer(
             account(sender),
             U128(amount),
@@ -1437,6 +1441,7 @@ mod tests {
             .block_timestamp(1_000 + EXERCISE_GRACE_NS + 1)
             .build();
         testing_env!(refund_context);
+        c.store_premium_status(0, &failed);
         let _refund = c.refund_unpaid_premium(0);
         let refund_pending = c.get_premium_status(0).unwrap();
 
@@ -1455,6 +1460,58 @@ mod tests {
         c.store_premium_status(0, &refund_pending);
         assert!(c.on_premium_refund(0));
         assert!(c.get_premium_status(0).unwrap().refunded);
+    }
+
+
+    #[test]
+    fn trusted_evidence_resolves_ambiguous_payment_without_repeating_that_leg() {
+        let mut c = setup(10);
+        let mut p = c.position(0);
+        p.state = EscrowState::PaymentPayoutPending;
+        c.positions.insert(0, p);
+
+        let owner_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("owner.testnet"))
+            .block_timestamp(2_000)
+            .build();
+        testing_env!(owner_context);
+        c.set_payout_reconciler(account("reconciler.testnet"));
+
+        let reconciler_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("reconciler.testnet"))
+            .block_timestamp(2_001)
+            .build();
+        testing_env!(reconciler_context);
+        let configured = near_sdk::serde_json::to_vec(&account("reconciler.testnet")).unwrap();
+        env::storage_write(b"handel:escrow:v2:payout-reconciler", &configured);
+        let result = c.reconcile_ambiguous_payout(
+            0,
+            "exercise_payment".into(),
+            true,
+            "sha256:independently-inspected-receipt".into(),
+            "near-receipt:payment-0".into(),
+        );
+        assert!(matches!(result, PromiseOrValue::Promise(_)));
+        let position = c.get_position(0);
+        assert!(position.payment_paid);
+        assert_eq!(position.state, EscrowState::CollateralPayoutPending);
+        let record = c.get_payout_reconciliation(0, "exercise_payment".into()).unwrap();
+        assert!(record.succeeded);
+        assert_eq!(record.reconciler, account("reconciler.testnet"));
+
+        let replay = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.reconcile_ambiguous_payout(
+                0,
+                "exercise_payment".into(),
+                true,
+                "sha256:another".into(),
+                "near-receipt:payment-0".into(),
+            )
+        }));
+        assert!(replay.is_err());
+        assert!(c.get_position(0).payment_paid);
     }
 
     #[test]
