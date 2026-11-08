@@ -429,33 +429,59 @@ async fn callback_receipt_failure_keeps_payout_pending_and_blocks_retry() -> any
     Ok(())
 }
 
-
 #[tokio::test]
-async fn expiry_callback_receipt_failure_is_reconciled_without_duplicate_transfer() -> anyhow::Result<()> {
+async fn expiry_callback_receipt_failure_is_reconciled_without_duplicate_transfer(
+) -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account()?;
     let writer = worker.dev_create_account().await?;
     let holder = worker.dev_create_account().await?;
     let controller = worker.dev_create_account().await?;
-    let escrow = deploy(&worker, concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../target/near/handel_escrow_fault_injection.wasm"
-    )).await?;
-    let stock = deploy(&worker, concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../target/near/handel_mock_ft/handel_mock_ft.wasm"
-    )).await?;
-    let usdc = deploy(&worker, concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../target/near/handel_mock_ft/handel_mock_ft.wasm"
-    )).await?;
+    let escrow = deploy(
+        &worker,
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../target/near/handel_escrow_fault_injection.wasm"
+        ),
+    )
+    .await?;
+    let stock = deploy(
+        &worker,
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../target/near/handel_mock_ft/handel_mock_ft.wasm"
+        ),
+    )
+    .await?;
+    let usdc = deploy(
+        &worker,
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../target/near/handel_mock_ft/handel_mock_ft.wasm"
+        ),
+    )
+    .await?;
 
-    root.call(escrow.id(), "new").args_json(json!({})).transact().await?.into_result()?;
-    root.call(stock.id(), "new").args_json(json!({"owner_id": root.id()})).transact().await?.into_result()?;
-    root.call(usdc.id(), "new").args_json(json!({"owner_id": root.id()})).transact().await?.into_result()?;
+    root.call(escrow.id(), "new")
+        .args_json(json!({}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(stock.id(), "new")
+        .args_json(json!({"owner_id": root.id()}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(usdc.id(), "new")
+        .args_json(json!({"owner_id": root.id()}))
+        .transact()
+        .await?
+        .into_result()?;
     root.call(escrow.id(), "set_controller")
         .args_json(json!({"controller": controller.id()}))
-        .transact().await?.into_result()?;
+        .transact()
+        .await?
+        .into_result()?;
     for token in [&stock, &usdc] {
         for account in [escrow.id(), writer.id(), holder.id()] {
             register_token_account(&root, token, account).await?;
@@ -465,35 +491,52 @@ async fn expiry_callback_receipt_failure_is_reconciled_without_duplicate_transfe
 
     let now = worker.view_block().await?.header().timestamp_nanosec();
     let position_id = make_position(
-        &controller, &escrow, &writer, &holder, &stock, &usdc, 1004,
+        &controller,
+        &escrow,
+        &writer,
+        &holder,
+        &stock,
+        &usdc,
+        1004,
         now + 30_000_000_000,
-    ).await?;
+    )
+    .await?;
     transfer_call(&writer, &stock, &escrow, position_id, "collateral", 100).await?;
     worker.fast_forward(100).await?;
 
     let before = balance(&root, &stock, writer.id()).await?;
     // The transfer succeeds; the isolated callback deliberately panics before state update.
-    let _ = writer.call(escrow.id(), "release_expired_collateral")
+    let _ = writer
+        .call(escrow.id(), "release_expired_collateral")
         .args_json(json!({"position_id": position_id}))
-        .max_gas().transact().await?;
+        .max_gas()
+        .transact()
+        .await?;
 
-    let pending = root.view(escrow.id(), "get_position")
-        .args_json(json!({"position_id": position_id})).await?
+    let pending = root
+        .view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": position_id}))
+        .await?
         .json::<serde_json::Value>()?;
     assert_eq!(pending["state"], "ExpiryPayoutPending");
     assert_eq!(pending["collateral_returned_to_writer"], false);
     assert_eq!(balance(&root, &stock, writer.id()).await?, before + 100);
 
     // The missing callback is ambiguous, not a failed transfer: retry is forbidden.
-    let unsafe_retry = writer.call(escrow.id(), "retry_failed_payout")
+    let unsafe_retry = writer
+        .call(escrow.id(), "retry_failed_payout")
         .args_json(json!({"position_id": position_id}))
-        .max_gas().transact().await?;
+        .max_gas()
+        .transact()
+        .await?;
     assert!(unsafe_retry.is_failure());
     assert_eq!(balance(&root, &stock, writer.id()).await?, before + 100);
 
     root.call(escrow.id(), "set_payout_reconciler")
         .args_json(json!({"reconciler": root.id()}))
-        .transact().await?.into_result()?;
+        .transact()
+        .await?
+        .into_result()?;
     root.call(escrow.id(), "reconcile_ambiguous_payout")
         .args_json(json!({
             "position_id": position_id,
@@ -502,28 +545,39 @@ async fn expiry_callback_receipt_failure_is_reconciled_without_duplicate_transfe
             "evidence_hash": "sha256:sandbox-expiry-transfer",
             "transfer_reference": "sandbox-expiry-transfer-1"
         }))
-        .max_gas().transact().await?.into_result()?;
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
 
-    let settled = root.view(escrow.id(), "get_position")
-        .args_json(json!({"position_id": position_id})).await?
+    let settled = root
+        .view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": position_id}))
+        .await?
         .json::<serde_json::Value>()?;
     assert_eq!(settled["state"], "Expired");
     assert_eq!(settled["collateral_returned_to_writer"], true);
     assert_eq!(balance(&root, &stock, writer.id()).await?, before + 100);
 
-    let reconciliation = root.view(escrow.id(), "get_payout_reconciliation")
+    let reconciliation = root
+        .view(escrow.id(), "get_payout_reconciliation")
         .args_json(json!({"position_id": position_id, "leg": "expiry_collateral"}))
-        .await?.json::<serde_json::Value>()?;
+        .await?
+        .json::<serde_json::Value>()?;
     assert_eq!(reconciliation["succeeded"], true);
     assert_eq!(reconciliation["receiver"], writer.id().as_str());
 
-    let latest = root.view(escrow.id(), "get_latest_lifecycle_sequence")
-        .args_json(json!({"position_id": position_id})).await?
+    let latest = root
+        .view(escrow.id(), "get_latest_lifecycle_sequence")
+        .args_json(json!({"position_id": position_id}))
+        .await?
         .json::<u64>()?;
     assert!(latest >= 2);
-    let event = root.view(escrow.id(), "get_lifecycle_event")
+    let event = root
+        .view(escrow.id(), "get_lifecycle_event")
         .args_json(json!({"position_id": position_id, "sequence": latest}))
-        .await?.json::<serde_json::Value>()?;
+        .await?
+        .json::<serde_json::Value>()?;
     assert_eq!(event["state"], "Expired");
     Ok(())
 }
