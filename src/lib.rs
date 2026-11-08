@@ -984,6 +984,19 @@ impl OptionsContract {
         self.asset_registry.get(&asset_id).cloned()
     }
 
+    pub fn get_last_accepted_escrow_sequence(&self, position_id: u64) -> u64 {
+        let key = format!("handel:options:v2:escrow-seq:{position_id}").into_bytes();
+        env::storage_read(&key)
+            .and_then(|bytes| {
+                if bytes.len() == 8 {
+                    Some(u64::from_le_bytes(bytes.try_into().ok()?))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0)
+    }
+
     pub fn get_position(&self, id: u64) -> Option<OptionPosition> {
         self.positions.get(&id).cloned()
     }

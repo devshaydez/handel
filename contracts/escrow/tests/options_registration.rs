@@ -335,6 +335,25 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
             .await?
             .into_result()?;
 
+        let latest_sequence = root
+            .view(escrow.id(), "get_latest_lifecycle_sequence")
+            .args_json(json!({"position_id": position_id}))
+            .await?
+            .json::<u64>()?;
+        let last_accepted = root
+            .view(options.id(), "get_last_accepted_escrow_sequence")
+            .args_json(json!({"position_id": position_id}))
+            .await?
+            .json::<u64>()?;
+        for sequence in (last_accepted + 1)..=latest_sequence {
+            root.call(escrow.id(), "retry_lifecycle_event")
+                .args_json(json!({"position_id": position_id, "sequence": sequence}))
+                .max_gas()
+                .transact()
+                .await?
+                .into_result()?;
+        }
+
         let premium = root
             .view(escrow.id(), "get_premium_status")
             .args_json(json!({"position_id": position_id}))
@@ -398,6 +417,25 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
             .await?
             .json::<serde_json::Value>()?;
         assert_eq!(settled["state"], "Settled");
+        let latest_sequence = root
+            .view(escrow.id(), "get_latest_lifecycle_sequence")
+            .args_json(json!({"position_id": position_id}))
+            .await?
+            .json::<u64>()?;
+        let last_accepted = root
+            .view(options.id(), "get_last_accepted_escrow_sequence")
+            .args_json(json!({"position_id": position_id}))
+            .await?
+            .json::<u64>()?;
+        for sequence in (last_accepted + 1)..=latest_sequence {
+            root.call(escrow.id(), "retry_lifecycle_event")
+                .args_json(json!({"position_id": position_id, "sequence": sequence}))
+                .max_gas()
+                .transact()
+                .await?
+                .into_result()?;
+        }
+
         let option_settled = root
             .view(options.id(), "get_position")
             .args_json(json!({"id": position_id}))
