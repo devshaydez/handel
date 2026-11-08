@@ -73,7 +73,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         }
     }
     root.call(stock_token.id(), "mint")
-        .args_json(json!({"account_id": writer.id(), "amount": "1000000"}))
+        .args_json(json!({"account_id": writer.id(), "amount": "2000000"}))
         .transact()
         .await?
         .into_result()?;
@@ -214,6 +214,29 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .await?
         .into_result()?;
 
+
+    // A third Call is deliberately left unexercised to cover the full expiry return.
+    writer
+        .call(options.id(), "create_call")
+        .args_json(json!({
+            "holder": holder.id(),
+            "asset_id": STOCK_ASSET,
+            "underlying_amount": 1000000,
+            "strike_amount_usdc": 2500000,
+            "expiry_ns": expiry,
+            "premium_amount_usdc": 100000
+        }))
+        .transact()
+        .await?
+        .into_result()?;
+    writer
+        .call(options.id(), "register_escrow_position")
+        .args_json(json!({"position_id": 2}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
     let put_option = root
         .view(options.id(), "get_position")
         .args_json(json!({"id": 1}))
@@ -274,6 +297,21 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
             "amount": "2500000",
             "memo": null,
             "msg": "{\"position_id\":1,\"leg\":\"collateral\"}"
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+
+    writer
+        .call(stock_token.id(), "ft_transfer_call")
+        .args_json(json!({
+            "receiver_id": escrow.id(),
+            "amount": "1000000",
+            "memo": null,
+            "msg": "{\"position_id\":2,\"leg\":\"collateral\"}"
         }))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
@@ -446,6 +484,48 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         assert_eq!(settled["collateral_delivered_to_holder"], true);
     }
 
+
+    // After the grace window, the writer can recover the unexercised third Call.
+    worker.fast_forward(100_000).await?;
+    writer
+        .call(escrow.id(), "release_expired_collateral")
+        .args_json(json!({"position_id": 2}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+    let expired = root
+        .view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": 2}))
+        .await?
+        .json::<serde_json::Value>()?;
+    assert_eq!(expired["state"], "Expired");
+    assert_eq!(expired["collateral_returned_to_writer"], true);
+    let expiry_latest = root
+        .view(escrow.id(), "get_latest_lifecycle_sequence")
+        .args_json(json!({"position_id": 2}))
+        .await?
+        .json::<u64>()?;
+    let expiry_last = root
+        .view(options.id(), "get_last_accepted_escrow_sequence")
+        .args_json(json!({"position_id": 2}))
+        .await?
+        .json::<u64>()?;
+    for sequence in (expiry_last + 1)..=expiry_latest {
+        root.call(escrow.id(), "retry_lifecycle_event")
+            .args_json(json!({"position_id": 2, "sequence": sequence}))
+            .max_gas()
+            .transact()
+            .await?
+            .into_result()?;
+    }
+    let expired_option = root
+        .view(options.id(), "get_position")
+        .args_json(json!({"id": 2}))
+        .await?
+        .json::<serde_json::Value>()?;
+    assert_eq!(expired_option["state"], "Expired");
+
     // Both token balances should be fully paid out of escrow. The writer receives
     // exercise consideration; the holder receives the writer's collateral.
     for token in [&stock_token, &usdc_token] {
@@ -461,7 +541,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .args_json(json!({"account_id": writer.id()}))
         .await?
         .json::<near_sdk::json_types::U128>()?;
-    assert_eq!(writer_stock.0, 1000000);
+    assert_eq!(writer_stock.0, 2000000);
     let writer_usdc = root
         .view(usdc_token.id(), "ft_balance_of")
         .args_json(json!({"account_id": writer.id()}))
