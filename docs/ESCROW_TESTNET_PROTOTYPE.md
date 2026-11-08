@@ -2,19 +2,19 @@
 
 ## Scope and status
 
-This is a separate NEP-141 custody contract for synthetic Testnet tokens. It is **not yet connected** to the OptionsContract and does not support the BNB-chain Ondo assets. It must not be presented as production custody.
+This is a NEP-141 custody contract for synthetic Testnet tokens. OptionsContract now has an explicit asynchronous registration call and private callback that can create and persist the matching escrow position ID. This is registration-only integration: it does not deposit collateral, settle an option, or connect the external-reconciliation lifecycle. It does not support the BNB-chain Ondo assets and must not be presented as production custody.
 
 The escrow stores position records in NEAR's persistent `LookupMap`. Each record reserves the attached NEAR storage deposit; the current implementation retains the full attached amount and has no archival/refund path. The OptionsContract is still a separate contract. Its position, asset, operation, agent-policy, and proposal records now use NEAR persistent `UnorderedMap` collections; this does not itself provide a migration path for any already-deployed legacy state.
 
 ## Deposits and position terms
 
-Only the configured controller can create a position. Each record binds the originating OptionsContract position ID, writer, holder, collateral token/amount, exercise-payment token/amount, and expiry. Registration is idempotent by source position ID: an exact retry returns the existing escrow ID without creating a second record; changed terms are rejected. A duplicate retry must attach no additional storage deposit. The writer deposits exact collateral using NEP-141 `ft_transfer_call`; after maturity, the holder deposits the exact exercise payment. The escrow validates token contract, sender, amount, position state, and time window. Rejected transfers are returned as unused.
+Only the configured controller can create a position. Each record binds the originating OptionsContract position ID, writer, holder, collateral token/amount, exercise-payment token/amount, and expiry. Registration is idempotent by source position ID: an exact retry returns the existing escrow ID without creating a second record; changed terms are rejected. Retry deposits are retained as additional storage reserve, so callers must budget for this rather than assume a refund. The writer deposits exact collateral using NEP-141 `ft_transfer_call`; after maturity, the holder deposits the exact exercise payment. The escrow validates token contract, sender, amount, position state, and time window. Rejected transfers are returned as unused.
 
 The escrow's orientation supports both physical option directions when configured correctly:
 - **Call:** writer collateral is the underlying token; holder exercise payment is USDC.
 - **Put:** writer collateral is USDC; holder exercise payment is the underlying token.
 
-The OptionsContract does not yet create or verify these escrow records. In particular, do not assume that an OptionsContract position ID is automatically a valid escrow position ID.
+OptionsContract derives terms from its stored OptionPosition, sends the source position ID and terms to escrow, and stores the returned escrow ID only in a private successful callback. The writer can retry an ambiguous registration; the escrow's idempotency guard prevents duplicate records. The callback only confirms registration, not token custody.
 
 ## Settlement behavior and limitations
 
@@ -35,7 +35,7 @@ The escrow unit and Sandbox suites cover:
 - A test-only callback receipt panic after a successful payment transfer; the durable state remains pending and retry is blocked to avoid duplicate payout.
 - A storage-gas benchmark for position creation at increasing record counts.
 
-These tests validate the isolated escrow contract and its mock-token behavior. They do **not** validate cross-contract integration with OptionsContract, live Testnet tokens, Ondo assets, or atomic settlement.
+These tests validate the isolated escrow contract and its mock-token behavior. The registration callback has been implemented in OptionsContract, but a cross-contract Sandbox test is still required. Nothing here validates live Testnet tokens, Ondo assets, or atomic settlement.
 
 ## Required integration gates
 
