@@ -1,13 +1,13 @@
 # Architecture — Handel Options Core
 
-## Current implementation: two separate execution rails
+## Current implementation: two separate execution rails (with a Sandbox-tested escrow happy path)
 
 Handel currently contains two contract paths with **registration plus collateral-deposit integration tested in Sandbox**:
 
 1. **OptionsContract (lifecycle and policy):** records option terms, agent permissions, operation IDs, and trusted-reconciler outcomes. It does not hold tokens.
 2. **EscrowContract (isolated custody prototype):** holds synthetic NEP-141 Testnet collateral and exercise-payment deposits. OptionsContract can now register a corresponding record asynchronously and persist the returned escrow ID, but token deposits and lifecycle settlement are not yet wired back to OptionsContract.
 
-Do not describe the system as having end-to-end escrow settlement: Call/Put registration and mock-token collateral deposits are Sandbox-tested, but exercise-payment deposits, payout, expiry, and lifecycle reconciliation are not connected end-to-end.
+The combined Sandbox happy path now verifies Call/Put registration, exact mock-token collateral and exercise-payment deposits, sequential payout completion, final balances, and blocking the competing reconciliation rail. This does not synchronize Escrow lifecycle state back into OptionsContract, and does not cover the combined expiry or ambiguous-callback recovery paths.
 
 ## OptionsContract rail (existing)
 
@@ -34,7 +34,7 @@ A safe integration needs an explicit asynchronous registration handshake:
 4. OptionsContract stores that ID only in a successful private callback. Failed or ambiguous callbacks must not be treated as a confirmed escrow registration.
 5. Collateral-locked, exercised, settled, and expired states must be reconciled against escrow's durable state. The external-intent route and escrow route must not both be able to settle the same position.
 
-`contracts/escrow/tests/options_registration.rs` deploys both contracts plus mock NEP-141 tokens in Sandbox. It verifies Call and Put registration, private callback persistence, exact collateral deposits, escrow balances/state, and blocking the competing reconciliation rail. A follow-on combined Sandbox test now exercises both Call and Put payment deposits and sequential settlement payouts, with final token-balance assertions; that extension awaits fresh CI. Failed registration, callback receipt failure, ambiguous registration retry, and expiry still need combined coverage before end-to-end lifecycle claims.
+`contracts/escrow/tests/options_registration.rs` deploys both contracts plus mock NEP-141 tokens in Sandbox. It verifies Call and Put registration, private callback persistence, exact collateral deposits, escrow balances/state, and blocking the competing reconciliation rail. The latest combined Sandbox test passed CI run #42508978797. It covers Call/Put registration, collateral and exercise-payment deposits, sequential payouts, final balances, and competing-rail exclusion. Combined failed registration, registration callback failure/retry, expiry release, and OptionsContract state synchronization remain open.
 
 ## Agent path
 
