@@ -143,26 +143,25 @@ impl EscrowContract {
             assert_eq!(existing.writer, writer, "registration writer mismatch");
             assert_eq!(existing.holder, holder, "registration holder mismatch");
             assert_eq!(
-                existing.collateral_token,
-                collateral_token,
+                existing.collateral_token, collateral_token,
                 "registration collateral token mismatch"
             );
             assert_eq!(
-                existing.collateral_amount,
-                collateral_amount.0,
+                existing.collateral_amount, collateral_amount.0,
                 "registration collateral amount mismatch"
             );
             assert_eq!(
-                existing.payment_token,
-                payment_token,
+                existing.payment_token, payment_token,
                 "registration payment token mismatch"
             );
             assert_eq!(
-                existing.payment_amount,
-                payment_amount.0,
+                existing.payment_amount, payment_amount.0,
                 "registration payment amount mismatch"
             );
-            assert_eq!(existing.expiry_ns, expiry_ns, "registration expiry mismatch");
+            assert_eq!(
+                existing.expiry_ns, expiry_ns,
+                "registration expiry mismatch"
+            );
             assert_eq!(
                 env::attached_deposit().as_yoctonear(),
                 0,
