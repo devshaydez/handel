@@ -14,7 +14,7 @@
 - Owner authorization, pause state, asset allowlist, agent policies, proposal approval, operation IDs, retry paths, and European maturity/grace-period checks are implemented.
 - External asset movements are represented as operations and reconciled by a configured trusted account.
 - The trusted reconciler is a trust root: the contract validates evidence fields but does not independently verify the external transfer.
-- Contract state currently uses standard-library `BTreeMap` collections in serialized contract state. Migration to NEAR persistent collections and a state-migration plan are required before material-value deployment.
+- Contract records now use NEAR persistent `UnorderedMap` collections. Any already-deployed legacy state still needs a reviewed migration plan before material-value deployment.
 
 ### Isolated EscrowContract
 
@@ -32,11 +32,11 @@ The preceding feature-branch work passed the Rust formatting, Rust/Sandbox tests
 
 ## Critical remaining blockers
 
-1. **Cross-contract integration:** implement an asynchronous OptionsContract-to-escrow registration handshake, binding all escrow terms to authoritative OptionPosition fields. Persist the escrow ID only after a successful callback.
+1. **Cross-contract integration:** implement the asynchronous OptionsContract-to-escrow registration handshake, bind all terms to authoritative OptionPosition fields, and persist the returned escrow ID only after a successful callback. Escrow-side registration is now idempotent by source position ID, but the OptionsContract handshake and callback recovery are not implemented yet.
 2. **Lifecycle mapping:** reconcile collateral, exercise, settlement, and expiry states across both contracts. Prevent the external-intent path and escrow path from settling the same position.
 3. **Ambiguous callbacks:** a missing callback is not proof that a transfer failed. Do not automatically retry an ambiguous payout.
 4. **Non-atomic settlement:** escrow pays two NEP-141 legs sequentially. Design and test recovery/compensation for partial success; do not claim atomicity.
-5. **OptionsContract storage:** migrate BTreeMap state to NEAR persistent collections with reviewed migration strategy.
+5. **OptionsContract storage:** review persistent UnorderedMap storage layout and any legacy-state migration strategy.
 6. **Token operations:** test NEP-145 registration, storage funding, recipient registration, pause behavior, and failure handling.
 7. **Proofs and trust:** no cryptographic external-event verifier or finality/reorg handling is implemented.
 8. **Assets:** verify exact token contracts, decimals, and route support. Current synthetic mocks do not establish Ondo support.
