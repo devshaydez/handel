@@ -2,37 +2,51 @@
 
 ## Scope and status
 
-This is an isolated NEP-141 custody prototype for synthetic Testnet tokens. It is not connected to the existing OptionsContract until an explicit integration step. It does not support the BNB-chain Ondo assets and must never be presented as production custody.
+This is a separate NEP-141 custody contract for synthetic Testnet tokens. It is **not yet connected** to the OptionsContract and does not support the BNB-chain Ondo assets. It must not be presented as production custody.
 
-The escrow is a separate deployable contract crate at `contracts/escrow`. The configured OptionsContract controller creates immutable per-position records. Writers deposit exact collateral using NEP-141 `ft_transfer_call`; holders deposit the exact exercise payment after maturity. The escrow validates the calling token contract, sender, amount, position and time window before accepting either deposit.
+The escrow stores position records in NEAR's persistent `LookupMap`. Each record reserves the attached NEAR storage deposit; the current implementation retains the full attached amount and has no archival/refund path. The OptionsContract is still a separate contract using in-memory `BTreeMap` collections in its serialized state. Persistent collection migration for that contract remains a deployment blocker.
 
-## Settlement behavior
+## Deposits and position terms
 
-The escrow pays the holder's exercise payment to the writer first, then pays collateral to the holder. These are two separate NEP-141 `ft_transfer` calls, not one atomic transaction. Each call has a private callback. If the first payout fails, it can be retried without duplicating a successful leg. If the second payout fails after the first succeeded, the position remains in `ReconciliationRequired`; only the failed collateral leg can be retried. A successful leg is never sent again.
+Only the configured controller can create a position. Each record binds writer, holder, collateral token/amount, exercise-payment token/amount, and expiry. The writer deposits exact collateral using NEP-141 `ft_transfer_call`; after maturity, the holder deposits the exact exercise payment. The escrow validates token contract, sender, amount, position state, and time window. Rejected transfers are returned as unused.
 
-If no exercise payment is received, the writer may reclaim collateral only after maturity plus the 24-hour transaction-submission grace period. Expiry return also uses an asynchronous transfer and callback.
+The escrow's orientation supports both physical option directions when configured correctly:
+- **Call:** writer collateral is the underlying token; holder exercise payment is USDC.
+- **Put:** writer collateral is USDC; holder exercise payment is the underlying token.
 
-## Implemented checks and current unit-test coverage
+The OptionsContract does not yet create or verify these escrow records. In particular, do not assume that an OptionsContract position ID is automatically a valid escrow position ID.
 
-- Only the configured OptionsContract controller can register positions.
-- Each position binds writer, holder, collateral token, collateral amount, payment token, payment amount and expiry.
-- NEP-141 receiver accepts only the exact token contract, expected sender, exact amount and valid state.
-- Duplicate deposits and wrong-token/wrong-sender/wrong-amount deposits are rejected by returning the full amount as unused.
-- Exercise payment is accepted only from the holder at/after maturity and through the grace deadline; the acceptance timestamp is stored so a holder can finish settlement after the grace period has elapsed.
-- Expiry release is blocked during the exercise grace period.
-- Outbound transfers use fixed recipients and amounts; retries are restricted to the one failed payout leg.
+## Settlement behavior and limitations
 
-The 8 escrow unit tests currently cover exact/wrong-token collateral, wrong sender and amount, duplicate collateral, pre-maturity exercise-payment rejection, valid maturity payment, late collateral rejection, grace-period expiry-release blocking, exercise-payment replay rejection, and completion of an already-accepted exercise while paused and after the grace deadline. The callback failure/retry branches are implemented but are **not yet covered by end-to-end cross-contract tests**.
+After both deposits are received, the holder starts settlement. The escrow pays the exercise-payment asset to the writer first, then pays the collateral asset to the holder. This ordering is compatible with the call and put asset orientation above, but the two NEP-141 transfers are separate asynchronous operations, **not atomic**.
 
-## Explicit limitations / integration gates
+Each transfer has a private callback. A definitively failed leg can be retried without repeating a leg whose success was recorded. If payment succeeds but its callback receipt itself fails, state remains `PaymentPayoutPending`; an automatic retry is unsafe because the transfer may already have happened. This callback-failure case is covered by an isolated fault-injection Wasm Sandbox test. It does not provide a production recovery/reconciliation mechanism.
 
-- Test only with synthetic NEP-141 tokens. No production assets, Ondo identifiers, or mainnet.
-- The escrow uses in-memory maps for this isolated prototype. Persistent storage collections, storage staking, and state migration must be implemented before any deployment with material value.
-- The OptionsContract controller is a trust boundary. The current OptionsContract does not yet call this escrow or prove its position terms.
-- Two outgoing transfers are not atomic. The callbacks and retry state make partial success visible and recoverable, but cannot guarantee the counterparty's economic cooperation or reverse a completed transfer.
-- Callback failure/retry behavior still needs near-workspaces integration tests against a mock NEP-141 token, including successful first-leg/failed second-leg, failed first-leg, callback replay and token-account registration errors. A callback that itself runs out of gas could leave a payout marked pending; operational monitoring and a separately reviewed recovery procedure are required.
-- Token accounts must have registered the escrow and the fixed payout recipients under NEP-145 before transfers can succeed.
-- Pause blocks new deposits and new position registration. It does not block failed-payout retries or expiry refunds, and it does not trap an exercise payment already accepted during the valid window: that exercise can still enter settlement while paused or after the grace deadline.
-- The prototype does not yet implement NEP-245 multi-token deposits, cryptographic external-chain proofs, Tidepool, or an Ondo bridge.
+If no exercise payment is received, the writer may reclaim collateral only after maturity plus the 24-hour transaction-submission grace period. Expiry return is also asynchronous.
 
-Do not deploy this contract until the test suite and Wasm build pass, persistent storage and recovery behavior are reviewed, and a separate integration review verifies controller authorization and the exact synthetic-token setup.
+## Test coverage
+
+The escrow unit and Sandbox suites cover:
+- Exact token, sender, amount, state, and timing checks for deposits.
+- Duplicate collateral and exercise-payment rejection.
+- Maturity and expiry-grace boundaries.
+- Payment-leg failure followed by retry, and collateral-leg failure followed by retry.
+- Rejection of public callback replay.
+- A test-only callback receipt panic after a successful payment transfer; the durable state remains pending and retry is blocked to avoid duplicate payout.
+- A storage-gas benchmark for position creation at increasing record counts.
+
+These tests validate the isolated escrow contract and its mock-token behavior. They do **not** validate cross-contract integration with OptionsContract, live Testnet tokens, Ondo assets, or atomic settlement.
+
+## Required integration gates
+
+Before connecting or deploying the two contracts:
+1. Add an explicit OptionsContract-to-escrow registration handshake. The escrow must accept position terms only from the configured OptionsContract, and OptionsContract must persist the returned escrow position ID only after a successful callback.
+2. Bind every escrow field to the authoritative OptionPosition: writer, holder, collateral token/amount, payment token/amount, expiry, and call/put asset orientation. Reject mismatches and duplicate registration.
+3. Define how the OptionsContract lifecycle maps to escrow states. Do not mark collateral locked or a position settled based solely on a requested cross-contract call; use confirmed receipts and handle callback failure as an ambiguous state.
+4. Decide whether escrow is the sole custody/settlement path for a position or whether the existing external-intent reconciliation path remains enabled. Never allow both paths to settle the same economic leg.
+5. Design and test compensation/recovery for the non-atomic two-transfer path. A retry is permitted only after a definitive failure; a missing callback is ambiguous, not proof of failure.
+6. Migrate OptionsContract's serialized `BTreeMap` state to NEAR persistent collections with a reviewed state-migration plan before material-value deployment.
+7. Review storage staking/refunds, NEP-145 registration, pause semantics, controller key security, and monitoring.
+8. Run end-to-end near-workspaces tests for calls and puts, successful and failed cross-contract registration, duplicate registration, callback failure, partial settlement, expiry, and replay attempts.
+
+Do not deploy this prototype with real assets. Synthetic NEP-141 Testnet tokens only. No independent security audit, authenticated external-chain proof verifier, or production recovery procedure is claimed.
