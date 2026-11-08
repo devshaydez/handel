@@ -310,7 +310,6 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .json::<near_sdk::json_types::U128>()?;
     assert_eq!(usdc_escrow_balance.0, 2500000);
 
-
     // Collect and pay both premiums in USDC before either option can become Open.
     // Call and Put both use USDC premium, although their collateral/exercise legs differ.
     for position_id in [0u64, 1u64] {
