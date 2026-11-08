@@ -28,12 +28,12 @@
 
 ### CI
 
-The preceding feature-branch work passed the Rust formatting, Rust/Sandbox tests, Wasm build, SDK build/tests, and offline lifecycle workflow. Every new change must pass fresh CI; historical success does not validate new commits.
+Code head `1792d600` passed CI run #42508978797: Rust formatting, unit and Sandbox integration tests, optimized Wasm builds, isolated callback-failure Wasm build, SDK build/tests, and offline lifecycle demo. Documentation-only commits have since updated the status notes; the latest branch head still needs its own CI confirmation.
 
 ## Critical remaining blockers
 
-1. **Cross-contract integration:** combined Sandbox coverage now verifies successful Call/Put registration, authoritative terms, private callback persistence, mock NEP-141 collateral deposits, escrow balances/state, and exclusion from the competing reconciliation rail. Add failed registration, callback-receipt failure, and ambiguous-retry coverage.
-2. **Lifecycle mapping:** integrate holder exercise-payment deposits, both payout legs, expiry return, and state reconciliation across both contracts. Prevent the external-intent path and escrow path from settling the same position.
+1. **Cross-contract integration:** combined Sandbox coverage verifies successful Call/Put registration, authoritative terms, private callback persistence, mock NEP-141 collateral and exercise-payment deposits, sequential payouts, final balances, and exclusion from the competing reconciliation rail. Add failed registration, callback-receipt failure, and ambiguous registration retry coverage.
+2. **Lifecycle mapping:** exercise-payment deposits and both payout legs are Sandbox-tested directly through Escrow. Still integrate expiry return and state reconciliation across both contracts. Prevent the external-intent path and escrow path from settling the same position.
 3. **Ambiguous callbacks:** a missing callback is not proof that a transfer failed. Do not automatically retry an ambiguous payout.
 4. **Non-atomic settlement:** escrow pays two NEP-141 legs sequentially. Design and test recovery/compensation for partial success; do not claim atomicity.
 5. **OptionsContract storage:** review persistent UnorderedMap storage layout and any legacy-state migration strategy.
