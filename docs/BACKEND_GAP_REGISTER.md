@@ -1,10 +1,8 @@
 # Backend gap register
 
-Status snapshot: 2026-11-08, PR #2 head `f40780bca7c2a8c8c95fda973d34d1b6236cd17e`.
+Status snapshot: 2026-11-08, PR #2 head `9b73d10f819e322221f0f3b05e478c3273bf7831`.
 
-Batch 1 runtime changes are committed but not yet CI-validated on this head. Earlier run #42527209712 validated `b08377c`, not these changes. Current code adds a versioned premium sidecar and NEP-141 premium deposit/payout/refund flow, a sequenced Escrow lifecycle outbox with authenticated OptionsContract receipt handling and permissionless resend, and an owner-configured evidence attestor for ambiguous payouts. Unit tests have been added for premium gating/refund, event replay protection, and manual payout recovery. Do not label these changes tested until current-head CI passes.
-
-The latest GitHub Actions run (#42508978797) passed Rust formatting, unit tests, optimized Wasm builds, isolated callback-failure Wasm build, Sandbox integration tests, SDK build/tests, and the offline lifecycle demo. The combined OptionsContract/Escrow Sandbox test now proves Call and Put registration, exact collateral deposits, exercise-payment deposits, sequential payout completion, final balances, and exclusion of the competing reconciliation rail. These are mock-token Sandbox results, not Testnet verification.
+Batch 1 runtime changes passed CI run #42529923092 (run 249) on commit `1c0871bef8eeecf3c2fa0fe7abd6ca21f1a1685a`. Rust formatting, unit tests, optimized contract Wasm, isolated callback-failure Wasm, and the combined Sandbox integration test passed. The TypeScript SDK build, SDK unit tests, and offline lifecycle demo also passed. The Sandbox flow verifies Call and Put premium custody/payout, OptionsContract Open/Settled synchronization, and replay of missing ordered lifecycle events. All token tests use mocks, not live assets.
 
 ## P0 — Required before claiming a complete Testnet backend
 
