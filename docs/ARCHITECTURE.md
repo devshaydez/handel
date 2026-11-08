@@ -34,7 +34,7 @@ A safe integration needs an explicit asynchronous registration handshake:
 4. OptionsContract stores that ID only in a successful private callback. Failed or ambiguous callbacks must not be treated as a confirmed escrow registration.
 5. Collateral-locked, exercised, settled, and expired states must be reconciled against escrow's durable state. The external-intent route and escrow route must not both be able to settle the same position.
 
-The callback/receipt path must be tested for successful registration, failed registration, callback failure, duplicate requests, and ambiguous outcomes before enabling it.
+The successful registration path is now covered by `contracts/escrow/tests/options_registration.rs`. Failed registration, callback receipt failure, ambiguous retry, and duplicate cross-contract requests still need combined Sandbox coverage before enabling custody or settlement.
 
 ## Agent path
 
