@@ -1,5 +1,17 @@
-use near_sdk::{env, near, AccountId, PanicOnDefault};
-use std::collections::BTreeMap;
+use near_sdk::{
+    borsh::BorshSerialize, env, near, store::UnorderedMap, AccountId, BorshStorageKey,
+    PanicOnDefault,
+};
+
+#[derive(BorshSerialize, BorshStorageKey)]
+enum StorageKey {
+    Positions,
+    AssetRegistry,
+    Operations,
+    UsedOperationIds,
+    AgentPolicies,
+    Proposals,
+}
 
 /// Holders get a 24-hour post-maturity window to submit exercise transactions.
 /// This is a transaction-submission grace period, not an American early-exercise window.
@@ -154,14 +166,14 @@ pub struct AgentProposal {
 pub struct OptionsContract {
     owner: AccountId,
     next_id: u64,
-    positions: BTreeMap<u64, OptionPosition>,
-    asset_registry: BTreeMap<String, AssetMetadata>,
-    operations: BTreeMap<String, Operation>,
-    used_operation_ids: BTreeMap<String, bool>,
+    positions: UnorderedMap<u64, OptionPosition>,
+    asset_registry: UnorderedMap<String, AssetMetadata>,
+    operations: UnorderedMap<String, Operation>,
+    used_operation_ids: UnorderedMap<String, bool>,
     paused: bool,
     trusted_reconciler: Option<AccountId>,
-    agent_policies: BTreeMap<AccountId, AgentPolicy>,
-    proposals: BTreeMap<String, AgentProposal>,
+    agent_policies: UnorderedMap<AccountId, AgentPolicy>,
+    proposals: UnorderedMap<String, AgentProposal>,
 }
 
 #[near]
@@ -171,14 +183,14 @@ impl OptionsContract {
         Self {
             owner: env::predecessor_account_id(),
             next_id: 0,
-            positions: BTreeMap::new(),
-            asset_registry: BTreeMap::new(),
-            operations: BTreeMap::new(),
-            used_operation_ids: BTreeMap::new(),
+            positions: UnorderedMap::new(StorageKey::Positions),
+            asset_registry: UnorderedMap::new(StorageKey::AssetRegistry),
+            operations: UnorderedMap::new(StorageKey::Operations),
+            used_operation_ids: UnorderedMap::new(StorageKey::UsedOperationIds),
             paused: false,
             trusted_reconciler: None,
-            agent_policies: BTreeMap::new(),
-            proposals: BTreeMap::new(),
+            agent_policies: UnorderedMap::new(StorageKey::AgentPolicies),
+            proposals: UnorderedMap::new(StorageKey::Proposals),
         }
     }
 
