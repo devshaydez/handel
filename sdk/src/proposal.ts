@@ -1,27 +1,32 @@
 /**
  * AI proposal helpers.
- * The AI produces structured proposals; this module validates shape and
- * prepares the on-chain create_position arguments. Never treat AI output
- * as an oracle or as authority to bypass contract rules.
+ *
+ * AI output is untrusted. These builders only translate validated proposal
+ * data into the actual Rust contract method arguments; the contract remains
+ * the final policy and state authority.
  */
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { AgentProposal, OptionType } from "./types.js";
 import { validateProposal } from "./policy.js";
 import type { AgentPermission } from "./types.js";
 
-export interface CreatePositionArgs {
-  option_type: OptionType;
-  underlying_asset_id: string;
-  strike: string;
-  quantity: string;
-  premium: string;
+export interface CreateOptionArgs {
+  holder: string;
+  asset_id: string;
+  underlying_amount: string;
+  strike_amount_usdc: string;
   expiry_ns: string;
-  create_op_id: string;
-  as_agent_for?: string;
+  premium_amount_usdc: string;
 }
 
-/** Build a proposal skeleton the AI (or a human) can fill */
+export interface CreateAgentProposalArgs extends CreateOptionArgs {
+  proposal_id: string;
+  kind: OptionType;
+  rationale_hash: string;
+}
+
+/** Build a proposal skeleton the deterministic fallback or a provider can fill. */
 export function emptyProposal(partial: Partial<AgentProposal> = {}): AgentProposal {
   return {
     proposalId: partial.proposalId ?? randomUUID(),
@@ -40,39 +45,67 @@ export function emptyProposal(partial: Partial<AgentProposal> = {}): AgentPropos
 }
 
 /**
- * Convert a validated proposal into the exact arguments for
- * `create_position` on the options contract.
+ * Translate a proposal into create_call/create_put arguments.
+ * This matches the public Rust contract methods exactly.
  */
 export function proposalToCreateArgs(
   proposal: AgentProposal,
-  permission: AgentPermission | null = null,
-  asAgentFor?: string
-): { ok: true; args: CreatePositionArgs } | { ok: false; errors: string[] } {
-  const result = validateProposal(proposal, permission, {
-    requireAgent: !!asAgentFor,
-  });
-  if (!result.ok) {
-    return { ok: false, errors: result.errors };
-  }
+  holder: string,
+  permission: AgentPermission | null = null
+): { ok: true; method: "create_call" | "create_put"; args: CreateOptionArgs } | { ok: false; errors: string[] } {
+  const result = validateProposal(proposal, permission);
+  if (!result.ok) return { ok: false, errors: result.errors };
+  if (!holder.trim()) return { ok: false, errors: ["holder account is required"] };
 
   return {
     ok: true,
+    method: proposal.type === "Call" ? "create_call" : "create_put",
     args: {
-      option_type: proposal.type,
-      underlying_asset_id: proposal.underlyingAssetId,
-      strike: proposal.strike,
-      quantity: proposal.quantity,
-      premium: proposal.premium,
+      holder,
+      asset_id: proposal.underlyingAssetId,
+      underlying_amount: proposal.quantity,
+      strike_amount_usdc: proposal.strike,
       expiry_ns: proposal.expiryNs,
-      create_op_id: `prop-${proposal.proposalId}`,
-      ...(asAgentFor ? { as_agent_for: asAgentFor } : {}),
+      premium_amount_usdc: proposal.premium,
     },
   };
 }
 
 /**
- * Minimal deterministic "AI" stub for demos when NEAR AI Cloud key is absent.
- * Produces a conservative small Call on NVDAon. Label clearly in README.
+ * Translate an agent proposal into create_agent_proposal arguments.
+ * The agent is the transaction predecessor; the principal must approve the
+ * proposal on-chain before collateral locking can begin.
+ */
+export function proposalToAgentProposalArgs(
+  proposal: AgentProposal,
+  holder: string,
+  permission: AgentPermission
+): { ok: true; method: "create_agent_proposal"; args: CreateAgentProposalArgs } | { ok: false; errors: string[] } {
+  const result = validateProposal(proposal, permission, { requireAgent: true });
+  if (!result.ok) return { ok: false, errors: result.errors };
+  if (!holder.trim()) return { ok: false, errors: ["holder account is required"] };
+
+  const rationaleHash = createHash("sha256").update(proposal.rationale).digest("hex");
+  return {
+    ok: true,
+    method: "create_agent_proposal",
+    args: {
+      proposal_id: proposal.proposalId,
+      kind: proposal.type,
+      holder,
+      asset_id: proposal.underlyingAssetId,
+      underlying_amount: proposal.quantity,
+      strike_amount_usdc: proposal.strike,
+      expiry_ns: proposal.expiryNs,
+      premium_amount_usdc: proposal.premium,
+      rationale_hash: `sha256:${rationaleHash}`,
+    },
+  };
+}
+
+/**
+ * Deterministic local fallback for demos without a NEAR AI Cloud API key.
+ * This is illustrative input, not a market quote or investment recommendation.
  */
 export function stubProposal(params: {
   underlyingAssetId: string;
@@ -88,17 +121,17 @@ export function stubProposal(params: {
   return emptyProposal({
     type: params.type ?? "Call",
     underlyingAssetId: params.underlyingAssetId,
-    strike: params.strike ?? "100000000", // 100 USDC (6 decimals) example
-    quantity: params.quantity ?? "1000000000000000000", // 1 token
-    premium: params.premium ?? "5000000", // 5 USDC
+    strike: params.strike ?? "100000000",
+    quantity: params.quantity ?? "1000000000000000000",
+    premium: params.premium ?? "5000000",
     expiryNs,
-    estimatedPayoff: "Max loss = premium. Max gain unbounded for call (theoretical).",
+    estimatedPayoff: "Illustrative only; no live market data or payoff estimate is used.",
     risks: [
-      "Underlying price moves against position",
-      "Settlement depends on Intents liquidity / routes",
-      "Hackathon demo only — not production",
+      "Underlying price can move against the position",
+      "Settlement is not live on NEAR Testnet; Intents is represented by a mock adapter",
+      "Hackathon demonstration only — not production",
     ],
     dataFreshness: new Date().toISOString(),
-    rationale: "Stub proposal for vertical-slice demo. Replace with NEAR AI Cloud output.",
+    rationale: "Deterministic local fallback proposal. Replace with NEAR AI Cloud output when API access is available.",
   });
 }
