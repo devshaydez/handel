@@ -18,7 +18,7 @@ async fn call_and_put_registration_create_matching_escrow_records_without_moving
         &worker,
         concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../target/near/handel_mock_ft.wasm"
+            "/../../target/near/handel_mock_ft/handel_mock_ft.wasm"
         ),
     )
     .await?;
@@ -26,7 +26,7 @@ async fn call_and_put_registration_create_matching_escrow_records_without_moving
         &worker,
         concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../target/near/handel_mock_ft.wasm"
+            "/../../target/near/handel_mock_ft/handel_mock_ft.wasm"
         ),
     )
     .await?;
