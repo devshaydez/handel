@@ -49,6 +49,18 @@ pub struct PremiumSidecar {
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone)]
+pub struct PayoutReconciliationRecord {
+    pub position_id: u64,
+    pub leg: String,
+    pub succeeded: bool,
+    pub evidence_hash: String,
+    pub transfer_reference: String,
+    pub reconciler: AccountId,
+    pub recorded_at_ns: u64,
+}
+
+#[near(serializers = [json, borsh])]
+#[derive(Clone)]
 pub struct EscrowLifecycleEvent {
     pub source_position_id: u64,
     pub escrow_position_id: u64,
@@ -492,6 +504,143 @@ impl EscrowContract {
         )
     }
 
+
+    pub fn set_payout_reconciler(&mut self, reconciler: AccountId) {
+        self.assert_owner();
+        assert_ne!(reconciler, env::current_account_id(), "invalid reconciler");
+        let bytes = near_sdk::serde_json::to_vec(&reconciler).expect("serialize reconciler");
+        env::storage_write(&Self::payout_reconciler_key(), &bytes);
+    }
+
+    pub fn get_payout_reconciliation(&self, id: u64, leg: String) -> Option<PayoutReconciliationRecord> {
+        let seq = env::storage_read(&Self::reconciliation_sequence_key(id, &leg))
+            .and_then(|b| if b.len() == 8 { Some(u64::from_le_bytes(b.try_into().ok()?)) } else { None })?;
+        env::storage_read(&Self::reconciliation_key(id, &leg, seq))
+            .and_then(|b| near_sdk::serde_json::from_slice(&b).ok())
+    }
+
+    /// Human-governed evidence attestation for a payout whose callback receipt is ambiguous.
+    /// This is an explicit trust root, not a trustless proof.
+    pub fn reconcile_ambiguous_payout(
+        &mut self, id: u64, leg: String, succeeded: bool,
+        evidence_hash: String, transfer_reference: String,
+    ) -> PromiseOrValue<bool> {
+        let reconciler: AccountId = env::storage_read(&Self::payout_reconciler_key())
+            .and_then(|b| near_sdk::serde_json::from_slice(&b).ok())
+            .expect("payout reconciler not configured");
+        assert_eq!(env::predecessor_account_id(), reconciler, "payout reconciler only");
+        assert!(!evidence_hash.trim().is_empty() && evidence_hash.len() <= 256, "invalid evidence hash");
+        assert!(!transfer_reference.trim().is_empty() && transfer_reference.len() <= 512, "invalid transfer reference");
+        let mut p = self.position(id);
+        let record = PayoutReconciliationRecord {
+            position_id: id, leg: leg.clone(), succeeded, evidence_hash, transfer_reference,
+            reconciler, recorded_at_ns: env::block_timestamp(),
+        };
+        match leg.as_str() {
+            "exercise_payment" => {
+                assert_eq!(p.state, EscrowState::PaymentPayoutPending, "payment payout not ambiguous");
+                assert!(!p.payment_paid, "payment already confirmed");
+                if succeeded {
+                    p.payment_paid = true;
+                    p.failed_payout = None;
+                    p.state = EscrowState::CollateralPayoutPending;
+                    self.positions.insert(id, p.clone());
+                    self.store_payout_reconciliation(&record);
+                    self.emit_lifecycle_event(&p);
+                    PromiseOrValue::Promise(Self::transfer(p.collateral_token, p.holder, p.collateral_amount)
+                        .then(ext_self::ext(env::current_account_id()).with_static_gas(CALLBACK_GAS)
+                            .on_collateral_payout(id)))
+                } else {
+                    p.state = EscrowState::ReconciliationRequired;
+                    p.failed_payout = Some(FailedPayout::ExercisePayment);
+                    self.positions.insert(id, p.clone());
+                    self.store_payout_reconciliation(&record);
+                    self.emit_lifecycle_event(&p);
+                    PromiseOrValue::Value(false)
+                }
+            }
+            "exercise_collateral" => {
+                assert_eq!(p.state, EscrowState::CollateralPayoutPending, "collateral payout not ambiguous");
+                assert!(p.payment_paid && !p.collateral_delivered_to_holder, "invalid collateral payout state");
+                if succeeded {
+                    p.collateral_delivered_to_holder = true;
+                    p.state = EscrowState::Settled;
+                } else {
+                    p.state = EscrowState::ReconciliationRequired;
+                    p.failed_payout = Some(FailedPayout::ExerciseCollateral);
+                }
+                self.positions.insert(id, p.clone());
+                self.store_payout_reconciliation(&record);
+                self.emit_lifecycle_event(&p);
+                PromiseOrValue::Value(succeeded)
+            }
+            "expiry_collateral" => {
+                assert_eq!(p.state, EscrowState::ExpiryPayoutPending, "expiry payout not ambiguous");
+                assert!(!p.collateral_returned_to_writer, "collateral already returned");
+                if succeeded {
+                    p.collateral_returned_to_writer = true;
+                    p.state = EscrowState::Expired;
+                } else {
+                    p.state = EscrowState::ReconciliationRequired;
+                    p.failed_payout = Some(FailedPayout::ExpiryCollateral);
+                }
+                self.positions.insert(id, p.clone());
+                self.store_payout_reconciliation(&record);
+                self.emit_lifecycle_event(&p);
+                PromiseOrValue::Value(succeeded)
+            }
+            _ => env::panic_str("unsupported ambiguous payout leg"),
+        }
+    }
+
+    pub fn reconcile_ambiguous_premium_payout(
+        &mut self, id: u64, succeeded: bool, evidence_hash: String, transfer_reference: String,
+    ) -> bool {
+        let reconciler: AccountId = env::storage_read(&Self::payout_reconciler_key())
+            .and_then(|b| near_sdk::serde_json::from_slice(&b).ok())
+            .expect("payout reconciler not configured");
+        assert_eq!(env::predecessor_account_id(), reconciler, "payout reconciler only");
+        assert!(!evidence_hash.trim().is_empty() && evidence_hash.len() <= 256, "invalid evidence hash");
+        assert!(!transfer_reference.trim().is_empty() && transfer_reference.len() <= 512, "invalid transfer reference");
+        let p = self.position(id);
+        let mut premium = self.get_premium_status(id).expect("premium terms missing");
+        assert!(premium.payout_pending && !premium.paid, "premium payout not ambiguous");
+        premium.payout_pending = false;
+        premium.paid = succeeded;
+        premium.payout_failed = !succeeded;
+        self.store_premium_status(id, &premium);
+        self.store_payout_reconciliation(&PayoutReconciliationRecord {
+            position_id: id, leg: "premium_payout".into(), succeeded, evidence_hash,
+            transfer_reference, reconciler, recorded_at_ns: env::block_timestamp(),
+        });
+        self.emit_lifecycle_event_with_state(&p, if succeeded { "PremiumPaid" } else { "PremiumPayoutFailed" });
+        succeeded
+    }
+
+    pub fn reconcile_ambiguous_premium_refund(
+        &mut self, id: u64, succeeded: bool, evidence_hash: String, transfer_reference: String,
+    ) -> bool {
+        let reconciler: AccountId = env::storage_read(&Self::payout_reconciler_key())
+            .and_then(|b| near_sdk::serde_json::from_slice(&b).ok())
+            .expect("payout reconciler not configured");
+        assert_eq!(env::predecessor_account_id(), reconciler, "payout reconciler only");
+        assert!(!evidence_hash.trim().is_empty() && evidence_hash.len() <= 256, "invalid evidence hash");
+        assert!(!transfer_reference.trim().is_empty() && transfer_reference.len() <= 512, "invalid transfer reference");
+        let p = self.position(id);
+        let mut premium = self.get_premium_status(id).expect("premium terms missing");
+        assert!(premium.refund_pending && !premium.refunded, "premium refund not ambiguous");
+        premium.refund_pending = false;
+        premium.refunded = succeeded;
+        premium.refund_failed = !succeeded;
+        self.store_premium_status(id, &premium);
+        self.store_payout_reconciliation(&PayoutReconciliationRecord {
+            position_id: id, leg: "premium_refund".into(), succeeded, evidence_hash,
+            transfer_reference, reconciler, recorded_at_ns: env::block_timestamp(),
+        });
+        self.emit_lifecycle_event_with_state(&p, if succeeded { "PremiumRefunded" } else { "PremiumRefundFailed" });
+        succeeded
+    }
+
     pub fn get_position(&self, position_id: u64) -> EscrowPosition {
         self.position(position_id)
     }
@@ -729,6 +878,34 @@ impl FungibleTokenReceiver for EscrowContract {
 }
 
 impl EscrowContract {
+    fn payout_reconciler_key() -> Vec<u8> { b"handel:escrow:v2:payout-reconciler".to_vec() }
+
+    fn reconciliation_sequence_key(id: u64, leg: &str) -> Vec<u8> {
+        format!("handel:escrow:v2:reconciliation-seq:{id}:{leg}").into_bytes()
+    }
+
+    fn reconciliation_key(id: u64, leg: &str, seq: u64) -> Vec<u8> {
+        format!("handel:escrow:v2:reconciliation:{id}:{leg}:{seq}").into_bytes()
+    }
+
+    fn reconciliation_evidence_key(id: u64, leg: &str, hash: &str) -> Vec<u8> {
+        format!("handel:escrow:v2:reconciliation-evidence:{id}:{leg}:{hash}").into_bytes()
+    }
+
+    fn store_payout_reconciliation(&self, record: &PayoutReconciliationRecord) {
+        let evidence_key = Self::reconciliation_evidence_key(record.position_id, &record.leg, &record.evidence_hash);
+        assert!(env::storage_read(&evidence_key).is_none(), "reconciliation evidence replay");
+        let seq_key = Self::reconciliation_sequence_key(record.position_id, &record.leg);
+        let previous = env::storage_read(&seq_key).and_then(|b| {
+            if b.len() == 8 { Some(u64::from_le_bytes(b.try_into().ok()?)) } else { None }
+        }).unwrap_or(0);
+        let sequence = previous.checked_add(1).expect("reconciliation sequence overflow");
+        let bytes = near_sdk::serde_json::to_vec(record).expect("serialize reconciliation record");
+        env::storage_write(&evidence_key, b"1");
+        env::storage_write(&seq_key, &sequence.to_le_bytes());
+        env::storage_write(&Self::reconciliation_key(record.position_id, &record.leg, sequence), &bytes);
+    }
+
     fn premium_key(id: u64) -> Vec<u8> { format!("handel:escrow:v2:premium:{id}").into_bytes() }
 
     fn store_premium_status(&self, id: u64, premium: &PremiumSidecar) {
@@ -1376,12 +1553,14 @@ mod tests {
         assert!(c.get_premium_status(0).unwrap().received);
 
         assert_eq!(receive(&mut c, "synthetic-usdc.testnet", "holder.testnet", 500, "exercise_payment", 1_000), U128(500));
+        let received = c.get_premium_status(0).unwrap();
         let holder_context = VMContextBuilder::new()
             .current_account_id(account("escrow.testnet"))
             .predecessor_account_id(account("holder.testnet"))
             .block_timestamp(40)
             .build();
         testing_env!(holder_context);
+        c.store_premium_status(0, &received);
         let _payout = c.settle_premium(0);
         let pending = c.get_premium_status(0).unwrap();
         assert!(pending.payout_pending && !pending.paid);
@@ -1409,12 +1588,14 @@ mod tests {
         let mut c = setup_v2(10);
         assert_eq!(receive(&mut c, "synthetic-stock.testnet", "writer.testnet", 100, "collateral", 20), U128(0));
         assert_eq!(receive(&mut c, "synthetic-usdc.testnet", "holder.testnet", 25, "premium", 30), U128(0));
+        let received = c.get_premium_status(0).unwrap();
         let holder_context = VMContextBuilder::new()
             .current_account_id(account("escrow.testnet"))
             .predecessor_account_id(account("holder.testnet"))
             .block_timestamp(40)
             .build();
         testing_env!(holder_context);
+        c.store_premium_status(0, &received);
         let _payout = c.settle_premium(0);
         let pending = c.get_premium_status(0).unwrap();
 
