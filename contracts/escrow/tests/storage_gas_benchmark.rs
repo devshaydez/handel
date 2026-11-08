@@ -26,6 +26,7 @@ async fn benchmark_position_creation_gas_at_increasing_cardinalities() -> anyhow
         let result = root
             .call(escrow.id(), "create_position")
             .args_json(json!({
+                "source_position_id": index,
                 "writer": "writer.testnet",
                 "holder": "holder.testnet",
                 "collateral_token": "stock.testnet",
