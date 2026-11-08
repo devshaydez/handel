@@ -336,7 +336,11 @@ impl OptionsContract {
         position.escrow_contract_id = Some(escrow.clone());
         position.escrow_collateral_token = Some(collateral_token.clone());
         position.escrow_payment_token = Some(payment_token.clone());
-        let premium_token = if position.kind == OptionKind::Call { payment_token.clone() } else { collateral_token.clone() };
+        let premium_token = if position.kind == OptionKind::Call {
+            payment_token.clone()
+        } else {
+            collateral_token.clone()
+        };
         let args = near_sdk::serde_json::json!({
             "source_position_id": position.id,
             "writer": position.writer,
@@ -461,29 +465,56 @@ impl OptionsContract {
     /// Sequence and digest are stored in disjoint raw-storage keys, preserving all existing
     /// Borsh root and OptionPosition layouts.
     pub fn on_escrow_lifecycle_event(&mut self, event: EscrowLifecycleEvent) -> bool {
-        let position = self.positions.get(&event.source_position_id)
-            .cloned().expect("source option position missing");
-        let escrow = position.escrow_contract_id.as_ref().expect("escrow contract not pinned");
-        assert_eq!(env::predecessor_account_id(), *escrow, "pinned escrow contract only");
-        assert_eq!(position.escrow_position_id, Some(event.escrow_position_id), "escrow position ID mismatch");
-        assert_eq!(position.id, event.source_position_id, "source position ID mismatch");
+        let position = self
+            .positions
+            .get(&event.source_position_id)
+            .cloned()
+            .expect("source option position missing");
+        let escrow = position
+            .escrow_contract_id
+            .as_ref()
+            .expect("escrow contract not pinned");
+        assert_eq!(
+            env::predecessor_account_id(),
+            *escrow,
+            "pinned escrow contract only"
+        );
+        assert_eq!(
+            position.escrow_position_id,
+            Some(event.escrow_position_id),
+            "escrow position ID mismatch"
+        );
+        assert_eq!(
+            position.id, event.source_position_id,
+            "source position ID mismatch"
+        );
 
         let sequence_key = format!("handel:options:v2:escrow-seq:{}", position.id).into_bytes();
         let digest_key = format!("handel:options:v2:escrow-digest:{}", position.id).into_bytes();
         let last_sequence = env::storage_read(&sequence_key)
-            .and_then(|bytes| if bytes.len() == 8 {
-                Some(u64::from_le_bytes(bytes.try_into().ok()?))
-            } else { None })
+            .and_then(|bytes| {
+                if bytes.len() == 8 {
+                    Some(u64::from_le_bytes(bytes.try_into().ok()?))
+                } else {
+                    None
+                }
+            })
             .unwrap_or(0);
         let encoded = near_sdk::serde_json::to_vec(&event).expect("serialize event");
         let digest = env::sha256(&encoded);
         if event.sequence == last_sequence {
-            assert_eq!(env::storage_read(&digest_key), Some(digest), "conflicting lifecycle event replay");
+            assert_eq!(
+                env::storage_read(&digest_key),
+                Some(digest),
+                "conflicting lifecycle event replay"
+            );
             return true;
         }
         assert_eq!(
             event.sequence,
-            last_sequence.checked_add(1).expect("event sequence overflow"),
+            last_sequence
+                .checked_add(1)
+                .expect("event sequence overflow"),
             "stale or out-of-order lifecycle event"
         );
 
@@ -493,7 +524,9 @@ impl OptionsContract {
             "PremiumPayoutFailed" => PositionState::ReconciliationRequired,
             "PremiumRefunded" => PositionState::Expired,
             "PremiumRefundFailed" => PositionState::ReconciliationRequired,
-            "ExercisePaymentReceived" | "PaymentPayoutPending" | "CollateralPayoutPending" => PositionState::PendingSettlement,
+            "ExercisePaymentReceived" | "PaymentPayoutPending" | "CollateralPayoutPending" => {
+                PositionState::PendingSettlement
+            }
             "ReconciliationRequired" => PositionState::ReconciliationRequired,
             "Settled" => PositionState::Settled,
             "Expired" => PositionState::Expired,
@@ -894,7 +927,10 @@ impl OptionsContract {
     pub fn request_expiry_release(&mut self, position_id: u64, operation_id: String) {
         self.assert_not_paused();
         let position = self.position_owned_by_writer(position_id);
-        assert!(position.escrow_position_id.is_none(), "escrow position cannot use external expiry rail");
+        assert!(
+            position.escrow_position_id.is_none(),
+            "escrow position cannot use external expiry rail"
+        );
         assert_eq!(position.state, PositionState::Open, "position not open");
         let exercise_deadline_ns = position
             .expiry_ns
@@ -2414,7 +2450,6 @@ mod tests {
         assert_eq!(c.get_position(id).unwrap().state, PositionState::Settled);
     }
 
-
     #[test]
     fn escrow_lifecycle_events_are_authenticated_ordered_and_idempotent() {
         let mut c = contract();
@@ -2433,25 +2468,31 @@ mod tests {
         context("attacker.testnet");
         assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.on_escrow_lifecycle_event(event.clone())
-        })).is_err());
+        }))
+        .is_err());
 
         context("escrow.testnet");
         assert!(c.on_escrow_lifecycle_event(event.clone()));
-        assert_eq!(c.get_position(id).unwrap().state, PositionState::CollateralLocked);
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::CollateralLocked
+        );
         assert!(c.on_escrow_lifecycle_event(event.clone()));
 
         let mut conflicting = event.clone();
         conflicting.state = "Settled".into();
         assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.on_escrow_lifecycle_event(conflicting)
-        })).is_err());
+        }))
+        .is_err());
 
         let mut skipped = event;
         skipped.sequence = 3;
         skipped.state = "Settled".into();
         assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.on_escrow_lifecycle_event(skipped)
-        })).is_err());
+        }))
+        .is_err());
 
         let settled = EscrowLifecycleEvent {
             source_position_id: id,
