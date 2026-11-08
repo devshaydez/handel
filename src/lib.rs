@@ -2463,6 +2463,67 @@ mod tests {
         assert_eq!(c.get_position(id).unwrap().state, PositionState::Settled);
     }
 
+
+    #[test]
+    fn failed_escrow_registration_callback_can_be_retried_idempotently() {
+        let mut c = contract();
+        context("owner.testnet");
+        c.set_escrow_contract(account("escrow.testnet"));
+        c.set_escrow_token_account(
+            "nep141:stock.testnet".into(),
+            account("stock-token.testnet"),
+        );
+        c.set_escrow_token_account(
+            OptionsContract::usdc_asset_id(),
+            account("usdc-token.testnet"),
+        );
+        let id = create_call(&mut c);
+
+        context("writer.testnet");
+        let _first_registration = c.register_escrow_position(id);
+        assert!(c.get_position(id).unwrap().escrow_registration_pending);
+
+        let mut callback = VMContextBuilder::new();
+        callback
+            .current_account_id(account("handel.testnet"))
+            .predecessor_account_id(account("handel.testnet"))
+            .block_timestamp(11);
+        testing_env!(
+            callback.build(),
+            near_sdk::test_vm_config(),
+            near_sdk::RuntimeFeesConfig::test(),
+            std::collections::HashMap::default(),
+            vec![near_sdk::PromiseResult::Failed],
+        );
+        assert!(!c.on_escrow_position_registered(id));
+        let failed = c.get_position(id).unwrap();
+        assert!(!failed.escrow_registration_pending);
+        assert_eq!(failed.escrow_position_id, None);
+
+        context("writer.testnet");
+        let _retry = c.retry_escrow_registration(id);
+        assert!(c.get_position(id).unwrap().escrow_registration_pending);
+
+        let mut success = VMContextBuilder::new();
+        success
+            .current_account_id(account("handel.testnet"))
+            .predecessor_account_id(account("handel.testnet"))
+            .block_timestamp(12);
+        testing_env!(
+            success.build(),
+            near_sdk::test_vm_config(),
+            near_sdk::RuntimeFeesConfig::test(),
+            std::collections::HashMap::default(),
+            vec![near_sdk::PromiseResult::Successful(
+                near_sdk::serde_json::to_vec(&7u64).unwrap(),
+            )],
+        );
+        assert!(c.on_escrow_position_registered(id));
+        let registered = c.get_position(id).unwrap();
+        assert_eq!(registered.escrow_position_id, Some(7));
+        assert!(!registered.escrow_registration_pending);
+    }
+
     #[test]
     fn escrow_lifecycle_events_are_authenticated_ordered_and_idempotent() {
         let mut c = contract();
