@@ -2,12 +2,12 @@
 
 ## Current implementation: two separate execution rails
 
-Handel currently contains two contract paths that are **not integrated**:
+Handel currently contains two contract paths with **registration-only integration**:
 
 1. **OptionsContract (lifecycle and policy):** records option terms, agent permissions, operation IDs, and trusted-reconciler outcomes. It does not hold tokens.
-2. **EscrowContract (isolated custody prototype):** holds synthetic NEP-141 Testnet collateral and exercise-payment deposits for its own independently numbered positions. It is not yet called by OptionsContract.
+2. **EscrowContract (isolated custody prototype):** holds synthetic NEP-141 Testnet collateral and exercise-payment deposits. OptionsContract can now register a corresponding record asynchronously and persist the returned escrow ID, but token deposits and lifecycle settlement are not yet wired back to OptionsContract.
 
-Do not describe the system as having end-to-end escrow custody until a cross-contract registration and lifecycle handshake is implemented and tested.
+Do not describe the system as having end-to-end escrow custody: only the registration handshake is implemented; collateral transfer, settlement, expiry, and lifecycle reconciliation remain separate.
 
 ## OptionsContract rail (existing)
 
@@ -23,7 +23,7 @@ The escrow has persistent per-position records and accepts exact NEP-141 deposit
 
 After maturity and valid deposits, the escrow sends the exercise-payment asset to the writer and then the collateral asset to the holder. These are two asynchronous NEP-141 transfers, not an atomic exchange. Callback and retry state makes recorded partial success visible; it cannot reverse an irreversible transfer or safely infer success when a callback receipt is missing.
 
-The escrow now records the originating OptionsContract position ID and makes registration retries idempotent, but OptionsContract does not yet store or verify the returned escrow ID. No complete authoritative cross-contract lifecycle binding exists yet.
+The escrow records the originating OptionsContract position ID and makes registration retries idempotent. OptionsContract now stores the returned escrow ID after a successful private callback and allows a writer to retry an ambiguous registration. No complete authoritative cross-contract lifecycle binding exists yet.
 
 ## Required integration design
 
