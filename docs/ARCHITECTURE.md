@@ -2,7 +2,7 @@
 
 ## Current implementation: two separate execution rails
 
-Handel currently contains two contract paths with **registration-only integration**:
+Handel currently contains two contract paths with **registration plus collateral-deposit integration tested in Sandbox**:
 
 1. **OptionsContract (lifecycle and policy):** records option terms, agent permissions, operation IDs, and trusted-reconciler outcomes. It does not hold tokens.
 2. **EscrowContract (isolated custody prototype):** holds synthetic NEP-141 Testnet collateral and exercise-payment deposits. OptionsContract can now register a corresponding record asynchronously and persist the returned escrow ID, but token deposits and lifecycle settlement are not yet wired back to OptionsContract.
