@@ -214,7 +214,6 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .await?
         .into_result()?;
 
-
     // A third Call is deliberately left unexercised to cover the full expiry return.
     writer
         .call(options.id(), "create_call")
@@ -303,7 +302,6 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .transact()
         .await?
         .into_result()?;
-
 
     writer
         .call(stock_token.id(), "ft_transfer_call")
@@ -483,7 +481,6 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         assert_eq!(settled["payment_paid"], true);
         assert_eq!(settled["collateral_delivered_to_holder"], true);
     }
-
 
     // After the grace window, the writer can recover the unexercised third Call.
     worker.fast_forward(100_000).await?;
