@@ -921,7 +921,8 @@ impl EscrowContract {
     // no automatic retry is safe without independently proving the first transfer outcome.
 
     #[private]
-    pub fn on_premium_payout(&mut self, id: u64) -> bool {
+    pub fn on_premium_payout(&mut self, position_id: u64) -> bool {
+        let id = position_id;
         let p = self.position(id);
         let mut premium = self.get_premium_status(id).expect("premium terms missing");
         assert!(premium.payout_pending, "premium payout not pending");
@@ -942,7 +943,8 @@ impl EscrowContract {
     }
 
     #[private]
-    pub fn on_premium_refund(&mut self, id: u64) -> bool {
+    pub fn on_premium_refund(&mut self, position_id: u64) -> bool {
+        let id = position_id;
         let p = self.position(id);
         let mut premium = self.get_premium_status(id).expect("premium terms missing");
         assert!(premium.refund_pending, "premium refund not pending");
