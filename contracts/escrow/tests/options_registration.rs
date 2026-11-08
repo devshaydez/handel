@@ -1,4 +1,4 @@
-use near_workspaces::{network::Sandbox, Account, Contract, Worker};
+use near_workspaces::{network::Sandbox, Contract, Worker};
 use serde_json::json;
 
 async fn deploy(worker: &Worker<Sandbox>, path: &str) -> anyhow::Result<Contract> {
