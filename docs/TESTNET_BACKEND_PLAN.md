@@ -24,7 +24,7 @@
 - Call/put orientation is supported by configuring the collateral/payment token pair appropriately.
 - Sequential two-leg payout callbacks, definitive-failure retry handling, expiry release, and callback-failure fault-injection coverage.
 - Storage-gas benchmark for position creation.
-- This contract is **not connected** to OptionsContract. Its position IDs are independent. It is not a complete product custody flow.
+- OptionsContract now calls escrow asynchronously to register authoritative position terms and stores the returned escrow ID in a private callback. Escrow maps the source OptionsContract ID to one idempotent escrow record. This is registration-only; no token custody or settlement lifecycle is connected yet.
 
 ### CI
 
@@ -32,7 +32,7 @@ The preceding feature-branch work passed the Rust formatting, Rust/Sandbox tests
 
 ## Critical remaining blockers
 
-1. **Cross-contract integration:** implement the asynchronous OptionsContract-to-escrow registration handshake, bind all terms to authoritative OptionPosition fields, and persist the returned escrow ID only after a successful callback. Escrow-side registration is now idempotent by source position ID, but the OptionsContract handshake and callback recovery are not implemented yet.
+1. **Cross-contract integration:** add a Sandbox test for OptionsContract-to-escrow registration, callback success/failure, and retry after an ambiguous callback. The contract call, authoritative term binding, private callback, persisted escrow ID, and escrow idempotency guard are implemented; test coverage of the combined flow remains.
 2. **Lifecycle mapping:** reconcile collateral, exercise, settlement, and expiry states across both contracts. Prevent the external-intent path and escrow path from settling the same position.
 3. **Ambiguous callbacks:** a missing callback is not proof that a transfer failed. Do not automatically retry an ambiguous payout.
 4. **Non-atomic settlement:** escrow pays two NEP-141 legs sequentially. Design and test recovery/compensation for partial success; do not claim atomicity.
