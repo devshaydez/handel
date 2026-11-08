@@ -2463,7 +2463,6 @@ mod tests {
         assert_eq!(c.get_position(id).unwrap().state, PositionState::Settled);
     }
 
-
     #[test]
     fn failed_escrow_registration_callback_can_be_retried_idempotently() {
         let mut c = contract();
