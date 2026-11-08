@@ -2463,6 +2463,28 @@ mod tests {
         assert_eq!(c.get_position(id).unwrap().state, PositionState::Settled);
     }
 
+
+    #[test]
+    fn authenticated_escrow_expiry_event_marks_option_expired() {
+        let mut c = contract();
+        let id = create_call(&mut c);
+        {
+            let position = c.positions.get_mut(&id).unwrap();
+            position.escrow_position_id = Some(7);
+            position.escrow_contract_id = Some(account("escrow.testnet"));
+            position.state = PositionState::CollateralLocked;
+        }
+
+        context("escrow.testnet");
+        assert!(c.on_escrow_lifecycle_event(EscrowLifecycleEvent {
+            source_position_id: id,
+            escrow_position_id: 7,
+            sequence: 1,
+            state: "Expired".to_string(),
+        }));
+        assert_eq!(c.get_position(id).unwrap().state, PositionState::Expired);
+    }
+
     #[test]
     fn failed_escrow_registration_callback_can_be_retried_idempotently() {
         let mut c = contract();
