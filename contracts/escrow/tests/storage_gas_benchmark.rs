@@ -5,7 +5,6 @@ use serde_json::json;
 async fn benchmark_position_creation_gas_at_increasing_cardinalities() -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account()?;
-    let controller = worker.dev_create_account().await?;
     let escrow_wasm = std::fs::read(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../target/near/handel_escrow/handel_escrow.wasm"
@@ -17,14 +16,14 @@ async fn benchmark_position_creation_gas_at_increasing_cardinalities() -> anyhow
         .await?
         .into_result()?;
     root.call(escrow.id(), "set_controller")
-        .args_json(json!({"controller": controller.id()}))
+        .args_json(json!({"controller": root.id()}))
         .transact()
         .await?
         .into_result()?;
 
     let expiry = worker.view_block().await?.header().timestamp_nanosec() + 86_400_000_000_000;
     for index in 1..=100u64 {
-        let result = controller
+        let result = root
             .call(escrow.id(), "create_position")
             .args_json(json!({
                 "writer": "writer.testnet",
