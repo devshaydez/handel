@@ -40,13 +40,13 @@ The isolated escrow tests validate mock-token custody and payout behavior. `opti
 ## Required integration gates
 
 Before connecting or deploying the two contracts:
-1. Extend the registration Sandbox coverage to failed escrow calls, callback receipt failure, and retry after an ambiguous callback.
-2. Keep every escrow field bound to the authoritative OptionPosition: writer, holder, collateral token/amount, payment token/amount, expiry, and call/put asset orientation. The current successful-call test covers call orientation; add put-orientation coverage.
-3. Define how the OptionsContract lifecycle maps to escrow states. Do not mark collateral locked or a position settled based solely on a requested cross-contract call; use confirmed receipts and handle callback failure as an ambiguous state.
-4. Decide whether escrow is the sole custody/settlement path for a position or whether the existing external-intent reconciliation path remains enabled. Never allow both paths to settle the same economic leg.
-5. Design and test compensation/recovery for the non-atomic two-transfer path. A retry is permitted only after a definitive failure; a missing callback is ambiguous, not proof of failure.
-6. Review the persistent `UnorderedMap` storage layout and define a state-migration plan for any already-deployed legacy state before material-value deployment.
-7. Review storage staking/refunds, NEP-145 registration, pause semantics, controller key security, and monitoring.
-8. Extend near-workspaces coverage to puts, failed registration, callback failure, partial settlement, expiry, and replay attempts. The current combined-contract test covers successful call registration only.
+1. Extend the combined Sandbox flow to cover failed escrow calls, callback receipt failure, and retry after an ambiguous callback.
+2. Exercise the holder's exact payment deposit and both settlement payout legs in the combined flow.
+3. Define how OptionsContract lifecycle states map to escrow states. Do not mark collateral locked or a position settled based only on a requested cross-contract call; reconcile confirmed receipts and ambiguous callbacks.
+4. Decide whether escrow is the sole custody/settlement path for a position or whether external-intent reconciliation remains enabled. Never allow both paths to settle the same economic leg.
+5. Design and test recovery for the non-atomic two-transfer path. Retry only after a definitive failure; a missing callback is ambiguous, not proof of failure.
+6. Test expiry return, partial payout, callback loss, and replay attempts in combined near-workspaces tests.
+7. Review persistent `UnorderedMap` storage layout and migration for legacy state before any material-value deployment.
+8. Review storage staking/refunds, NEP-145 registration, pause semantics, controller key security, and monitoring.
 
 Do not deploy this prototype with real assets. Synthetic NEP-141 Testnet tokens only. No independent security audit, authenticated external-chain proof verifier, or production recovery procedure is claimed.
