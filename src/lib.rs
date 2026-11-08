@@ -1913,7 +1913,7 @@ mod tests {
     #[test]
     fn agent_put_proposal_respects_usdc_collateral_policy_cap() {
         let mut c = contract();
-        context("writer.testnet");
+        context("owner.testnet");
         c.set_agent_policy(
             account("agent.testnet"),
             vec!["nep141:stock.testnet".into()],
@@ -2178,15 +2178,15 @@ mod tests {
             "sha256:approval-gate".into(),
         );
 
-        context("owner.testnet");
+        context("writer.testnet");
         let bypass = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            c.register_escrow_position(0);
+            c.register_escrow_position(0)
         }));
         assert!(bypass.is_err(), "unapproved proposal must not enter escrow");
 
         context("writer.testnet");
         c.approve_agent_proposal("escrow-approval-gate".into());
-        context("owner.testnet");
+        context("writer.testnet");
         let approved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.register_escrow_position(0)
         }));
