@@ -23,7 +23,7 @@ The escrow has persistent per-position records and accepts exact NEP-141 deposit
 
 After maturity and valid deposits, the escrow sends the exercise-payment asset to the writer and then the collateral asset to the holder. These are two asynchronous NEP-141 transfers, not an atomic exchange. Callback and retry state makes recorded partial success visible; it cannot reverse an irreversible transfer or safely infer success when a callback receipt is missing.
 
-The escrow position ID is independent of the OptionsContract position ID. No authoritative binding currently exists between them.
+The escrow now records the originating OptionsContract position ID and makes registration retries idempotent, but OptionsContract does not yet store or verify the returned escrow ID. No complete authoritative cross-contract lifecycle binding exists yet.
 
 ## Required integration design
 
@@ -48,6 +48,6 @@ AI output never overrides contract policy.
 
 ## Storage and deployment boundary
 
-Escrow position records use NEAR's persistent `LookupMap`. OptionsContract currently uses standard-library `BTreeMap` collections inside contract state; this is not the desired scalable persistent-storage design and must be migrated with a state-migration plan before material-value deployment.
+Escrow position records use NEAR's persistent `LookupMap`. OptionsContract records now use NEAR persistent `UnorderedMap` collections. Any already-deployed legacy state still needs a reviewed migration plan before material-value deployment.
 
 Testnet only. Synthetic tokens only. No claim of live Ondo asset support, official Intents Testnet settlement, atomic cross-asset settlement, authenticated external-chain proofs, or production readiness.
