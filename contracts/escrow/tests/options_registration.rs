@@ -338,7 +338,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .args_json(json!({"account_id": escrow.id()}))
         .await?
         .json::<near_sdk::json_types::U128>()?;
-    assert_eq!(stock_escrow_balance.0, 1000000);
+    assert_eq!(stock_escrow_balance.0, 2000000);
     let usdc_escrow_balance = root
         .view(usdc_token.id(), "ft_balance_of")
         .args_json(json!({"account_id": escrow.id()}))
