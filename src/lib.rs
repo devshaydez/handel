@@ -277,6 +277,26 @@ impl OptionsContract {
             PositionState::PendingCollateral,
             "option already entered another lifecycle"
         );
+        // The escrow rail must enforce the same principal-approval gate as the
+        // external collateral rail. Otherwise an agent proposal could bypass approval
+        // simply by choosing register_escrow_position instead of begin_collateral_lock.
+        assert!(
+            self.proposals.values().all(|proposal| {
+                proposal.position_id != position_id || proposal.state == ProposalState::Approved
+            }),
+            "agent proposal requires principal approval"
+        );
+        for proposal in self
+            .proposals
+            .values()
+            .filter(|proposal| proposal.position_id == position_id)
+        {
+            assert_eq!(
+                proposal.state,
+                ProposalState::Approved,
+                "agent proposal not approved"
+            );
+        }
         assert!(
             position.escrow_position_id.is_none(),
             "escrow position already registered"
@@ -2120,6 +2140,55 @@ mod tests {
             c.get_agent_proposal("proposal-2".into()).unwrap().state,
             ProposalState::Rejected
         );
+    }
+ 
+    #[test]
+    fn agent_proposal_cannot_bypass_principal_approval_through_escrow_registration() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            2_000,
+            2,
+            80,
+        );
+        c.set_escrow_contract(account("escrow.testnet"));
+        c.set_escrow_token_account(
+            "nep141:stock.testnet".into(),
+            account("stock-token.testnet"),
+        );
+        c.set_escrow_token_account(
+            OptionsContract::usdc_asset_id(),
+            account("usdc-token.testnet"),
+        );
+
+        context("agent.testnet");
+        c.create_agent_proposal(
+            "escrow-approval-gate".into(),
+            OptionKind::Call,
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            10,
+            20,
+            70,
+            5,
+            "sha256:approval-gate".into(),
+        );
+
+        context("writer.testnet");
+        let bypass = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.register_escrow_position(0);
+        }));
+        assert!(bypass.is_err(), "unapproved proposal must not enter escrow");
+
+        c.approve_agent_proposal("escrow-approval-gate".into());
+        let approved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.register_escrow_position(0)
+        }));
+        assert!(approved.is_ok(), "approved proposal may register with escrow");
     }
 
     #[test]
