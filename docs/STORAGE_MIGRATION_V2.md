@@ -1,6 +1,6 @@
 # Versioned lifecycle storage and migration design
 
-Status: implementation and migration gate, 2026-11-08. Premium sidecars/transfers/refunds, lifecycle outbox/callbacks, and evidence-attested payout recovery have been added to the PR branch. Current-head CI is pending. Versioned root-state migration entrypoints and legacy deployment migration are not implemented.
+Status: implementation and migration gate, 2026-11-08. Premium sidecars/transfers/refunds, lifecycle outbox/callbacks, and evidence-attested payout recovery have been added to the PR branch. Current-head CI run #42529923092 passed Rust formatting, unit tests, optimized Wasm builds, the isolated callback-failure Wasm build, Sandbox integration, and the SDK build/tests/offline demo. Migration entrypoints and legacy deployment migration are still not implemented. Versioned root-state migration entrypoints and legacy deployment migration are not implemented.
 
 ## Safety invariant
 
@@ -88,4 +88,4 @@ Exercise remains two non-atomic transfers: payment to writer, then collateral to
 
 ## Release gate
 
-This document is not a production-readiness claim. Batch 1 is complete only after current-head CI passes, combined Sandbox tests cover premium and event/reconciliation recovery, and migration/deployment compatibility is reviewed. The OptionsContract root layout still differs from the earlier standard-map implementation; do not upgrade an existing deployment without separately reviewed V1 migration or audited redeployment. Existing deployments must not be upgraded until the V1 fixture migration and independent review pass.
+This document is not a production-readiness claim. Batch 1 code validation passed on the recorded CI head. Remaining P0 gaps include full expiry and registration-failure recovery integration, automated verifier/monitoring service, and migration/deployment compatibility review. Do not call the backend production-ready. The OptionsContract root layout still differs from the earlier standard-map implementation; do not upgrade an existing deployment without separately reviewed V1 migration or audited redeployment. Existing deployments must not be upgraded until the V1 fixture migration and independent review pass.
