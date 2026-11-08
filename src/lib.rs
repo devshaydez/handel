@@ -1,8 +1,14 @@
-use near_sdk::{env, near, store::UnorderedMap, AccountId, PanicOnDefault};
+use near_sdk::{
+    env, near, store::UnorderedMap, AccountId, Gas, NearToken, PanicOnDefault, Promise,
+    PromiseResult,
+};
 
 /// Holders get a 24-hour post-maturity window to submit exercise transactions.
 /// This is a transaction-submission grace period, not an American early-exercise window.
 const EXERCISE_GRACE_NS: u64 = 24 * 60 * 60 * 1_000_000_000;
+const ESCROW_REGISTER_GAS: Gas = Gas::from_tgas(20);
+const ESCROW_CALLBACK_GAS: Gas = Gas::from_tgas(10);
+const ESCROW_STORAGE_DEPOSIT: NearToken = NearToken::from_near(1);
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -108,6 +114,8 @@ pub struct OptionPosition {
     pub exercise_delivery_operation_id: Option<String>,
     pub expiry_release_operation_id: Option<String>,
     pub exercised_at_ns: Option<u64>,
+    pub escrow_position_id: Option<u64>,
+    pub escrow_registration_pending: bool,
 }
 
 #[near(serializers = [json, borsh])]
@@ -161,6 +169,8 @@ pub struct OptionsContract {
     trusted_reconciler: Option<AccountId>,
     agent_policies: UnorderedMap<AccountId, AgentPolicy>,
     proposals: UnorderedMap<String, AgentProposal>,
+    escrow_contract: Option<AccountId>,
+    escrow_token_accounts: UnorderedMap<String, AccountId>,
 }
 
 #[near]
@@ -178,6 +188,8 @@ impl OptionsContract {
             trusted_reconciler: None,
             agent_policies: UnorderedMap::new(b"g".to_vec()),
             proposals: UnorderedMap::new(b"r".to_vec()),
+            escrow_contract: None,
+            escrow_token_accounts: UnorderedMap::new(b"e".to_vec()),
         }
     }
 
@@ -225,11 +237,105 @@ impl OptionsContract {
         )
     }
 
+    /// Configure the isolated NEP-141 escrow contract. The escrow must set this
+    /// OptionsContract account as its controller before registration is attempted.
+    pub fn set_escrow_contract(&mut self, escrow_contract: AccountId) {
+        self.assert_owner();
+        assert_ne!(escrow_contract, env::current_account_id(), "invalid escrow contract");
+        self.escrow_contract = Some(escrow_contract);
+    }
+
+    /// Bind a Handel asset identifier to its deployed NEP-141 token contract.
+    /// This is explicit because some asset identifiers (notably the USDC registry ID)
+    /// are not NEAR account IDs.
+    pub fn set_escrow_token_account(&mut self, asset_id: String, token_account: AccountId) {
+        self.assert_owner();
+        assert!(
+            self.asset_registry.get(&asset_id).is_some_and(|asset| asset.enabled),
+            "asset must be enabled"
+        );
+        self.escrow_token_accounts.insert(asset_id, token_account);
+    }
+
+    /// Register immutable option terms in the isolated NEP-141 escrow.
+    /// This does not deposit collateral or move the option into the external-reconciliation
+    /// lifecycle. The writer must use the escrow's NEP-141 transfer_call flow separately.
+    pub fn register_escrow_position(&mut self, position_id: u64) -> Promise {
+        self.assert_not_paused();
+        let mut position = self.position_owned_by_writer(position_id);
+        assert_eq!(position.state, PositionState::PendingCollateral, "option already entered another lifecycle");
+        assert!(position.escrow_position_id.is_none(), "escrow position already registered");
+        assert!(!position.escrow_registration_pending, "escrow registration already pending");
+        let escrow = self.escrow_contract.clone().expect("escrow contract not configured");
+        let collateral_asset = Self::collateral_asset_id(&position);
+        let payment_asset = Self::exercise_payment_asset_id(&position);
+        let collateral_token = self.escrow_token_accounts.get(&collateral_asset).cloned()
+            .expect("collateral NEP-141 token not configured");
+        let payment_token = self.escrow_token_accounts.get(&payment_asset).cloned()
+            .expect("payment NEP-141 token not configured");
+        let args = near_sdk::serde_json::json!({
+            "source_position_id": position.id,
+            "writer": position.writer,
+            "holder": position.holder,
+            "collateral_token": collateral_token,
+            "collateral_amount": Self::required_collateral(&position).to_string(),
+            "payment_token": payment_token,
+            "payment_amount": Self::exercise_payment_amount(&position).to_string(),
+            "expiry_ns": position.expiry_ns
+        });
+        position.escrow_registration_pending = true;
+        self.positions.insert(position_id, position);
+        Promise::new(escrow)
+            .function_call(
+                "create_position".to_string(),
+                near_sdk::serde_json::to_vec(&args).expect("serialize escrow registration"),
+                ESCROW_STORAGE_DEPOSIT,
+                ESCROW_REGISTER_GAS,
+            )
+            .then(
+                Promise::new(env::current_account_id())
+                    .function_call(
+                        "on_escrow_position_registered".to_string(),
+                        near_sdk::serde_json::to_vec(&near_sdk::serde_json::json!({
+                            "position_id": position_id
+                        })).expect("serialize escrow callback"),
+                        NearToken::from_yoctonear(0),
+                        ESCROW_CALLBACK_GAS,
+                    )
+            )
+    }
+
+    /// Retry an ambiguous/failed registration. Escrow registration is idempotent by source ID.
+    pub fn retry_escrow_registration(&mut self, position_id: u64) -> Promise {
+        self.register_escrow_position(position_id)
+    }
+
+    #[private]
+    pub fn on_escrow_position_registered(&mut self, position_id: u64) -> bool {
+        let mut position = self.position(position_id);
+        assert!(position.escrow_registration_pending, "no escrow registration pending");
+        position.escrow_registration_pending = false;
+        match env::promise_result(0) {
+            PromiseResult::Successful(bytes) => {
+                let escrow_id: u64 = near_sdk::serde_json::from_slice(&bytes)
+                    .expect("invalid escrow registration result");
+                position.escrow_position_id = Some(escrow_id);
+                self.positions.insert(position_id, position);
+                true
+            }
+            PromiseResult::Failed => {
+                self.positions.insert(position_id, position);
+                false
+            }
+        }
+    }
+
     /// Starts a collateral operation after the writer has submitted their own NEP-413 transfer.
     /// Never accepts or stores a signature or signing key. Pending until explicit reconciliation.
     pub fn begin_collateral_lock(&mut self, position_id: u64, operation_id: String) {
         self.assert_not_paused();
         let position = self.position_owned_by_writer(position_id);
+        assert!(position.escrow_position_id.is_none() && !position.escrow_registration_pending, "position belongs to escrow lifecycle");
         assert_eq!(
             position.state,
             PositionState::PendingCollateral,
@@ -1022,6 +1128,8 @@ impl OptionsContract {
                 exercise_delivery_operation_id: None,
                 expiry_release_operation_id: None,
                 exercised_at_ns: None,
+                escrow_position_id: None,
+                escrow_registration_pending: false,
             },
         );
         id
@@ -1221,6 +1329,20 @@ impl OptionsContract {
         match position.kind {
             OptionKind::Call => position.asset_id.clone(),
             OptionKind::Put => Self::usdc_asset_id(),
+        }
+    }
+
+    fn exercise_payment_asset_id(position: &OptionPosition) -> String {
+        match position.kind {
+            OptionKind::Call => Self::usdc_asset_id(),
+            OptionKind::Put => position.asset_id.clone(),
+        }
+    }
+
+    fn exercise_payment_amount(position: &OptionPosition) -> u128 {
+        match position.kind {
+            OptionKind::Call => position.strike_amount_usdc,
+            OptionKind::Put => position.underlying_amount,
         }
     }
 
