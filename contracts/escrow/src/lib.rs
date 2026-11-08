@@ -42,6 +42,8 @@ pub enum EscrowState {
 #[near(serializers = [json, borsh])]
 #[derive(Clone)]
 pub struct PremiumSidecar {
+    pub schema_version: u8,
+    pub revision: u64,
     pub token: AccountId, pub amount: u128, pub received: bool, pub paid: bool,
     pub payout_pending: bool, pub payout_failed: bool, pub refund_pending: bool,
     pub refund_failed: bool, pub refunded: bool,
@@ -169,6 +171,7 @@ impl EscrowContract {
             assert_eq!(old.amount, premium_amount.0, "premium amount mismatch");
         } else {
             let sidecar = PremiumSidecar {
+                schema_version: 2, revision: 0,
                 token: premium_token, amount: premium_amount.0, received: false, paid: false,
                 payout_pending: false, payout_failed: false, refund_pending: false,
                 refund_failed: false, refunded: false,
@@ -185,7 +188,9 @@ impl EscrowContract {
     }
 
     pub fn get_premium_status(&self, id: u64) -> Option<PremiumSidecar> {
-        env::storage_read(&Self::premium_key(id)).and_then(|b| near_sdk::serde_json::from_slice(&b).ok())
+        env::storage_read(&Self::premium_key(id))
+            .and_then(|b| near_sdk::serde_json::from_slice(&b).ok())
+            .filter(|value: &PremiumSidecar| value.schema_version == 2)
     }
 
     pub fn settle_premium(&mut self, id: u64) -> Promise {
@@ -909,7 +914,11 @@ impl EscrowContract {
     fn premium_key(id: u64) -> Vec<u8> { format!("handel:escrow:v2:premium:{id}").into_bytes() }
 
     fn store_premium_status(&self, id: u64, premium: &PremiumSidecar) {
-        let bytes = near_sdk::serde_json::to_vec(premium).expect("serialize premium sidecar");
+        let previous = self.get_premium_status(id).map(|value| value.revision).unwrap_or(0);
+        let mut updated = premium.clone();
+        updated.schema_version = 2;
+        updated.revision = previous.checked_add(1).expect("premium revision overflow");
+        let bytes = near_sdk::serde_json::to_vec(&updated).expect("serialize premium sidecar");
         env::storage_write(&Self::premium_key(id), &bytes);
     }
 
