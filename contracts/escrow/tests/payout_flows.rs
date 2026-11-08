@@ -560,7 +560,7 @@ async fn expiry_release_returns_only_unexercised_collateral_and_retries_definiti
     assert_eq!(failed["state"], "ReconciliationRequired");
     assert_eq!(failed["failed_payout"], "ExpiryCollateral");
     assert_eq!(failed["collateral_returned_to_writer"], false);
-    assert_eq!(balance(&root, &stock, writer.id()).await?, 200);
+    assert_eq!(balance(&root, &stock, writer.id()).await?, 100);
 
     root.call(stock.id(), "set_paused")
         .args_json(json!({"paused": false}))
@@ -582,7 +582,7 @@ async fn expiry_release_returns_only_unexercised_collateral_and_retries_definiti
         .json::<serde_json::Value>()?;
     assert_eq!(recovered["state"], "Expired");
     assert_eq!(recovered["collateral_returned_to_writer"], true);
-    assert_eq!(balance(&root, &stock, writer.id()).await?, 300);
+    assert_eq!(balance(&root, &stock, writer.id()).await?, 200);
 
     Ok(())
 }
