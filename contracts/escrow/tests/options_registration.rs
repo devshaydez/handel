@@ -213,8 +213,14 @@ async fn call_and_put_registration_create_matching_escrow_records_without_moving
     assert_eq!(put_option["kind"], "Put");
     assert_eq!(put_option["escrow_position_id"], 1);
     assert_eq!(put_option["escrow_registration_pending"], false);
-    assert_eq!(put_option["escrow_collateral_token"], usdc_token.id().as_str());
-    assert_eq!(put_option["escrow_payment_token"], stock_token.id().as_str());
+    assert_eq!(
+        put_option["escrow_collateral_token"],
+        usdc_token.id().as_str()
+    );
+    assert_eq!(
+        put_option["escrow_payment_token"],
+        stock_token.id().as_str()
+    );
 
     let put_escrow_position = root
         .view(escrow.id(), "get_position")
