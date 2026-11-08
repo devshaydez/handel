@@ -226,13 +226,15 @@ impl EscrowContract {
         id
     }
 
-    pub fn get_premium_status(&self, id: u64) -> Option<PremiumSidecar> {
+    pub fn get_premium_status(&self, position_id: u64) -> Option<PremiumSidecar> {
+        let id = position_id;
         env::storage_read(&Self::premium_key(id))
             .and_then(|b| near_sdk::serde_json::from_slice(&b).ok())
             .filter(|value: &PremiumSidecar| value.schema_version == 2)
     }
 
-    pub fn settle_premium(&mut self, id: u64) -> Promise {
+    pub fn settle_premium(&mut self, position_id: u64) -> Promise {
+        let id = position_id;
         let p = self.position(id);
         assert_eq!(env::predecessor_account_id(), p.holder, "holder only");
         assert_eq!(
@@ -263,7 +265,8 @@ impl EscrowContract {
         )
     }
 
-    pub fn retry_failed_premium_payout(&mut self, id: u64) -> Promise {
+    pub fn retry_failed_premium_payout(&mut self, position_id: u64) -> Promise {
+        let id = position_id;
         let p = self.position(id);
         let mut premium = self.get_premium_status(id).expect("premium terms missing");
         assert!(
@@ -292,7 +295,8 @@ impl EscrowContract {
         )
     }
 
-    pub fn refund_unpaid_premium(&mut self, id: u64) -> Promise {
+    pub fn refund_unpaid_premium(&mut self, position_id: u64) -> Promise {
+        let id = position_id;
         let p = self.position(id);
         assert_eq!(env::predecessor_account_id(), p.holder, "holder only");
         let deadline = p
@@ -319,7 +323,8 @@ impl EscrowContract {
         )
     }
 
-    pub fn retry_failed_premium_refund(&mut self, id: u64) -> Promise {
+    pub fn retry_failed_premium_refund(&mut self, position_id: u64) -> Promise {
+        let id = position_id;
         let p = self.position(id);
         let mut premium = self.get_premium_status(id).expect("premium terms missing");
         assert!(
@@ -611,9 +616,10 @@ impl EscrowContract {
 
     pub fn get_payout_reconciliation(
         &self,
-        id: u64,
+        position_id: u64,
         leg: String,
     ) -> Option<PayoutReconciliationRecord> {
+        let id = position_id;
         let seq =
             env::storage_read(&Self::reconciliation_sequence_key(id, &leg)).and_then(|b| {
                 if b.len() == 8 {
@@ -630,12 +636,13 @@ impl EscrowContract {
     /// This is an explicit trust root, not a trustless proof.
     pub fn reconcile_ambiguous_payout(
         &mut self,
-        id: u64,
+        position_id: u64,
         leg: String,
         succeeded: bool,
         evidence_hash: String,
         transfer_reference: String,
     ) -> PromiseOrValue<bool> {
+        let id = position_id;
         let reconciler: AccountId = env::storage_read(&Self::payout_reconciler_key())
             .and_then(|b| near_sdk::serde_json::from_slice(&b).ok())
             .expect("payout reconciler not configured");
@@ -761,11 +768,12 @@ impl EscrowContract {
 
     pub fn reconcile_ambiguous_premium_payout(
         &mut self,
-        id: u64,
+        position_id: u64,
         succeeded: bool,
         evidence_hash: String,
         transfer_reference: String,
     ) -> bool {
+        let id = position_id;
         let reconciler: AccountId = env::storage_read(&Self::payout_reconciler_key())
             .and_then(|b| near_sdk::serde_json::from_slice(&b).ok())
             .expect("payout reconciler not configured");
@@ -818,11 +826,12 @@ impl EscrowContract {
 
     pub fn reconcile_ambiguous_premium_refund(
         &mut self,
-        id: u64,
+        position_id: u64,
         succeeded: bool,
         evidence_hash: String,
         transfer_reference: String,
     ) -> bool {
+        let id = position_id;
         let reconciler: AccountId = env::storage_read(&Self::payout_reconciler_key())
             .and_then(|b| near_sdk::serde_json::from_slice(&b).ok())
             .expect("payout reconciler not configured");
