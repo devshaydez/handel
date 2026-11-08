@@ -2141,7 +2141,7 @@ mod tests {
             ProposalState::Rejected
         );
     }
- 
+
     #[test]
     fn agent_proposal_cannot_bypass_principal_approval_through_escrow_registration() {
         let mut c = contract();
@@ -2188,7 +2188,10 @@ mod tests {
         let approved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.register_escrow_position(0)
         }));
-        assert!(approved.is_ok(), "approved proposal may register with escrow");
+        assert!(
+            approved.is_ok(),
+            "approved proposal may register with escrow"
+        );
     }
 
     #[test]
