@@ -1261,7 +1261,7 @@ impl EscrowContract {
             "on_escrow_lifecycle_event".to_string(),
             near_sdk::serde_json::to_vec(&event).expect("serialize lifecycle callback"),
             NearToken::from_yoctonear(0),
-            Gas::from_tgas(10),
+            Gas::from_tgas(20),
         )
     }
 
