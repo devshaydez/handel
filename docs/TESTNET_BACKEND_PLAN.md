@@ -9,45 +9,33 @@
 
 ## Current implementation status
 
-### OptionsContract
+### OptionsContract and EscrowContract
 
-- Owner authorization, pause state, asset allowlist, agent policies, proposal approval, operation IDs, retry paths, and European maturity/grace-period checks are implemented.
-- External asset movements are represented as operations and reconciled by a configured trusted account.
-- The trusted reconciler is a trust root: the contract validates evidence fields but does not independently verify the external transfer.
-- Contract records now use NEAR persistent `UnorderedMap` collections. Any already-deployed legacy state still needs a reviewed migration plan before material-value deployment.
+- Persistent position records, idempotent registration, pinned token/escrow accounts, premium sidecar, asynchronous premium payout/refund, authenticated sequenced lifecycle outbox, replay protection, and evidence-attested ambiguous payout reconciliation are implemented in PR #2.
+- Combined Sandbox coverage exercises Call/Put premium and exercise settlement, lifecycle synchronization, and replay of missing lifecycle events. Sandbox tokens are mocks, not live assets.
+- Registration retry and expiry mapping/release have unit coverage; combined cross-contract fault-injection and full expiry callback persistence remain unproven.
+- Escrow exercise payout legs remain sequential and non-atomic. Ambiguous callbacks require the configured human evidence attestor; timeout alone is never grounds for retry.
+- OptionsContract legacy Borsh root migration is not implemented. Do not upgrade a legacy deployment until exact V1 layouts and a separately reviewed migration or audited redeployment process are established.
 
-### Isolated EscrowContract
+### SDK
 
-- Separate NEP-141 custody prototype for synthetic Testnet assets.
-- Per-position records use NEAR persistent `LookupMap`; each registration requires an attached storage deposit, retained by the contract.
-- Exact token, sender, amount, state, and time checks for writer collateral and holder exercise payment.
-- Call/put orientation is supported by configuring the collateral/payment token pair appropriately.
-- Sequential two-leg payout callbacks, definitive-failure retry handling, expiry release, and callback-failure fault-injection coverage.
-- Storage-gas benchmark for position creation.
-- OptionsContract calls escrow asynchronously to register authoritative Call/Put terms and stores the returned escrow ID in a private callback. Escrow maps the source OptionsContract ID to one idempotent record. A combined Sandbox test deploys both contracts and mock NEP-141 tokens, verifies Call/Put registration, exact collateral and exercise-payment deposits, sequential settlement payouts, final balances, and competing-rail exclusion. CI run #42508978797 passed on commit `1792d600`. This is not Testnet deployment or live-token custody. Combined expiry, registration failure/callback recovery, and authoritative OptionsContract lifecycle synchronization remain unintegrated.
-
-### CI
-
-Code head `1792d600` passed CI run #42508978797: Rust formatting, unit and Sandbox integration tests, optimized Wasm builds, isolated callback-failure Wasm build, SDK build/tests, and offline lifecycle demo. Documentation-only commits have since updated the status notes; the latest branch head still needs its own CI confirmation.
+- NEP-413 payload builders create unsigned payloads only. The user's wallet must sign; this SDK never handles private keys.
+- OperationJournal provides in-memory operation-ID idempotency, transaction/result correlation, explicit unknown-outcome handling, and retries only after definitive failure. The host application must persist snapshots; this is not a durable backend service.
+- LifecycleEventCursor enforces ordered sequence delivery, rejects gaps/conflicting replays, and treats exact event replays as idempotent. Persist its snapshot in the host application.
+- These are orchestration primitives, not a transaction submitter, indexer, verifier, or proof of settlement.
 
 ## Critical remaining blockers
 
-1. **Cross-contract integration:** combined Sandbox coverage verifies successful Call/Put registration, authoritative terms, private callback persistence, mock NEP-141 collateral and exercise-payment deposits, sequential payouts, final balances, and exclusion from the competing reconciliation rail. Add failed registration, callback-receipt failure, and ambiguous registration retry coverage.
-2. **Lifecycle mapping:** exercise-payment deposits and both payout legs are Sandbox-tested directly through Escrow. Still integrate expiry return and state reconciliation across both contracts. Prevent the external-intent path and escrow path from settling the same position.
-3. **Ambiguous callbacks:** a missing callback is not proof that a transfer failed. Do not automatically retry an ambiguous payout.
-4. **Non-atomic settlement:** escrow pays two NEP-141 legs sequentially. Design and test recovery/compensation for partial success; do not claim atomicity.
-5. **OptionsContract storage:** review persistent UnorderedMap storage layout and any legacy-state migration strategy.
-6. **Token operations:** test NEP-145 registration, storage funding, recipient registration, pause behavior, and failure handling.
-7. **Proofs and trust:** no cryptographic external-event verifier or finality/reorg handling is implemented.
-8. **Assets:** verify exact token contracts, decimals, and route support. Current synthetic mocks do not establish Ondo support.
-9. **UI:** integrate the user's existing UI when provided; do not replace it.
+1. Combined failure-path Sandbox tests: registration callback receipt failure/recovery, expiry release with callback persistence, and ambiguous lifecycle delivery under fault injection.
+2. Migration: exact legacy Borsh root layouts, versioned migration entrypoints or audited redeployment with explicit asset/position handling.
+3. Independent verification: verifier service for evidence inspection, finality/reorg handling, and independently verifiable external events. The on-chain evidence attestor is a human trust root.
+4. Real asset admission: verify exact token contracts, canonical asset IDs, decimals, supported routes, NEP-145 storage deposits and recipient registration. Existing mock tests do not establish Ondo support.
+5. Settlement atomicity/compensation: escrow's two payout legs are sequential and non-atomic; specify and audit compensation/dispute handling for partial success.
+6. Transaction infrastructure: wallet/RPC adapter, durable operation storage, event indexer, monitoring/alerting, and recovery UI are not implemented.
+7. Security and operations: admin/key rotation, pause/unpause authority, storage economics/archival, adversarial/property testing, and independent security review.
+8. Testnet release gate: deploy to NEAR Testnet and verify actual transactions, receipts, token balances, and final contract state. Never label Sandbox or offline results as Testnet verification.
 
 ## Validation labels
 
-Report these separately:
-- **Implemented:** source code exists.
-- **Sandbox-tested:** relevant near-workspaces test passed.
-- **Testnet-deployed:** contract deployed to NEAR Testnet.
-- **Testnet-verified:** real Testnet transaction and resulting state/balances inspected.
-
-Never promote one label to another. Never commit secrets. Keep `main` untouched until the user explicitly approves a merge.
+Report these separately: Implemented; Sandbox-tested; Testnet-deployed; Testnet-verified.
+Never promote one label to another. Never commit secrets. Keep main untouched until the user explicitly approves a merge.
