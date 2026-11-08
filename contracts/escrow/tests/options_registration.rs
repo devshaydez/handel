@@ -95,10 +95,10 @@ async fn options_registration_creates_matching_escrow_record_without_moving_toke
         .args_json(json!({
             "holder": holder.id(),
             "asset_id": STOCK_ASSET,
-            "underlying_amount": "1000000",
-            "strike_amount_usdc": "2500000",
+            "underlying_amount": 1000000,
+            "strike_amount_usdc": 2500000,
             "expiry_ns": expiry,
-            "premium_amount_usdc": "100000"
+            "premium_amount_usdc": 100000
         }))
         .transact()
         .await?
