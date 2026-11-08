@@ -1,6 +1,6 @@
 # Versioned lifecycle storage and migration design
 
-Status: design gate for Batch 1 implementation. This document does not claim that the V2 runtime, migration entrypoints, premium transfers, or lifecycle callbacks are implemented.
+Status: implementation and migration gate, 2026-11-08. Premium sidecars/transfers/refunds, lifecycle outbox/callbacks, and evidence-attested payout recovery have been added to the PR branch. Current-head CI is pending. Versioned root-state migration entrypoints and legacy deployment migration are not implemented.
 
 ## Safety invariant
 
@@ -19,13 +19,13 @@ Use an explicit V2 state envelope for each contract:
 
 The V1 structs must preserve the exact field order, types, collection prefixes, and serialization behavior of the current deployed structs. Keep them frozen in source as migration-only types. Do not deserialize V1 records into V2 structs.
 
-V2 lifecycle extensions should be stored under new, disjoint storage prefixes so V1 map entries are not rewritten in place. Existing position records remain byte-for-byte V1-compatible; a V2 sidecar is keyed by the immutable position ID. Each sidecar carries an explicit schema version and a monotonic revision.
+V2 lifecycle extensions are stored under disjoint raw-storage prefixes so existing position records are not rewritten in place. The Escrow premium sidecar is keyed by immutable escrow position ID and carries schema version 2 plus a monotonic revision. Options' accepted-event sequence/digest, Escrow's event sequence/outbox, reconciler configuration, and evidence records use separate prefixed keys. Existing root layouts and position records are not extended by these changes.
 
-Suggested extension records:
+Implemented extension records and remaining design items:
 
-- Options sidecar: schema version, escrow ID/contract pin, last accepted escrow event sequence, last accepted escrow state, and migration marker.
-- Escrow sidecar: schema version, premium token/amount, premium custody receipt, premium payout status, last emitted lifecycle sequence, and unresolved payout reconciliation marker.
-- Event outbox: source position ID, escrow position ID, monotonic sequence, lifecycle state, and delivery status. Persist the event before scheduling the cross-contract callback.
+- Options: OptionPosition pins escrow ID/contract; separate keys store last accepted event sequence and digest. Persisted last-state sidecar and migration marker remain open.
+- Escrow: versioned premium sidecar stores token, amount, deposit/payout/refund flags, and revision. Separate keys store event sequence/outbox and append-only payout evidence records. Unified migration marker remains open.
+- Event outbox: source position ID, escrow position ID, monotonic sequence, and lifecycle state are persisted before callback scheduling. Resend uses the stored event and does not transfer tokens; delivery-status tracking and automated retry workers remain open.
 
 ## Migration entrypoints
 
@@ -45,9 +45,9 @@ The premium token is USDC for both Calls and Puts. It is not interchangeable wit
 - Call: collateral = underlying; exercise payment = USDC; premium = USDC.
 - Put: collateral = USDC; exercise payment = underlying; premium = USDC.
 
-The V2 escrow registration terms must pin premium token and amount in addition to collateral and exercise payment. The holder's `ft_transfer_call` premium leg must be accepted only for the exact holder, pinned USDC token, exact amount, and an eligible collateral-locked position. Premium payout to the writer is a separate asynchronous leg. OptionsContract may become `Open` only after Escrow has persisted a successful premium payout receipt.
+The V2 `create_position_v2` registration pins premium token and amount in a schema-versioned sidecar in addition to collateral and exercise payment. The holder's `ft_transfer_call` premium leg must be accepted only for the exact holder, pinned USDC token, exact amount, and an eligible collateral-locked position. Premium payout to the writer is a separate asynchronous leg. OptionsContract may become `Open` only after Escrow has persisted a successful premium payout receipt.
 
-Use explicit states for premium deposit pending/received, premium payout pending, premium payout definitively failed, and premium paid. A definitive failed payout can be retried; an ambiguous transfer/callback cannot. If premium has been received but cannot be paid before expiry, refund handling must be a separately recorded transfer leg with its own definitive-failure and ambiguity rules. No exercise is allowed before premium-paid is authoritative.
+The sidecar tracks premium received, payout pending/failed/paid, and refund pending/failed/refunded. A lost callback leaves the transfer pending and blocks automatic retry/refund. A definitive failed payout can be retried; an ambiguous transfer/callback cannot. If premium has been received but cannot be paid before expiry, refund handling must be a separately recorded transfer leg with its own definitive-failure and ambiguity rules. No exercise is allowed before premium-paid is authoritative.
 
 ## Lifecycle event delivery
 
@@ -64,9 +64,9 @@ Persist the accepted sequence and state atomically with the OptionsContract posi
 
 ## Payout reconciliation trust boundary
 
-NEAR contract state cannot independently prove that an external NEP-141 transfer succeeded if the transfer promise's callback receipt is missing. Do not retry a pending transfer based on elapsed time, operator assertion without evidence, or a generic timeout.
+NEAR contract state cannot independently prove that an external NEP-141 transfer succeeded if the transfer promise's callback receipt is missing. Escrow now exposes an owner-configured reconciler and durable evidence record for explicit human attestation. Do not retry a pending transfer based on elapsed time, operator assertion without evidence, or a generic timeout.
 
-Keep definitive transfer failure distinct from ambiguous receipt loss. For ambiguous cases, require independently inspected token balances/receipts and an explicit governance or trusted-reconciler decision bound to token, amount, sender, receiver, position, leg, and transfer reference. Record who attested, the evidence reference/hash, decision, and timestamp. This is a documented trust root, not a trustless proof. If the evidence is insufficient, keep the position frozen for manual resolution.
+Keep definitive transfer failure distinct from ambiguous receipt loss. For ambiguous cases, the attestor must independently inspect token balances/receipts and submit a decision bound to token, amount, sender, receiver, position, leg, evidence hash, and transfer reference. The contract records the attestor and timestamp but cannot validate external evidence itself. Record who attested, the evidence reference/hash, decision, and timestamp. This is a documented trust root, not a trustless proof. If the evidence is insufficient, keep the position frozen for manual resolution.
 
 Exercise remains two non-atomic transfers: payment to writer, then collateral to holder. A successful first leg must never be repeated when recovering the second. Expiry collateral return and premium refund are also independent transfer legs.
 
@@ -88,4 +88,4 @@ Exercise remains two non-atomic transfers: payment to writer, then collateral to
 
 ## Release gate
 
-This design document is not implementation evidence. Batch 1 is complete only after migration code, V2 lifecycle code, adversarial Sandbox tests, updated gap register, a single integrated commit, and a passing CI run on that commit. Existing deployments must not be upgraded until the V1 fixture migration and independent review pass.
+This document is not a production-readiness claim. Batch 1 is complete only after current-head CI passes, combined Sandbox tests cover premium and event/reconciliation recovery, and migration/deployment compatibility is reviewed. The OptionsContract root layout still differs from the earlier standard-map implementation; do not upgrade an existing deployment without separately reviewed V1 migration or audited redeployment. Existing deployments must not be upgraded until the V1 fixture migration and independent review pass.
