@@ -24,7 +24,7 @@
 - Call/put orientation is supported by configuring the collateral/payment token pair appropriately.
 - Sequential two-leg payout callbacks, definitive-failure retry handling, expiry release, and callback-failure fault-injection coverage.
 - Storage-gas benchmark for position creation.
-- OptionsContract now calls escrow asynchronously to register authoritative position terms and stores the returned escrow ID in a private callback. Escrow maps the source OptionsContract ID to one idempotent escrow record. This is registration-only; no token custody or settlement lifecycle is connected yet.
+- OptionsContract calls escrow asynchronously to register authoritative Call/Put terms and stores the returned escrow ID in a private callback. Escrow maps the source OptionsContract ID to one idempotent record. A combined Sandbox test deploys both contracts and mock NEP-141 tokens, deposits exact collateral for both option orientations through `ft_transfer_call`, and verifies escrow balances and `CollateralLocked` state. This is not Testnet deployment or live-token custody; exercise-payment deposits and settlement/expiry lifecycle are not yet integrated.
 
 ### CI
 
