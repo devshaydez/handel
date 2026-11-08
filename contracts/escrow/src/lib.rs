@@ -859,6 +859,34 @@ mod tests {
         contract
     }
 
+
+    fn setup_v2(timestamp: u64) -> EscrowContract {
+        let mut context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("owner.testnet"))
+            .block_timestamp(timestamp)
+            .attached_deposit(NearToken::from_near(1))
+            .build();
+        testing_env!(context.clone());
+        let mut contract = EscrowContract::new();
+        contract.set_controller(account("options.testnet"));
+        context.predecessor_account_id = account("options.testnet");
+        testing_env!(context);
+        contract.create_position_v2(
+            0,
+            account("writer.testnet"),
+            account("holder.testnet"),
+            account("synthetic-stock.testnet"),
+            U128(100),
+            account("synthetic-usdc.testnet"),
+            U128(500),
+            1_000,
+            account("synthetic-usdc.testnet"),
+            U128(25),
+        );
+        contract
+    }
+
     fn receive(
         contract: &mut EscrowContract,
         token: &str,
@@ -1330,6 +1358,103 @@ mod tests {
         }));
         assert!(mismatch.is_err());
         assert_eq!(c.next_position_id, 1);
+    }
+
+
+    #[test]
+    fn premium_requires_exact_holder_token_and_amount_and_must_be_paid_before_exercise() {
+        let mut c = setup_v2(10);
+        assert_eq!(receive(&mut c, "synthetic-stock.testnet", "writer.testnet", 100, "collateral", 20), U128(0));
+        assert_eq!(receive(&mut c, "wrong-token.testnet", "holder.testnet", 25, "premium", 30), U128(25));
+        assert_eq!(receive(&mut c, "synthetic-usdc.testnet", "attacker.testnet", 25, "premium", 30), U128(25));
+        assert_eq!(receive(&mut c, "synthetic-usdc.testnet", "holder.testnet", 24, "premium", 30), U128(24));
+        assert_eq!(receive(&mut c, "synthetic-usdc.testnet", "holder.testnet", 25, "premium", 30), U128(0));
+        assert!(c.get_premium_status(0).unwrap().received);
+
+        assert_eq!(receive(&mut c, "synthetic-usdc.testnet", "holder.testnet", 500, "exercise_payment", 1_000), U128(500));
+        let holder_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("holder.testnet"))
+            .block_timestamp(40)
+            .build();
+        testing_env!(holder_context);
+        let _payout = c.settle_premium(0);
+        let pending = c.get_premium_status(0).unwrap();
+        assert!(pending.payout_pending && !pending.paid);
+
+        let callback_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("escrow.testnet"))
+            .block_timestamp(41)
+            .build();
+        testing_env!(
+            callback_context,
+            near_sdk::test_vm_config(),
+            near_sdk::RuntimeFeesConfig::test(),
+            std::collections::HashMap::default(),
+            vec![near_sdk::PromiseResult::Successful(vec![])],
+        );
+        c.store_premium_status(0, &pending);
+        assert!(c.on_premium_payout(0));
+        assert!(c.get_premium_status(0).unwrap().paid);
+        assert_eq!(receive(&mut c, "synthetic-usdc.testnet", "holder.testnet", 500, "exercise_payment", 1_000), U128(0));
+    }
+
+    #[test]
+    fn definitively_failed_premium_payout_can_be_refunded_after_grace() {
+        let mut c = setup_v2(10);
+        assert_eq!(receive(&mut c, "synthetic-stock.testnet", "writer.testnet", 100, "collateral", 20), U128(0));
+        assert_eq!(receive(&mut c, "synthetic-usdc.testnet", "holder.testnet", 25, "premium", 30), U128(0));
+        let holder_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("holder.testnet"))
+            .block_timestamp(40)
+            .build();
+        testing_env!(holder_context);
+        let _payout = c.settle_premium(0);
+        let pending = c.get_premium_status(0).unwrap();
+
+        let failed_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("escrow.testnet"))
+            .block_timestamp(41)
+            .build();
+        testing_env!(
+            failed_context,
+            near_sdk::test_vm_config(),
+            near_sdk::RuntimeFeesConfig::test(),
+            std::collections::HashMap::default(),
+            vec![near_sdk::PromiseResult::Failed],
+        );
+        c.store_premium_status(0, &pending);
+        assert!(!c.on_premium_payout(0));
+        let failed = c.get_premium_status(0).unwrap();
+        assert!(failed.payout_failed && !failed.payout_pending && !failed.paid);
+
+        let refund_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("holder.testnet"))
+            .block_timestamp(1_000 + EXERCISE_GRACE_NS + 1)
+            .build();
+        testing_env!(refund_context);
+        let _refund = c.refund_unpaid_premium(0);
+        let refund_pending = c.get_premium_status(0).unwrap();
+
+        let refund_callback = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("escrow.testnet"))
+            .block_timestamp(1_000 + EXERCISE_GRACE_NS + 2)
+            .build();
+        testing_env!(
+            refund_callback,
+            near_sdk::test_vm_config(),
+            near_sdk::RuntimeFeesConfig::test(),
+            std::collections::HashMap::default(),
+            vec![near_sdk::PromiseResult::Successful(vec![])],
+        );
+        c.store_premium_status(0, &refund_pending);
+        assert!(c.on_premium_refund(0));
+        assert!(c.get_premium_status(0).unwrap().refunded);
     }
 
     #[test]

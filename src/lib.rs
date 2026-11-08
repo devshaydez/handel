@@ -2414,6 +2414,55 @@ mod tests {
         assert_eq!(c.get_position(id).unwrap().state, PositionState::Settled);
     }
 
+
+    #[test]
+    fn escrow_lifecycle_events_are_authenticated_ordered_and_idempotent() {
+        let mut c = contract();
+        let id = create_call(&mut c);
+        {
+            let position = c.positions.get_mut(&id).unwrap();
+            position.escrow_position_id = Some(77);
+            position.escrow_contract_id = Some(account("escrow.testnet"));
+        }
+        let event = EscrowLifecycleEvent {
+            source_position_id: id,
+            escrow_position_id: 77,
+            sequence: 1,
+            state: "CollateralLocked".into(),
+        };
+        context("attacker.testnet");
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.on_escrow_lifecycle_event(event.clone())
+        })).is_err());
+
+        context("escrow.testnet");
+        assert!(c.on_escrow_lifecycle_event(event.clone()));
+        assert_eq!(c.get_position(id).unwrap().state, PositionState::CollateralLocked);
+        assert!(c.on_escrow_lifecycle_event(event.clone()));
+
+        let mut conflicting = event.clone();
+        conflicting.state = "Settled".into();
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.on_escrow_lifecycle_event(conflicting)
+        })).is_err());
+
+        let mut skipped = event;
+        skipped.sequence = 3;
+        skipped.state = "Settled".into();
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.on_escrow_lifecycle_event(skipped)
+        })).is_err());
+
+        let settled = EscrowLifecycleEvent {
+            source_position_id: id,
+            escrow_position_id: 77,
+            sequence: 2,
+            state: "Settled".into(),
+        };
+        assert!(c.on_escrow_lifecycle_event(settled));
+        assert_eq!(c.get_position(id).unwrap().state, PositionState::Settled);
+    }
+
     impl OptionsContract {
         fn usdc_asset_id_for_test() -> String {
             Self::usdc_asset_id()
