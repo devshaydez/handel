@@ -15,6 +15,7 @@ const CALLBACK_GAS: Gas = Gas::from_tgas(10);
 #[derive(BorshSerialize, BorshStorageKey)]
 enum StorageKey {
     Positions,
+    SourcePositions,
 }
 
 #[derive(Deserialize)]
@@ -50,6 +51,8 @@ pub enum FailedPayout {
 #[derive(Clone)]
 pub struct EscrowPosition {
     pub id: u64,
+    /// Authoritative OptionsContract position ID; used to make registration retries idempotent.
+    pub source_position_id: u64,
     pub writer: AccountId,
     pub holder: AccountId,
     pub collateral_token: AccountId,
@@ -75,6 +78,7 @@ pub struct EscrowContract {
     controller: Option<AccountId>,
     next_position_id: u64,
     positions: LookupMap<u64, EscrowPosition>,
+    source_positions: LookupMap<u64, u64>,
     paused: bool,
 }
 
@@ -99,6 +103,7 @@ impl EscrowContract {
             controller: None,
             next_position_id: 0,
             positions: LookupMap::new(StorageKey::Positions),
+            source_positions: LookupMap::new(StorageKey::SourcePositions),
             paused: false,
         }
     }
@@ -120,6 +125,7 @@ impl EscrowContract {
     #[payable]
     pub fn create_position(
         &mut self,
+        source_position_id: u64,
         writer: AccountId,
         holder: AccountId,
         collateral_token: AccountId,
@@ -130,6 +136,21 @@ impl EscrowContract {
     ) -> u64 {
         self.assert_controller();
         assert!(!self.paused, "escrow paused");
+        // A controller may retry after an ambiguous cross-contract callback. Return the
+        // original escrow ID only when every immutable term matches; never create a
+        // second custody record for one OptionsContract position.
+        if let Some(existing_id) = self.source_positions.get(&source_position_id).copied() {
+            let existing = self.position(existing_id);
+            assert_eq!(existing.writer, writer, "registration writer mismatch");
+            assert_eq!(existing.holder, holder, "registration holder mismatch");
+            assert_eq!(existing.collateral_token, collateral_token, "registration collateral token mismatch");
+            assert_eq!(existing.collateral_amount, collateral_amount.0, "registration collateral amount mismatch");
+            assert_eq!(existing.payment_token, payment_token, "registration payment token mismatch");
+            assert_eq!(existing.payment_amount, payment_amount.0, "registration payment amount mismatch");
+            assert_eq!(existing.expiry_ns, expiry_ns, "registration expiry mismatch");
+            assert_eq!(env::attached_deposit().as_yoctonear(), 0, "duplicate registration must not attach deposit");
+            return existing_id;
+        }
         assert_ne!(writer, holder, "writer and holder must differ");
         assert_ne!(collateral_token, payment_token, "assets must differ");
         assert!(collateral_amount.0 > 0, "collateral must be positive");
@@ -146,6 +167,7 @@ impl EscrowContract {
             id,
             EscrowPosition {
                 id,
+                source_position_id,
                 writer,
                 holder,
                 collateral_token,
@@ -164,6 +186,7 @@ impl EscrowContract {
                 failed_payout: None,
             },
         );
+        self.source_positions.insert(source_position_id, id);
         let storage_bytes = env::storage_usage()
             .checked_sub(storage_before)
             .expect("storage usage underflow");
@@ -544,6 +567,7 @@ mod tests {
         context.predecessor_account_id = account("options.testnet");
         testing_env!(context);
         contract.create_position(
+            0,
             account("writer.testnet"),
             account("holder.testnet"),
             account("synthetic-stock.testnet"),
@@ -879,6 +903,45 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_controller_registration_returns_same_id_only_for_identical_terms() {
+        let mut c = setup(10);
+        let context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("options.testnet"))
+            .block_timestamp(10)
+            .build();
+        testing_env!(context);
+        let duplicate = c.create_position(
+            0,
+            account("writer.testnet"),
+            account("holder.testnet"),
+            account("synthetic-stock.testnet"),
+            U128(100),
+            account("synthetic-usdc.testnet"),
+            U128(500),
+            1_000,
+        );
+        assert_eq!(duplicate, 0);
+        assert_eq!(c.next_position_id, 1);
+        assert_eq!(c.get_position(0).source_position_id, 0);
+
+        let mismatch = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.create_position(
+                0,
+                account("writer.testnet"),
+                account("holder.testnet"),
+                account("synthetic-stock.testnet"),
+                U128(101),
+                account("synthetic-usdc.testnet"),
+                U128(500),
+                1_000,
+            )
+        }));
+        assert!(mismatch.is_err());
+        assert_eq!(c.next_position_id, 1);
+    }
+
+    #[test]
     fn persistent_position_map_handles_many_independent_records() {
         let mut c = setup(10);
         let context = VMContextBuilder::new()
@@ -890,6 +953,7 @@ mod tests {
         testing_env!(context);
         for expected_id in 1..=128u64 {
             let id = c.create_position(
+                expected_id,
                 account("writer.testnet"),
                 account("holder.testnet"),
                 account("synthetic-stock.testnet"),
