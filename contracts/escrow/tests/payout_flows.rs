@@ -96,6 +96,7 @@ async fn make_position(
     holder: &Account,
     stock: &Contract,
     usdc: &Contract,
+    source_position_id: u64,
     expiry_ns: u64,
 ) -> anyhow::Result<u64> {
     call_json(
@@ -103,6 +104,7 @@ async fn make_position(
         escrow,
         "create_position",
         json!({
+            "source_position_id": source_position_id,
             "writer": writer.id(),
             "holder": holder.id(),
             "collateral_token": stock.id(),
@@ -205,6 +207,7 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
         &holder,
         &stock,
         &usdc,
+        1001,
         expiry,
     )
     .await?;
@@ -258,6 +261,7 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
         &holder,
         &stock,
         &usdc,
+        1002,
         second_expiry,
     )
     .await?;
@@ -381,6 +385,7 @@ async fn callback_receipt_failure_keeps_payout_pending_and_blocks_retry() -> any
         &holder,
         &stock,
         &usdc,
+        1003,
         now + 30_000_000_000,
     )
     .await?;
