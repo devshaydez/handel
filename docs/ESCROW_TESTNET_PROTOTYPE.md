@@ -4,11 +4,11 @@
 
 This is a separate NEP-141 custody contract for synthetic Testnet tokens. It is **not yet connected** to the OptionsContract and does not support the BNB-chain Ondo assets. It must not be presented as production custody.
 
-The escrow stores position records in NEAR's persistent `LookupMap`. Each record reserves the attached NEAR storage deposit; the current implementation retains the full attached amount and has no archival/refund path. The OptionsContract is still a separate contract using in-memory `BTreeMap` collections in its serialized state. Persistent collection migration for that contract remains a deployment blocker.
+The escrow stores position records in NEAR's persistent `LookupMap`. Each record reserves the attached NEAR storage deposit; the current implementation retains the full attached amount and has no archival/refund path. The OptionsContract is still a separate contract. Its position, asset, operation, agent-policy, and proposal records now use NEAR persistent `UnorderedMap` collections; this does not itself provide a migration path for any already-deployed legacy state.
 
 ## Deposits and position terms
 
-Only the configured controller can create a position. Each record binds writer, holder, collateral token/amount, exercise-payment token/amount, and expiry. The writer deposits exact collateral using NEP-141 `ft_transfer_call`; after maturity, the holder deposits the exact exercise payment. The escrow validates token contract, sender, amount, position state, and time window. Rejected transfers are returned as unused.
+Only the configured controller can create a position. Each record binds the originating OptionsContract position ID, writer, holder, collateral token/amount, exercise-payment token/amount, and expiry. Registration is idempotent by source position ID: an exact retry returns the existing escrow ID without creating a second record; changed terms are rejected. A duplicate retry must attach no additional storage deposit. The writer deposits exact collateral using NEP-141 `ft_transfer_call`; after maturity, the holder deposits the exact exercise payment. The escrow validates token contract, sender, amount, position state, and time window. Rejected transfers are returned as unused.
 
 The escrow's orientation supports both physical option directions when configured correctly:
 - **Call:** writer collateral is the underlying token; holder exercise payment is USDC.
@@ -45,7 +45,7 @@ Before connecting or deploying the two contracts:
 3. Define how the OptionsContract lifecycle maps to escrow states. Do not mark collateral locked or a position settled based solely on a requested cross-contract call; use confirmed receipts and handle callback failure as an ambiguous state.
 4. Decide whether escrow is the sole custody/settlement path for a position or whether the existing external-intent reconciliation path remains enabled. Never allow both paths to settle the same economic leg.
 5. Design and test compensation/recovery for the non-atomic two-transfer path. A retry is permitted only after a definitive failure; a missing callback is ambiguous, not proof of failure.
-6. Migrate OptionsContract's serialized `BTreeMap` state to NEAR persistent collections with a reviewed state-migration plan before material-value deployment.
+6. Review the persistent `UnorderedMap` storage layout and define a state-migration plan for any already-deployed legacy state before material-value deployment.
 7. Review storage staking/refunds, NEP-145 registration, pause semantics, controller key security, and monitoring.
 8. Run end-to-end near-workspaces tests for calls and puts, successful and failed cross-contract registration, duplicate registration, callback failure, partial settlement, expiry, and replay attempts.
 
