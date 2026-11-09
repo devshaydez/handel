@@ -41,6 +41,6 @@ The deployment allowlists must be populated from a deployment independently revi
 - No live E2EE/OHTTP key exchange has been observed end-to-end yet.
 - The budget ledger remains process-local and must be replaced with durable shared accounting before multi-instance production use.
 - The System One structured guardrail adapter is implemented and trading proposal runtime now requires an allowlisted, verified provider-TEE System One decision.
-- Trading proposal runtime also requires a durable decision recorder; records are hash-chained and explanations are rendered from stored evidence. A host must provide durable storage and production WORM/anchoring controls.
+- Trading proposal runtime also requires a durable decision recorder; records are hash-chained and explanations are rendered from stored evidence. A host must provide durable storage and production WORM/anchoring controls.\n- Trading proposal runtime now also requires a source-specific market evidence verifier returning an approval result, verification method, and evidence hash. No current live provider is approved; display-only sources cannot be used by a verifier as execution-grade inputs.
 - Live model compatibility and receipt verification still require a credentialed smoke test.
 - TEE attestation does not grant wallet authority. On-chain policy, user approval, deterministic limits, and verified settlement remain mandatory.

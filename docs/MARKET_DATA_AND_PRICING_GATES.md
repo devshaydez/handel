@@ -24,7 +24,7 @@ Official references:
 
 ## Required before Phase 16 can close
 
-- Identify and approve the actual NEAR Intents route and its supported chain/asset identifiers.
+- Implemented a required `MarketEvidenceVerifier` runtime boundary: every trading proposal must supply an approved source verification method and evidence hash; absent, rejected, or unavailable verification fails closed. This is an interface and enforcement gate, not a live provider adapter.\n- Identify and approve the actual NEAR Intents route and its supported chain/asset identifiers.
 - Obtain a source that is contractually and technically approved for authoritative spot/reference prices for that exact route, or wait for Ondo's documented oracle.
 - Verify timestamp, market session, stale-data behavior, outlier handling, decimal conversion, USDon/USDC conversion, and source signatures/provenance.
 - The reference Black–Scholes engine requires explicit spot, annualized volatility, risk-free rate, dividend yield, and time-to-expiry inputs. It uses 18-decimal Ondo quantity, 6-decimal USDC total strike/premium, a documented European model, and round-up to one USDC minor unit. It is not production-approved until inputs are sourced from an approved feed and the implementation is independently reviewed against a trusted pricing library/reference suite.
