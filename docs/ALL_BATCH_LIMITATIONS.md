@@ -55,7 +55,7 @@ PR #3 was squash-merged as `8d34211a3ca4729178a318da12c8777d33f27b52`. CI #275 p
 
 ## Batch 3 — Phases 7–9: monitoring, storage economics, administrative security
 
-PR #4 is open and unmerged. Its latest CI state must be checked against the current head before declaring the batch validated.
+PR #4 is open and unmerged. Batch 3 CI run #286 passed on exact head `7bff578cadaa19faa17e13b46a4b6a7932340aa1`.
 
 ### Implemented in the current PR branch
 - SDK operation/position status counters, configurable stuck-state thresholds, bounded in-memory event retention, and normalized event fields.
@@ -72,9 +72,9 @@ PR #4 is open and unmerged. Its latest CI state must be checked against the curr
 
 ## Batch 4 — Phases 10–12: AI provider, UI/backend integration, adversarial testing
 
-Batch 4 implementation is in progress on `work/batch-4-ai-integration-adversarial`, stacked on the unmerged Batch 3 PR branch. CI and independent review are pending.
+Batch 4 implementation is on `work/batch-4-ai-integration-adversarial`, stacked against the same base as Batch 3 for CI triggering. PR #5 is open and unmerged. CI run #42650088972 passed both Rust/Sandbox and SDK jobs on exact head `9972a6fea1f256e8b08e627f64c32b8518c9f1df`.
 
-### Implemented in the Batch 4 branch (pending CI)
+### Implemented in the Batch 4 branch (CI validated)
 - Provider-neutral SDK client for a Handel-controlled AI backend gateway, with HTTPS enforcement (localhost development exception), bearer authentication, bounded response size, request timeout, process-local sliding-window rate limiting, strict response envelope/proposal schema, configured model identity, stable error codes, and request/response SHA-256 provenance.
 - Deterministic fallback when no backend key is configured; fallback makes no network request. Configured-provider errors fail closed rather than silently substituting a model result.
 - Explicit proposal preparation/preview and a separate approval-gated connected-wallet signer callback. The SDK does not hold keys or sign server-side; signer is not called without affirmative approval.
@@ -88,15 +88,23 @@ Batch 4 implementation is in progress on `work/batch-4-ai-integration-adversaria
 
 ## Batch 5 — Phase 13: Testnet deployment and release readiness
 
-Not completed. This is a gated deployment phase, not an implication of passing CI.
+In progress on `work/batch-5-testnet-release-readiness`. This is a gated deployment phase, not an implication of passing CI. The branch hardens the OptionsContract deployment helpers (explicit Testnet confirmation, deterministic artifact selection, SHA-256 display, opt-in one-time initializer) and adds `docs/TESTNET_RELEASE_RUNBOOK.md`. No deployment has been performed.
 
-- Dedicated Testnet contract accounts, deployment and upgrade procedure, configuration, and verified account-key policy.
+### Implemented / prepared in Batch 5
+- Safe-by-default Bash and PowerShell deployment helpers for OptionsContract only; neither chooses an arbitrary Wasm artifact.
+- Testnet-only explicit confirmation, deploy-only default, separately opt-in initializer, artifact hash display, and no account/key/token provisioning.
+- Deployment runbook covering required inputs, build identity, operator steps, independent post-deploy verification, evidence capture, and release gates.
+
+### Remaining release gates
+- Dedicated OptionsContract and Escrow Testnet accounts, Escrow deployment/configuration procedure, and verified account-key policy.
 - Real Testnet token registration and NEP-145 storage funding for escrow and payout recipients.
 - Supported-asset deposit and wallet-signed settlement, with independently inspected receipts, events, resulting contract state, and token balances.
 - End-to-end premium, exercise, expiry, payout retry, ambiguous-outcome reconciliation, and duplicate/replay tests on deployed contracts.
 - Independent verifier/RPC configuration and operational monitoring/alert delivery.
 - Migration/redeployment decision for existing persistent state, documented rollback and recovery plan.
 - Independent security review sign-off and explicit release approval.
+
+Batch 5 is not CI-validated until its integrated workflow passes. No Testnet deployment, token transaction, or release approval is claimed.
 
 ## Cross-cutting limitations and rules
 
