@@ -261,6 +261,24 @@ impl OptionsContract {
         self.escrow_contract = Some(escrow_contract);
     }
 
+    /// Have this contract accept the Escrow controller role after its owner
+    /// configures the Escrow and the Escrow owner proposes this contract.
+    /// The cross-contract call originates from OptionsContract itself, which is
+    /// the account that Escrow must authenticate as the proposed controller.
+    pub fn accept_escrow_controller(&mut self) -> Promise {
+        self.assert_owner();
+        let escrow = self
+            .escrow_contract
+            .clone()
+            .expect("escrow contract not configured");
+        Promise::new(escrow).function_call(
+            "accept_controller".to_string(),
+            Vec::new(),
+            NearToken::from_yoctonear(0),
+            Gas::from_tgas(10),
+        )
+    }
+
     /// Bind a Handel asset identifier to its deployed NEP-141 token contract.
     /// This is explicit because some asset identifiers (notably the USDC registry ID)
     /// are not NEAR account IDs.
