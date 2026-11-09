@@ -285,3 +285,7 @@ Use these labels consistently:
 - **Blocked:** missing external prerequisite or unresolved design/security decision.
 
 Never use one status label as a substitute for another.
+
+## New durable product requirement — AI education and decision accountability
+
+See [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md). This requirement applies across Batches 8–10: one agent combines contextual education with permissioned trading; every consequential action and no-trade decision must have a traceable, evidence-grounded explanation and durable decision record. Education never grants trading authority. This is a product requirement, not evidence of implementation. Do not omit it from future handoffs, implementation plans, acceptance tests, or release reviews.
