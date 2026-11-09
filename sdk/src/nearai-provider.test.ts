@@ -6,11 +6,11 @@ import { NVDAON_ASSET_ID } from "./assets.js";
 
 const p = stubProposal({ underlyingAssetId: NVDAON_ASSET_ID, daysToExpiry: 3 });
 const budget = { budgetMicros: 10_000_000, maxRequestCostMicros: 100_000, maxRequests: 100, maxCompletionTokens: 512, maxPromptBytes: 12000 };
-const allow = { allowedModelSigners: ["signer-1"], allowedComposeHashes: ["compose-1"], allowedOsImageHashes: ["os-1"] };
+const allow = { allowedGatewaySigners: ["gateway-1"], allowedModelSigners: ["signer-1"], allowedComposeHashes: ["compose-1"], allowedOsImageHashes: ["os-1"] };
 function fake(o: Partial<NearAiClient> = {}): NearAiClient {
   return {
     verify: async () => ({
-      gateway: { tcbStatus: "UpToDate" },
+      gateway: { tcbStatus: "UpToDate", signer: { signingAddress: "gateway-1" } },
       models: [{ signer: { signingAddress: "signer-1" }, tcbStatus: "UpToDate", deployment: { runtimeMeasurements: { composeHash: "compose-1", osImageHash: "os-1" } } }],
       verifiedAt: 123,
     }),
@@ -32,15 +32,15 @@ test("rejects missing deployment allowlists", () => {
   assert.throws(() => new NearAiProposalProvider({ ...config, allowedComposeHashes: [] }, fake()), e => e instanceof NearAiError && e.code === "DEPLOYMENT_ALLOWLIST_REQUIRED");
 });
 test("blocks un-attested models and Gateway-only responses", async () => {
-  const a = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "UpToDate" }, models: [] }) }));
+  const a = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "UpToDate", signer: { signingAddress: "gateway-1" } }, models: [] }) }));
   await assert.rejects(() => a.propose({}), e => e instanceof NearAiError && e.code === "MODEL_NOT_ATTESTED");
   const b = new NearAiProposalProvider(config, fake({ verifyResponse: async () => ({ signatureKind: "gateway" }) }));
   await assert.rejects(() => b.propose({}), e => e instanceof NearAiError && e.code === "MODEL_SIGNATURE_REQUIRED");
 });
 test("rejects revoked, stale-policy and unapproved signer or measurements", async () => {
-  const gateway = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "Revoked" }, models: [{ tcbStatus: "UpToDate" }] }) }));
+  const gateway = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "Revoked", signer: { signingAddress: "gateway-1" } }, models: [{ tcbStatus: "UpToDate" }] }) }));
   await assert.rejects(() => gateway.propose({}), e => e instanceof NearAiError && e.code === "GATEWAY_TCB_REJECTED");
-  const tcb = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "UpToDate" }, models: [{ tcbStatus: "OutOfDate" }] }) }));
+  const tcb = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "UpToDate", signer: { signingAddress: "gateway-1" } }, models: [{ tcbStatus: "OutOfDate" }] }) }));
   await assert.rejects(() => tcb.propose({}), e => e instanceof NearAiError && e.code === "MODEL_TCB_REJECTED");
   const signer = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "UpToDate" }, models: [{ tcbStatus: "UpToDate", signer: { signingAddress: "unknown" } }] }) }));
   await assert.rejects(() => signer.propose({}), e => e instanceof NearAiError && e.code === "MODEL_SIGNER_REJECTED");

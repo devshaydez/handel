@@ -27,7 +27,7 @@ export interface NearAiSystemOneClient {
 export interface NearAiSystemOneConfig {
   apiKey: string;
   model: string;
-  allowedModelSigners: string[];
+  allowedGatewaySigners: string[];\n  allowedModelSigners: string[];
   allowedComposeHashes: string[];
   allowedOsImageHashes: string[];
   minimumConfidence?: number;
@@ -39,7 +39,7 @@ export class NearAiSystemOneGuard {
     if (!config.apiKey.trim() || !config.model.trim()) {
       throw new NearAiError("System One API key and canonical model ID are required", "SYSTEMONE_CONFIG_INVALID");
     }
-    if (!config.allowedModelSigners.length || !config.allowedComposeHashes.length || !config.allowedOsImageHashes.length) {
+    if (!config.allowedGatewaySigners.length || !config.allowedModelSigners.length || !config.allowedComposeHashes.length || !config.allowedOsImageHashes.length) {
       throw new NearAiError("System One TEE allowlists are required", "SYSTEMONE_ALLOWLIST_REQUIRED");
     }
     const threshold = config.minimumConfidence ?? 0.8;
@@ -130,7 +130,7 @@ export async function createOfficialNearAiSystemOneClient(
   config: NearAiSystemOneConfig,
   baseUrl = "https://cloud-api.near.ai/v1/",
 ): Promise<NearAiSystemOneClient> {
-  if (!config.allowedModelSigners.length || !config.allowedComposeHashes.length || !config.allowedOsImageHashes.length) {
+  if (!config.allowedGatewaySigners.length || !config.allowedModelSigners.length || !config.allowedComposeHashes.length || !config.allowedOsImageHashes.length) {
     throw new NearAiError("System One TEE allowlists are required", "SYSTEMONE_ALLOWLIST_REQUIRED");
   }
   const name: string = "@nearai/inference-sdk/node";

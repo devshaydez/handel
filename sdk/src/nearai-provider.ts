@@ -42,7 +42,7 @@ export interface NearAiConfig {
   baseUrl?: string;
   budget: NearAiBudget;
   /** Exact model signer identities approved by Handel governance/configuration. */
-  allowedModelSigners: string[];
+  allowedGatewaySigners: string[];\n  allowedModelSigners: string[];
   /** Exact authenticated TEE compose measurements approved for this model. */
   allowedComposeHashes: string[];
   /** Exact authenticated TEE OS image measurements approved for this model. */
@@ -97,11 +97,11 @@ export class NearAiBudgetLedger {
  * as required by the official SDK contract.
  */
 export async function createOfficialNearAiClient(
-  config: Pick<NearAiConfig, "apiKey" | "allowedModelSigners" | "allowedComposeHashes" | "allowedOsImageHashes" | "attestationCacheTimeToLiveMs">,
+  config: Pick<NearAiConfig, "apiKey" | "allowedGatewaySigners" | "allowedModelSigners" | "allowedComposeHashes" | "allowedOsImageHashes" | "attestationCacheTimeToLiveMs">,
   baseUrl = "https://cloud-api.near.ai/v1/",
 ): Promise<NearAiClient> {
   const { allowedModelSigners, allowedComposeHashes, allowedOsImageHashes } = config;
-  if (!allowedModelSigners.length || !allowedComposeHashes.length || !allowedOsImageHashes.length) {
+  if (!config.allowedGatewaySigners.length || !allowedModelSigners.length || !allowedComposeHashes.length || !allowedOsImageHashes.length) {
     throw new NearAiError("explicit model signer, compose and OS measurement allowlists are required", "DEPLOYMENT_ALLOWLIST_REQUIRED");
   }
   const name: string = "@nearai/inference-sdk/node";
@@ -172,7 +172,7 @@ export class NearAiProposalProvider {
   constructor(private c: NearAiConfig, private client: NearAiClient) {
     if (!c.apiKey.trim() || !c.model.trim()) throw new NearAiError("API key and model required", "INVALID_CONFIG");
     if (new URL(c.baseUrl ?? "https://cloud-api.near.ai/v1/").protocol !== "https:") throw new NearAiError("HTTPS required", "INVALID_CONFIG");
-    if (!c.allowedModelSigners.length || !c.allowedComposeHashes.length || !c.allowedOsImageHashes.length) {
+    if (!c.allowedGatewaySigners.length || !c.allowedModelSigners.length || !c.allowedComposeHashes.length || !c.allowedOsImageHashes.length) {
       throw new NearAiError("explicit TEE deployment allowlists are required", "DEPLOYMENT_ALLOWLIST_REQUIRED");
     }
     this.ledger = new NearAiBudgetLedger(c.budget);
@@ -187,7 +187,7 @@ export class NearAiProposalProvider {
     let deployment: NearAiVerifiedDeployment;
     try { deployment = await this.client.verify(this.c.model); }
     catch { throw new NearAiError("deployment attestation failed", "ATTESTATION_FAILED"); }
-    if (deployment.gateway?.tcbStatus !== "UpToDate") throw new NearAiError("Gateway TCB is not UpToDate", "GATEWAY_TCB_REJECTED");
+    if (deployment.gateway?.tcbStatus !== "UpToDate") throw new NearAiError("Gateway TCB is not UpToDate", "GATEWAY_TCB_REJECTED");\n    if (!deployment.gateway.signer?.signingAddress || !this.c.allowedGatewaySigners.includes(deployment.gateway.signer.signingAddress)) throw new NearAiError("Gateway signer is not allowlisted", "GATEWAY_SIGNER_REJECTED");
     if (!Array.isArray(deployment.models) || !deployment.models.length) throw new NearAiError("model deployment has no verified model attestation", "MODEL_NOT_ATTESTED");
     for (const model of deployment.models) {
       if (model.tcbStatus !== "UpToDate") throw new NearAiError("model TCB is not UpToDate", "MODEL_TCB_REJECTED");
