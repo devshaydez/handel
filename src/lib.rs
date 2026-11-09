@@ -391,8 +391,24 @@ impl OptionsContract {
         self.register_escrow_position(position_id)
     }
 
+    #[cfg(feature = "fault-injection")]
+    pub fn set_registration_callback_failure(&mut self, enabled: bool) {
+        self.assert_owner();
+        let key = b"handel:options:test:registration-callback-failure";
+        if enabled {
+            env::storage_write(key, b"1");
+        } else {
+            env::storage_remove(key);
+        }
+    }
+
     #[private]
     pub fn on_escrow_position_registered(&mut self, position_id: u64) -> bool {
+        #[cfg(feature = "fault-injection")]
+        if env::storage_read(b"handel:options:test:registration-callback-failure").is_some() {
+            env::panic_str("injected registration callback receipt failure (test-only Wasm)");
+        }
+
         let mut position = self.position(position_id);
         match env::promise_result(0) {
             PromiseResult::Successful(bytes) => {

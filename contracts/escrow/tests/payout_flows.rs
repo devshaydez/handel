@@ -327,7 +327,7 @@ async fn callback_receipt_failure_keeps_payout_pending_and_blocks_retry() -> any
         &worker,
         concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../target/near/handel_escrow_fault_injection.wasm"
+            "/../../target/near/handel_escrow_fault_injection_payment.wasm"
         ),
     )
     .await?;

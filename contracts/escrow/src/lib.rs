@@ -5,11 +5,12 @@ use near_sdk::{
     PromiseError, PromiseOrValue,
 };
 
-#[cfg(not(feature = "fault-injection"))]
+#[cfg(not(feature = "expiry-fast-forward"))]
 const EXERCISE_GRACE_NS: u64 = 24 * 60 * 60 * 1_000_000_000;
-// The isolated fault-injection Wasm shortens the grace period so the expiry
-// callback recovery path can be tested in Sandbox without advancing one day.
-#[cfg(feature = "fault-injection")]
+// Only the expiry-specific Sandbox artifact shortens the grace period. The
+// payment-callback fault artifact retains production timing so exercise payment
+// can be accepted after maturity during its normal grace window.
+#[cfg(feature = "expiry-fast-forward")]
 const EXERCISE_GRACE_NS: u64 = 0;
 const FT_TRANSFER_GAS: Gas = Gas::from_tgas(10);
 // The payment callback schedules the collateral transfer and its callback.

@@ -34,7 +34,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         &worker,
         concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../target/near/handel_options.wasm"
+            "/../../target/near/handel_options_fault_injection.wasm"
         ),
     )
     .await?;
@@ -153,9 +153,43 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .await?
         .into_result()?;
 
-    // This receipt schedules escrow.create_position and then the private Options callback.
-    writer
+    // Inject a one-time callback receipt failure after Escrow has committed its
+    // idempotent source-position record. The Options state must remain pending.
+    root.call(options.id(), "set_registration_callback_failure")
+        .args_json(json!({"enabled": true}))
+        .transact()
+        .await?
+        .into_result()?;
+    let _ = writer
         .call(options.id(), "register_escrow_position")
+        .args_json(json!({"position_id": 0}))
+        .max_gas()
+        .transact()
+        .await?;
+
+    let pending_option = root
+        .view(options.id(), "get_position")
+        .args_json(json!({"id": 0}))
+        .await?
+        .json::<serde_json::Value>()?;
+    assert_eq!(pending_option["escrow_position_id"], serde_json::Value::Null);
+    assert_eq!(pending_option["escrow_registration_pending"], true);
+    let committed_escrow = root
+        .view(escrow.id(), "get_position")
+        .args_json(json!({"position_id": 0}))
+        .await?
+        .json::<serde_json::Value>()?;
+    assert_eq!(committed_escrow["source_position_id"], 0);
+
+    // Disable the injected failure and retry. Escrow must return the same record,
+    // not create a duplicate position or transfer any tokens again.
+    root.call(options.id(), "set_registration_callback_failure")
+        .args_json(json!({"enabled": false}))
+        .transact()
+        .await?
+        .into_result()?;
+    writer
+        .call(options.id(), "retry_escrow_registration")
         .args_json(json!({"position_id": 0}))
         .max_gas()
         .transact()
