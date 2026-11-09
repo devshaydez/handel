@@ -16,7 +16,7 @@ const request = {
   type: "Call" as const, assetId: NVDAON_ASSET_ID, quantity: "1000000000000000000",
   strike: "100000000", expiryNs: (BigInt(now + 86400000) * 1000000n).toString(), objective: "covered call",
 };
-function make(premium = "5000000", guard = async () => ({
+function make(premium = "5000000", guard: () => Promise<{ allowed: boolean; outcome: "allow" | "block" | "review"; confidence: number; decisionId: string; signatureKind: "provider_tee" }> = async () => ({
   allowed: true, outcome: "allow" as const, confidence: 0.99, decisionId: "guard-1", signatureKind: "provider_tee" as const,
 })) {
   const proposal = stubProposal({ underlyingAssetId: NVDAON_ASSET_ID, quantity: request.quantity, strike: request.strike, daysToExpiry: 1 });
