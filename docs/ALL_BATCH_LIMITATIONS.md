@@ -109,7 +109,7 @@ No Testnet deployment, token transaction, or release approval is claimed.
 
 ## Infrastructure readiness — Escrow deployment foundation
 
-PR #7 is open and unmerged on `work/testnet-infrastructure-readiness`. The previous complete CI run #42685027473 passed on `f368eb35af18433dc5f39abab7e23f078b5a3a9b`; subsequent commits add automated dual-RPC asset verification and are awaiting a fresh CI result.
+PR #7 is open and unmerged on `work/testnet-infrastructure-readiness`. The previous complete CI run #42685027473 passed on `f368eb35af18433dc5f39abab7e23f078b5a3a9b`. A new dual-RPC verification job was added; its first attempt exposed HTTP 429 rate limiting on the deprecated public NEAR RPC, so the check now uses FastNEAR and dRPC and honors Retry-After before the next CI run.
 
 ### Implemented in this branch (pending CI)
 - Dedicated Bash and PowerShell Escrow deployment helpers.

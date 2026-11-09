@@ -11,13 +11,13 @@ import process from "node:process";
 const CONFIG_PATH = new URL("../config/testnet-assets.tidepool.json", import.meta.url);
 const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
 const RPCS = [
-  "https://rpc.testnet.near.org",
   "https://rpc.testnet.fastnear.com",
+  "https://near-testnet.drpc.org",
 ];
 const EXPECTED_OWNER = "privacei.testnet";
 const EXPECTED_MINTERS = ["tidepool-sandbox.testnet", "maker.tidepool-sandbox.testnet"];
 const TIMEOUT_MS = 20_000;
-const RETRIES = 3;
+const RETRIES = 5;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -33,6 +33,14 @@ async function requestJson(url, body) {
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
+      if (response.status === 429 && attempt < RETRIES) {
+        const retryAfter = response.headers.get("retry-after");
+        const retryAfterMs = retryAfter
+          ? (Number.isFinite(Number(retryAfter)) ? Number(retryAfter) * 1_000 : Math.max(0, Date.parse(retryAfter) - Date.now()))
+          : attempt * 2_000;
+        await new Promise((resolve) => setTimeout(resolve, Math.max(1_000, retryAfterMs)));
+        continue;
+      }
       assert(response.ok, `${url} returned HTTP ${response.status}`);
       const payload = await response.json();
       assert(!payload.error, `${url} RPC error: ${JSON.stringify(payload.error)}`);
