@@ -172,7 +172,10 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .args_json(json!({"id": 0}))
         .await?
         .json::<serde_json::Value>()?;
-    assert_eq!(pending_option["escrow_position_id"], serde_json::Value::Null);
+    assert_eq!(
+        pending_option["escrow_position_id"],
+        serde_json::Value::Null
+    );
     assert_eq!(pending_option["escrow_registration_pending"], true);
     let committed_escrow = root
         .view(escrow.id(), "get_position")
