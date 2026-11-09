@@ -1,4 +1,5 @@
 name: Handel backend checks
+# Batch 9 integrated validation: Rust contracts, SDK tests, and read-only Testnet checks.
 
 on:
   push:
