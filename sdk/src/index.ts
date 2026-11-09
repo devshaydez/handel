@@ -11,3 +11,4 @@ export * from "./file-store.js";
 export * from "./near-rpc.js";
 export * from "./near-rpc-receipt-inspector.js";
 export * from "./settlement-service.js";
+export * from "./observability.js";

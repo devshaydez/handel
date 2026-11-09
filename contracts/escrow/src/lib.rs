@@ -157,10 +157,44 @@ impl EscrowContract {
         }
     }
 
-    pub fn set_controller(&mut self, controller: AccountId) {
+    pub fn propose_controller(&mut self, controller: AccountId) {
         self.assert_owner();
         assert_ne!(controller, env::current_account_id(), "invalid controller");
-        self.controller = Some(controller);
+        let bytes = near_sdk::serde_json::to_vec(&controller).expect("serialize pending controller");
+        env::storage_write(b"handel:escrow:pending-controller:v1", &bytes);
+    }
+
+    pub fn accept_controller(&mut self) {
+        let caller = env::predecessor_account_id();
+        let pending: Option<AccountId> = env::storage_read(b"handel:escrow:pending-controller:v1")
+            .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok());
+        assert_eq!(pending, Some(caller.clone()), "pending controller only");
+        self.controller = Some(caller);
+        env::storage_remove(b"handel:escrow:pending-controller:v1");
+    }
+
+    pub fn propose_ownership_transfer(&mut self, new_owner: AccountId) {
+        self.assert_owner();
+        assert_ne!(new_owner, self.owner, "new owner must differ");
+        assert_ne!(new_owner, env::current_account_id(), "invalid owner");
+        let bytes = near_sdk::serde_json::to_vec(&new_owner).expect("serialize pending owner");
+        env::storage_write(b"handel:escrow:pending-owner:v1", &bytes);
+    }
+
+    pub fn accept_ownership_transfer(&mut self) {
+        let caller = env::predecessor_account_id();
+        let pending: Option<AccountId> = env::storage_read(b"handel:escrow:pending-owner:v1")
+            .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok());
+        assert_eq!(pending, Some(caller.clone()), "pending owner only");
+        self.owner = caller;
+        env::storage_remove(b"handel:escrow:pending-owner:v1");
+    }
+
+    pub fn get_owner(&self) -> AccountId { self.owner.clone() }
+
+    pub fn get_pending_owner(&self) -> Option<AccountId> {
+        env::storage_read(b"handel:escrow:pending-owner:v1")
+            .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok())
     }
 
     pub fn set_paused(&mut self, paused: bool) {
@@ -613,11 +647,21 @@ impl EscrowContract {
         )
     }
 
-    pub fn set_payout_reconciler(&mut self, reconciler: AccountId) {
+    pub fn propose_payout_reconciler(&mut self, reconciler: AccountId) {
         self.assert_owner();
         assert_ne!(reconciler, env::current_account_id(), "invalid reconciler");
-        let bytes = near_sdk::serde_json::to_vec(&reconciler).expect("serialize reconciler");
+        let bytes = near_sdk::serde_json::to_vec(&reconciler).expect("serialize pending reconciler");
+        env::storage_write(b"handel:escrow:pending-payout-reconciler:v1", &bytes);
+    }
+
+    pub fn accept_payout_reconciler(&mut self) {
+        let caller = env::predecessor_account_id();
+        let pending: Option<AccountId> = env::storage_read(b"handel:escrow:pending-payout-reconciler:v1")
+            .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok());
+        assert_eq!(pending, Some(caller.clone()), "pending reconciler only");
+        let bytes = near_sdk::serde_json::to_vec(&caller).expect("serialize reconciler");
         env::storage_write(&Self::payout_reconciler_key(), &bytes);
+        env::storage_remove(b"handel:escrow:pending-payout-reconciler:v1");
     }
 
     pub fn get_payout_reconciliation(
@@ -890,6 +934,26 @@ impl EscrowContract {
 
     pub fn get_position(&self, position_id: u64) -> EscrowPosition {
         self.position(position_id)
+    }
+
+    /// Current NEAR storage economics for one record. Cost is computed at view time
+    /// from the protocol's current storage byte price, never a hard-coded rate.
+    pub fn get_storage_economics(&self, position_id: u64) -> near_sdk::serde_json::Value {
+        let position = self.position(position_id);
+        let byte_cost = env::storage_byte_cost().as_yoctonear();
+        let estimated_record_bytes = near_sdk::serde_json::to_vec(&position)
+            .expect("serialize position for storage estimate").len() as u128;
+        let estimated_required = estimated_record_bytes.saturating_mul(byte_cost);
+        near_sdk::serde_json::json!({
+            "position_id": position_id,
+            "storage_byte_cost_yocto": byte_cost.to_string(),
+            "estimated_record_bytes": estimated_record_bytes.to_string(),
+            "estimated_required_yocto": estimated_required.to_string(),
+            "attached_storage_reserve_yocto": position.storage_deposit.to_string(),
+            "estimated_reserve_surplus_yocto": position.storage_deposit.saturating_sub(estimated_required).to_string(),
+            "estimate_only": true,
+            "refund_available": false
+        })
     }
 
     pub fn get_lifecycle_event(

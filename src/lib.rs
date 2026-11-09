@@ -562,11 +562,25 @@ impl OptionsContract {
         self.owner.clone()
     }
 
-    /// Transfer contract administration to another account.
-    pub fn transfer_ownership(&mut self, new_owner: AccountId) {
+    /// Propose a two-step ownership transfer. The pending account must accept it.
+    pub fn propose_ownership_transfer(&mut self, new_owner: AccountId) {
         self.assert_owner();
         assert_ne!(new_owner, self.owner, "new owner must differ");
-        self.owner = new_owner;
+        assert_ne!(new_owner, env::current_account_id(), "invalid owner");
+        let bytes = near_sdk::serde_json::to_vec(&new_owner).expect("serialize pending owner");
+        env::storage_write(b"handel:options:pending-owner:v1", &bytes);
+    }
+
+    pub fn get_pending_owner(&self) -> Option<AccountId> {
+        env::storage_read(b"handel:options:pending-owner:v1")
+            .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok())
+    }
+
+    pub fn accept_ownership_transfer(&mut self) {
+        let caller = env::predecessor_account_id();
+        assert_eq!(self.get_pending_owner(), Some(caller.clone()), "pending owner only");
+        self.owner = caller;
+        env::storage_remove(b"handel:options:pending-owner:v1");
     }
 
     pub fn set_trusted_reconciler(&mut self, reconciler: AccountId) {
@@ -1612,14 +1626,26 @@ mod tests {
         context("owner.testnet");
         c.set_paused(true);
         assert!(c.paused);
-        c.transfer_ownership(account("new-owner.testnet"));
-        assert_eq!(c.get_owner(), account("new-owner.testnet"));
+        c.propose_ownership_transfer(account("new-owner.testnet"));
+        assert_eq!(c.get_owner(), account("owner.testnet"));
+        assert_eq!(c.get_pending_owner(), Some(account("new-owner.testnet")));
 
+        context("owner.testnet");
+        let old_owner_still_authorized = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.set_paused(false)));
+        assert!(old_owner_still_authorized.is_ok());
+
+        context("attacker.testnet");
+        let wrong_accept = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.accept_ownership_transfer()));
+        assert!(wrong_accept.is_err());
+
+        context("new-owner.testnet");
+        c.accept_ownership_transfer();
+        assert_eq!(c.get_owner(), account("new-owner.testnet"));
+        assert_eq!(c.get_pending_owner(), None);
         context("owner.testnet");
         let old_owner_denied =
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.set_paused(false)));
         assert!(old_owner_denied.is_err());
-
         context("new-owner.testnet");
         c.set_paused(false);
         assert!(!c.paused);

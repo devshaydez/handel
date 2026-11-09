@@ -51,3 +51,9 @@ AI output never overrides contract policy.
 Escrow position records use NEAR's persistent `LookupMap`. OptionsContract records now use NEAR persistent `UnorderedMap` collections. Any already-deployed legacy state still needs a reviewed migration plan before material-value deployment.
 
 Testnet only. Synthetic tokens only. No claim of live Ondo asset support, official Intents Testnet settlement, atomic cross-asset settlement, authenticated external-chain proofs, or production readiness.
+
+## Batch 3 operational controls
+
+The SDK exposes a bounded in-process monitor for normalized operation and position observations. It counts statuses and flags stale in-flight/unknown/reconciliation states with configurable warning and critical thresholds. It intentionally stores only normalized IDs/statuses/timestamps and bounded messages; it is not a production telemetry pipeline.
+
+Escrow exposes an estimate of serialized position storage cost using the current NEAR storage byte price. This is an estimate, not exact trie-byte attribution, and no storage refund or archival operation is enabled. Ownership and selected authority changes use two-step proposal/acceptance so a new account must actively accept control. These changes do not rotate NEAR access keys; key custody remains with account operators/wallets.
