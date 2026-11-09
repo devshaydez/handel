@@ -1463,9 +1463,7 @@ impl OptionsContract {
                 position.writer == policy.principal
                     && !matches!(
                         position.state,
-                        PositionState::Settled
-                            | PositionState::Cancelled
-                            | PositionState::Expired
+                        PositionState::Settled | PositionState::Cancelled | PositionState::Expired
                     )
             })
             .count();
@@ -3008,3 +3006,4 @@ mod tests {
         }
     }
 }
+
