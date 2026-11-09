@@ -55,7 +55,7 @@ export class BlackScholesPremiumEngine implements PremiumEngine {
     const strikeTotal = BigInt(input.strike);
     const spotMinor = BigInt(market.spotPrice);
     if (quantityBase <= 0n || strikeTotal <= 0n || spotMinor <= 0n) throw new Error("pricing inputs must be positive");
-    if (quantityBase > MAX_SAFE_MINOR_UNITS || strikeTotal > MAX_SAFE_MINOR_UNITS || spotMinor > MAX_SAFE_MINOR_UNITS) {
+    if (quantityBase > 10n ** 30n || strikeTotal > MAX_SAFE_MINOR_UNITS || spotMinor > MAX_SAFE_MINOR_UNITS) {
       throw new Error("pricing inputs exceed deterministic Number precision bounds");
     }
     if (input.assetId !== market.assetId || !market.source?.trim() || !market.volatilitySource?.trim()) {

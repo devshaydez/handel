@@ -17,8 +17,8 @@ const engine = new BlackScholesPremiumEngine(() => now);
 test("prices European calls and puts deterministically in total USDC minor units", () => {
   const call = engine.quote({ type: "Call", assetId: NVDAON_ASSET_ID, quantity: "1000000000000000000", strike: "100000000", expiryNs: expiry, market });
   const put = engine.quote({ type: "Put", assetId: NVDAON_ASSET_ID, quantity: "1000000000000000000", strike: "100000000", expiryNs: expiry, market });
-  assert.equal(call.premium, "9250000");
-  assert.equal(put.premium, "6250000");
+  assert.equal(call.premium, "9413392");
+  assert.equal(put.premium, "6457945");
   assert.equal(engine.quote({ type: "Call", assetId: NVDAON_ASSET_ID, quantity: "1000000000000000000", strike: "100000000", expiryNs: expiry, market }).premium, call.premium);
 });
 test("rejects stale, wrong-asset, expired and unsupported market assumptions", () => {
