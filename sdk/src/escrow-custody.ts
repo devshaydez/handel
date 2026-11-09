@@ -33,6 +33,6 @@ export function buildEscrowDepositTransferCall(input:EscrowDepositRequest):Fungi
   return {
     receiver_id: input.escrowAccountId,
     amount: input.amount,
-    msg: JSON.stringify({position_id:Number(input.positionId),leg:input.leg}),
+    msg: `{"position_id":${input.positionId},"leg":${JSON.stringify(input.leg)}}`,
   };
 }
