@@ -45,6 +45,18 @@ pub enum EscrowState {
     Expired,
 }
 
+#[near(serializers = [json])]
+pub struct StorageEconomics {
+    pub position_id: u64,
+    pub storage_byte_cost_yocto: U128,
+    pub estimated_record_bytes: U128,
+    pub estimated_required_yocto: U128,
+    pub attached_storage_reserve_yocto: U128,
+    pub estimated_reserve_surplus_yocto: U128,
+    pub estimate_only: bool,
+    pub refund_available: bool,
+}
+
 #[near(serializers = [json, borsh])]
 #[derive(Clone)]
 pub struct PremiumSidecar {
@@ -157,10 +169,47 @@ impl EscrowContract {
         }
     }
 
-    pub fn set_controller(&mut self, controller: AccountId) {
+    pub fn propose_controller(&mut self, controller: AccountId) {
         self.assert_owner();
         assert_ne!(controller, env::current_account_id(), "invalid controller");
-        self.controller = Some(controller);
+        let bytes =
+            near_sdk::serde_json::to_vec(&controller).expect("serialize pending controller");
+        env::storage_write(b"handel:escrow:pending-controller:v1", &bytes);
+    }
+
+    pub fn accept_controller(&mut self) {
+        let caller = env::predecessor_account_id();
+        let pending: Option<AccountId> = env::storage_read(b"handel:escrow:pending-controller:v1")
+            .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok());
+        assert_eq!(pending, Some(caller.clone()), "pending controller only");
+        self.controller = Some(caller);
+        env::storage_remove(b"handel:escrow:pending-controller:v1");
+    }
+
+    pub fn propose_ownership_transfer(&mut self, new_owner: AccountId) {
+        self.assert_owner();
+        assert_ne!(new_owner, self.owner, "new owner must differ");
+        assert_ne!(new_owner, env::current_account_id(), "invalid owner");
+        let bytes = near_sdk::serde_json::to_vec(&new_owner).expect("serialize pending owner");
+        env::storage_write(b"handel:escrow:pending-owner:v1", &bytes);
+    }
+
+    pub fn accept_ownership_transfer(&mut self) {
+        let caller = env::predecessor_account_id();
+        let pending: Option<AccountId> = env::storage_read(b"handel:escrow:pending-owner:v1")
+            .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok());
+        assert_eq!(pending, Some(caller.clone()), "pending owner only");
+        self.owner = caller;
+        env::storage_remove(b"handel:escrow:pending-owner:v1");
+    }
+
+    pub fn get_owner(&self) -> AccountId {
+        self.owner.clone()
+    }
+
+    pub fn get_pending_owner(&self) -> Option<AccountId> {
+        env::storage_read(b"handel:escrow:pending-owner:v1")
+            .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok())
     }
 
     pub fn set_paused(&mut self, paused: bool) {
@@ -613,11 +662,23 @@ impl EscrowContract {
         )
     }
 
-    pub fn set_payout_reconciler(&mut self, reconciler: AccountId) {
+    pub fn propose_payout_reconciler(&mut self, reconciler: AccountId) {
         self.assert_owner();
         assert_ne!(reconciler, env::current_account_id(), "invalid reconciler");
-        let bytes = near_sdk::serde_json::to_vec(&reconciler).expect("serialize reconciler");
+        let bytes =
+            near_sdk::serde_json::to_vec(&reconciler).expect("serialize pending reconciler");
+        env::storage_write(b"handel:escrow:pending-payout-reconciler:v1", &bytes);
+    }
+
+    pub fn accept_payout_reconciler(&mut self) {
+        let caller = env::predecessor_account_id();
+        let pending: Option<AccountId> =
+            env::storage_read(b"handel:escrow:pending-payout-reconciler:v1")
+                .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok());
+        assert_eq!(pending, Some(caller.clone()), "pending reconciler only");
+        let bytes = near_sdk::serde_json::to_vec(&caller).expect("serialize reconciler");
         env::storage_write(&Self::payout_reconciler_key(), &bytes);
+        env::storage_remove(b"handel:escrow:pending-payout-reconciler:v1");
     }
 
     pub fn get_payout_reconciliation(
@@ -890,6 +951,29 @@ impl EscrowContract {
 
     pub fn get_position(&self, position_id: u64) -> EscrowPosition {
         self.position(position_id)
+    }
+
+    /// Current NEAR storage economics for one record. Cost is computed at view time
+    /// from the protocol's current storage byte price, never a hard-coded rate.
+    pub fn get_storage_economics(&self, position_id: u64) -> StorageEconomics {
+        let position = self.position(position_id);
+        let byte_cost = env::storage_byte_cost().as_yoctonear();
+        let estimated_record_bytes = near_sdk::serde_json::to_vec(&position)
+            .expect("serialize position for storage estimate")
+            .len() as u128;
+        let estimated_required = estimated_record_bytes.saturating_mul(byte_cost);
+        StorageEconomics {
+            position_id,
+            storage_byte_cost_yocto: U128(byte_cost),
+            estimated_record_bytes: U128(estimated_record_bytes),
+            estimated_required_yocto: U128(estimated_required),
+            attached_storage_reserve_yocto: U128(position.storage_deposit),
+            estimated_reserve_surplus_yocto: U128(
+                position.storage_deposit.saturating_sub(estimated_required),
+            ),
+            estimate_only: true,
+            refund_available: false,
+        }
     }
 
     pub fn get_lifecycle_event(
@@ -1331,8 +1415,10 @@ mod tests {
             .build();
         testing_env!(context.clone());
         let mut contract = EscrowContract::new();
-        contract.set_controller(account("options.testnet"));
+        contract.propose_controller(account("options.testnet"));
         context.predecessor_account_id = account("options.testnet");
+        testing_env!(context.clone());
+        contract.accept_controller();
         testing_env!(context);
         contract.create_position(
             0,
@@ -1356,8 +1442,10 @@ mod tests {
             .build();
         testing_env!(context.clone());
         let mut contract = EscrowContract::new();
-        contract.set_controller(account("options.testnet"));
+        contract.propose_controller(account("options.testnet"));
         context.predecessor_account_id = account("options.testnet");
+        testing_env!(context.clone());
+        contract.accept_controller();
         testing_env!(context);
         contract.create_position_v2(
             0,
@@ -2055,7 +2143,14 @@ mod tests {
             .block_timestamp(2_000)
             .build();
         testing_env!(owner_context);
-        c.set_payout_reconciler(account("reconciler.testnet"));
+        c.propose_payout_reconciler(account("reconciler.testnet"));
+        let accept_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("reconciler.testnet"))
+            .block_timestamp(2_000)
+            .build();
+        testing_env!(accept_context);
+        c.accept_payout_reconciler();
 
         let reconciler_context = VMContextBuilder::new()
             .current_account_id(account("escrow.testnet"))
@@ -2063,8 +2158,6 @@ mod tests {
             .block_timestamp(2_001)
             .build();
         testing_env!(reconciler_context);
-        let configured = near_sdk::serde_json::to_vec(&account("reconciler.testnet")).unwrap();
-        env::storage_write(b"handel:escrow:v2:payout-reconciler", &configured);
         let result = c.reconcile_ambiguous_payout(
             0,
             "exercise_payment".into(),
@@ -2093,6 +2186,39 @@ mod tests {
         }));
         assert!(replay.is_err());
         assert!(c.get_position(0).payment_paid);
+    }
+
+    #[test]
+    fn escrow_admin_handoffs_require_acceptance_by_the_proposed_account() {
+        let owner_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("owner.testnet"))
+            .build();
+        testing_env!(owner_context);
+        let mut c = EscrowContract::new();
+        c.propose_ownership_transfer(account("new-owner.testnet"));
+        assert_eq!(c.get_owner(), account("owner.testnet"));
+        assert_eq!(c.get_pending_owner(), Some(account("new-owner.testnet")));
+
+        let attacker_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("attacker.testnet"))
+            .build();
+        testing_env!(attacker_context);
+        let denied = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.accept_ownership_transfer()
+        }));
+        assert!(denied.is_err());
+        assert_eq!(c.get_owner(), account("owner.testnet"));
+
+        let new_owner_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("new-owner.testnet"))
+            .build();
+        testing_env!(new_owner_context);
+        c.accept_ownership_transfer();
+        assert_eq!(c.get_owner(), account("new-owner.testnet"));
+        assert_eq!(c.get_pending_owner(), None);
     }
 
     #[test]

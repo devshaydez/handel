@@ -1,6 +1,8 @@
 # Backend gap register
 
-Status snapshot: 2026-11-09, Batch 1 merged; Batch 2 PR #3 open.
+> **Project-wide limitation tracking:** see [ALL_BATCH_LIMITATIONS.md](./ALL_BATCH_LIMITATIONS.md) for the consolidated open items from Batch 1 / Phase 1 through Batch 5 / Phase 13. This gap register remains the technical issue breakdown.
+
+Status snapshot: 2026-11-09, Batch 1 and Batch 2 merged; Batch 3 implementation in progress.
 
 Batch 1 head `80fce7a47de96d711446f4f15eb60fffac2dfe90` passed CI run #42543351501 (run 267): Rust format/unit tests, production Wasm, isolated callback-failure Wasm, contract/Sandbox integration tests, TypeScript SDK build/tests, and offline lifecycle demo. PR #2 was squash-merged as `d9c188ba29e51d2e39a44146c37fbcfbe7138178`. Sandbox assets remain mocks.
 
@@ -14,12 +16,18 @@ Batch 1 head `80fce7a47de96d711446f4f15eb60fffac2dfe90` passed CI run #425433515
 6. **Choose and enforce a single settlement rail.** The OptionsContract external-reconciliation rail and Escrow rail are separate. The test proves a registered escrow position cannot start the competing collateral-lock rail, but the entire lifecycle, reconfiguration, retries, and terminal states must be guarded against double execution.
 7. **Real asset and route compatibility.** Batch 2 adds a Tidepool Testnet API adapter with live token discovery and explicit dry-quote / deposit-address safety controls. Its published token registry has test USDC, USDT, wNEAR, wBTC, ETH, XAUT and selected bridged test assets; it does not establish support for Handel's Ondo stock assets. Ondo remains blocked pending a supported route, token mapping, decimals, custody proof, and enforceable per-position reservation.
 
-## Batch 2 implementation status (in progress)
+## Batch 2 implementation status (merged; CI #275 passed)
 
 - Phase 4: Tidepool Testnet adapter and live token registry discovery added, including MEMO deposit/status support; no live deposit or Ondo support claim.
 - Phase 5: settlement receipt binding/finality validation and a durable evidence store with atomic replay-key persistence added behind an independently supplied receipt inspector; no in-house RPC quorum or light client yet.
 - Phase 6: durable file-backed journal, pre-submit crash-safe operation runner, wallet signing boundary, and concrete FINAL-level NEAR RPC observer added; multi-instance transactional database, wallet selector, RPC quorum/indexer, and event ingestion remain.
-- Initial Batch 2 CI run passed. The durable evidence service and memo-flow additions are pending a follow-up CI run.
+- Batch 2 PR #3 was squash-merged as `8d34211a3ca4729178a318da12c8777d33f27b52`; CI #275 passed on `8fe0f24`.
+
+## Batch 3 implementation status (implemented; CI pending)
+
+- Phase 7: SDK status counters, configurable stuck-state thresholds, bounded in-memory audit events, and normalized event fields are implemented. Production collection, persistence, alert delivery, dashboards, and indexed contract state remain.
+- Phase 8: an escrow per-position serialized-record storage-cost estimate uses the current NEAR storage byte price and reports that refunds are unavailable. Exact trie-byte attribution, total reserve accounting, archival, and refunds remain unimplemented.
+- Phase 9: two-step owner handoff in Options/Escrow and two-step Escrow controller/payout-reconciler acceptance are implemented. Cancellation/expiry, timelocks, multisig/role separation, and NEAR access-key rotation remain.
 
 ## P1 — Backend service and operational completeness
 
@@ -27,8 +35,8 @@ Batch 1 head `80fce7a47de96d711446f4f15eb60fffac2dfe90` passed CI run #425433515
 9. **Transaction orchestration and monitoring.** Batch 2 adds a durable file-backed operation journal, wallet signing boundary, and concrete FINAL-level NEAR RPC observer. A production-grade worker is still required for wallet-selector integration, receipt/event decoding, escrow-state indexing, definitive-failure-only retries, alerts, and recovery after restarts.
 10. **Premium collection on the escrow rail.** Implemented in code: V2 registration pins USDC premium token/amount in a versioned sidecar; `ft_on_transfer` accepts only the exact holder/token/amount while collateral is locked; payout to writer is asynchronous; OptionsContract becomes Open only on authenticated `PremiumPaid`; exercise payment is rejected until premium payout is confirmed. Definitive failure can be retried; unpaid premium can be refunded after the grace period. Batch 1 CI and combined Sandbox Call/Put premium tests passed with mock USDC. Live asset/route compatibility and premium callback-failure injection remain release gates.
 11. **NEP-145 storage lifecycle.** Sandbox tests pre-register mock token accounts. Production setup needs explicit token-account registration/storage funding for escrow and payout recipients, plus handling of insufficient storage and token transfer failures.
-12. **Storage economics.** Escrow retains the full attached storage deposit, including extra deposits on idempotent registration retries, and has no archival/refund path. Add measured storage accounting, bounded reserve policy, and a reviewed refund/archival lifecycle. Review persistent OptionsContract storage layout and migration before any existing deployment.
-13. **Admin/key operations.** Document and test ownership transfer, controller changes, reconciler rotation, pause/unpause authority, recovery access, and key compromise procedures. Consider whether controller configuration should become immutable or tightly governed once live positions exist.
+12. **Storage economics.** Escrow retains the full attached storage deposit, including extra deposits on idempotent registration retries. A view reports a conservative serialized-record estimate at current `storage_byte_cost`; it is not exact trie accounting. No archival/refund path exists. Add measured per-record trie-byte accounting, bounded reserve policy, and a reviewed refund/archival lifecycle. Review persistent OptionsContract storage layout and migration before any existing deployment.
+13. **Admin/key operations.** Options/Escrow ownership and Escrow controller/reconciler changes now require a propose/accept handshake. Remaining: explicit controller/reconciler pending-change views, cancellation/expiry, role separation, timelocks/multisig governance, emergency recovery policy, account access-key rotation, and key compromise runbooks.
 14. **AI proposal provider.** SDK validation and deterministic local fallback work offline. A live provider adapter, request authentication, timeout/rate-limit behavior, provenance, and provider-failure handling are not demonstrated. Contract policy must remain authoritative.
 15. **UI integration contract.** The user's existing UI is not yet integrated. Define typed API/SDK calls, wallet signing, transaction status, position queries, and error/recovery presentation when that UI is supplied.
 
@@ -38,7 +46,7 @@ Batch 1 head `80fce7a47de96d711446f4f15eb60fffac2dfe90` passed CI run #425433515
 17. Add gas/storage regression thresholds to CI; the current storage benchmark reports gas but is not a release threshold.
 18. Add Testnet deployment smoke tests with dedicated contract accounts, token registration, real Testnet transactions, and independently inspected resulting state/balances.
 19. Complete an independent security review of access control, callback handling, storage/migration, pause semantics, and non-atomic payout recovery.
-20. Add monitoring/runbooks for stuck `PaymentPayoutPending`, `CollateralPayoutPending`, `ExpiryPayoutPending`, and `ReconciliationRequired` positions.
+20. SDK monitoring primitives alert on stuck `submitting`, `submitted`, `outcome_unknown`, and escrow pending/reconciliation states. Still required: durable production collector, alert delivery, dashboard, indexed contract state, runbooks, and end-to-end operational tests.
 
 ## Release labels
 

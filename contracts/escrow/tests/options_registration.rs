@@ -93,9 +93,22 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .await?
         .into_result()?;
 
-    // The OptionsContract is the only account allowed to register escrow positions.
-    root.call(escrow.id(), "set_controller")
+    // Configure the escrow address, then have OptionsContract itself accept
+    // the proposed controller role. An external root account cannot impersonate
+    // the contract account when Escrow checks predecessor_account_id().
+    root.call(options.id(), "set_escrow_contract")
+        .args_json(json!({"escrow_contract": escrow.id()}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(escrow.id(), "propose_controller")
         .args_json(json!({"controller": options.id()}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(options.id(), "accept_escrow_controller")
+        .args_json(json!({}))
+        .max_gas()
         .transact()
         .await?
         .into_result()?;
@@ -116,11 +129,6 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
             .into_result()?;
     }
 
-    root.call(options.id(), "set_escrow_contract")
-        .args_json(json!({"escrow_contract": escrow.id()}))
-        .transact()
-        .await?
-        .into_result()?;
     root.call(options.id(), "set_escrow_token_account")
         .args_json(json!({
             "asset_id": STOCK_ASSET,

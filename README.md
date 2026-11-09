@@ -5,7 +5,7 @@ Handel is a NEAR Testnet backend prototype for fully collateralized European-sty
 ## Current scope
 
 - Rust contract is the source of truth for option lifecycle, asset allowlists, agent limits, ownership, pause state, and reconciliation state.
-- TypeScript SDK provides proposal validation, contract-compatible call builders, NEP-413 payload helpers, and an offline lifecycle demonstration.
+- TypeScript SDK provides proposal validation, contract-compatible call builders, NEP-413 payload helpers, an offline lifecycle demonstration, and bounded monitoring primitives for stuck operation/position states.
 - The deterministic local proposal fallback works without a paid AI API. A NEAR AI Cloud adapter can be added later; AI output never overrides contract policy.
 - Frontend work is intentionally deferred until the user supplies their UI.
 - Development and demo target: NEAR Testnet only. No mainnet deployment, signatures, custody, or real funds.
