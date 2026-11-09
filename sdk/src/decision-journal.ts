@@ -12,7 +12,7 @@ export interface DecisionRecordInput {
   action: string;
   assetId: string;
   optionTerms: { strike: string; quantity: string; expiryNs: string; premium: string };
-  marketEvidence: { source: string; observedAt: string; snapshotHash: string };
+  marketEvidence: { source: string; observedAt: string; verificationMethod: string; evidenceHash: string; snapshotHash: string };
   premiumEvidence: { source: string; calculatedAt: string; methodology: string };
   guardrailEvidence: { decisionId: string; outcome: string; confidence: number; signatureKind: string };
   rationale: string;
@@ -57,7 +57,7 @@ function validateInput(input: DecisionRecordInput): void {
   if (input.schemaVersion !== 1 || !Number.isFinite(Date.parse(input.createdAt))) throw new Error("Invalid decision schema or timestamp");
   if (!/^\d+$/.test(input.optionTerms.strike) || !/^\d+$/.test(input.optionTerms.quantity) ||
       !/^\d+$/.test(input.optionTerms.expiryNs) || !/^\d+$/.test(input.optionTerms.premium)) throw new Error("Invalid option terms in decision record");
-  if (!input.marketEvidence.source || !input.marketEvidence.observedAt || !input.marketEvidence.snapshotHash ||
+  if (!input.marketEvidence.source || !input.marketEvidence.observedAt || !input.marketEvidence.verificationMethod || !input.marketEvidence.evidenceHash || !input.marketEvidence.snapshotHash ||
       !input.premiumEvidence.source || !input.premiumEvidence.calculatedAt || !input.premiumEvidence.methodology) {
     throw new Error("Decision record is missing market or premium provenance");
   }

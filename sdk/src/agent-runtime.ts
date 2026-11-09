@@ -13,7 +13,7 @@ export interface PremiumQuote {
 export interface PremiumEngine {
   quote(x: { type: OptionType; assetId: string; quantity: string; strike: string; expiryNs: string; market: MarketSnapshot }): Promise<PremiumQuote> | PremiumQuote;
 }
-export interface ProposalGuardrail {
+export interface MarketEvidenceVerifier {\n  verify(snapshot: MarketSnapshot): Promise<{ approved: boolean; method: string; evidenceHash: string }>;\n}\nexport interface ProposalGuardrail {
   evaluate(state: unknown): Promise<{
     allowed: boolean; outcome: "allow" | "block" | "review"; confidence: number;
     decisionId: string; signatureKind: "provider_tee";
