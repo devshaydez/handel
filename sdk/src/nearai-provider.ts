@@ -170,13 +170,13 @@ function parseProposal(raw: unknown): AgentProposal {
 export class NearAiProposalProvider {
   private ledger: NearAiBudgetLedger;
 
-  constructor(private c: NearAiConfig, private client: NearAiClient) {
+  constructor(private c: NearAiConfig, private client: NearAiClient, ledger?: NearAiBudgetLedger) {
     if (!c.apiKey.trim() || !c.model.trim()) throw new NearAiError("API key and model required", "INVALID_CONFIG");
     if (new URL(c.baseUrl ?? "https://cloud-api.near.ai/v1/").protocol !== "https:") throw new NearAiError("HTTPS required", "INVALID_CONFIG");
     if (!c.allowedGatewaySigners.length || !c.allowedModelSigners.length || !c.allowedComposeHashes.length || !c.allowedOsImageHashes.length) {
       throw new NearAiError("explicit TEE deployment allowlists are required", "DEPLOYMENT_ALLOWLIST_REQUIRED");
     }
-    this.ledger = new NearAiBudgetLedger(c.budget);
+    this.ledger = ledger ?? new NearAiBudgetLedger(c.budget);
   }
 
   budgetSnapshot() { return this.ledger.snapshot(); }

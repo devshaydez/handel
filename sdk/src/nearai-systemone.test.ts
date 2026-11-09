@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { NearAiSystemOneGuard, type NearAiSystemOneClient } from "./nearai-systemone.js";
+import { NearAiSystemOneGuard, type NearAiSystemOneClient } from "./nearai-systemone.js";\nimport { NearAiBudgetLedger } from "./nearai-provider.js";
 
-const config = {
+const budget = { budgetMicros: 10_000_000, maxRequestCostMicros: 100_000, maxRequests: 100, maxCompletionTokens: 512, maxPromptBytes: 12000 };\nconst config = {
   apiKey: "test",
   model: "jev/handel-guard",
   allowedGatewaySigners: ["gateway"],
@@ -38,15 +38,15 @@ test("accepts only a verified, allowlisted, high-confidence System One allow dec
 });
 
 test("blocks block, review, and low-confidence outcomes", async () => {
-  assert.equal((await new NearAiSystemOneGuard(config, client("block", 0.99)).evaluate({})).allowed, false);
-  assert.equal((await new NearAiSystemOneGuard(config, client("review", 0.99)).evaluate({})).allowed, false);
-  assert.equal((await new NearAiSystemOneGuard(config, client("allow", 0.4)).evaluate({})).allowed, false);
+  assert.equal((await guard(client("block", 0.99)).evaluate({})).allowed, false);
+  assert.equal((await guard(client("review", 0.99)).evaluate({})).allowed, false);
+  assert.equal((await guard(client("allow", 0.4)).evaluate({})).allowed, false);
 });
 
 test("fails closed on missing model attestation, bad signer, and Gateway-only receipt", async () => {
   const missing = client();
   missing.verify = async () => ({ gateway: { tcbStatus: "UpToDate", signer: { signingAddress: "gateway" } }, models: [] });
-  await assert.rejects(() => new NearAiSystemOneGuard(config, missing).evaluate({}), /TEE attestation/);
+  await assert.rejects(() => guard(missing).evaluate({}), /TEE attestation/);
 
   const signer = client();
   signer.verify = async () => ({
@@ -57,5 +57,5 @@ test("fails closed on missing model attestation, bad signer, and Gateway-only re
 
   const receipt = client();
   receipt.verifyResponse = async () => ({ signatureKind: "gateway" });
-  await assert.rejects(() => new NearAiSystemOneGuard(config, receipt).evaluate({}), /not provider-TEE signed/);
+  await assert.rejects(() => guard(receipt).evaluate({}), /not provider-TEE signed/);
 });
