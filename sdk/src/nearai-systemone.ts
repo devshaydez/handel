@@ -27,7 +27,8 @@ export interface NearAiSystemOneClient {
 export interface NearAiSystemOneConfig {
   apiKey: string;
   model: string;
-  allowedGatewaySigners: string[];\n  allowedModelSigners: string[];
+  allowedGatewaySigners: string[];
+  allowedModelSigners: string[];
   allowedComposeHashes: string[];
   allowedOsImageHashes: string[];
   minimumConfidence?: number;

@@ -5,7 +5,8 @@ import { NearAiSystemOneGuard, type NearAiSystemOneClient } from "./nearai-syste
 const config = {
   apiKey: "test",
   model: "jev/handel-guard",
-  allowedGatewaySigners: ["gateway"],\n  allowedModelSigners: ["signer"],
+  allowedGatewaySigners: ["gateway"],
+  allowedModelSigners: ["signer"],
   allowedComposeHashes: ["compose"],
   allowedOsImageHashes: ["os"],
 };
@@ -49,7 +50,7 @@ test("fails closed on missing model attestation, bad signer, and Gateway-only re
 
   const signer = client();
   signer.verify = async () => ({
-    gateway: { tcbStatus: "UpToDate" },
+    gateway: { tcbStatus: "UpToDate", signer: { signingAddress: "gateway" } },
     models: [{ tcbStatus: "UpToDate", signer: { signingAddress: "other" } }],
   });
   await assert.rejects(() => new NearAiSystemOneGuard(config, signer).evaluate({}), /signer is not allowlisted/);

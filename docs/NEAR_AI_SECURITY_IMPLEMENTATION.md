@@ -26,7 +26,8 @@ System One is a separate structured decision API. The official SDK requires a se
 Provide the approved model identity and measured deployment values through protected runtime configuration:
 - `NEARAI_API_KEY` (secret; never commit it).
 - `NEARAI_MODEL` (canonical Gateway model ID).
-- `NEARAI_ALLOWED_GATEWAY_SIGNERS`.\n- `NEARAI_ALLOWED_MODEL_SIGNERS`.
+- `NEARAI_ALLOWED_GATEWAY_SIGNERS`.
+- `NEARAI_ALLOWED_MODEL_SIGNERS`.
 - `NEARAI_ALLOWED_COMPOSE_HASHES`.
 - `NEARAI_ALLOWED_OS_IMAGE_HASHES`.
 - A budget ceiling derived from current provider pricing.

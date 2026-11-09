@@ -42,7 +42,8 @@ export interface NearAiConfig {
   baseUrl?: string;
   budget: NearAiBudget;
   /** Exact model signer identities approved by Handel governance/configuration. */
-  allowedGatewaySigners: string[];\n  allowedModelSigners: string[];
+  allowedGatewaySigners: string[];
+  allowedModelSigners: string[];
   /** Exact authenticated TEE compose measurements approved for this model. */
   allowedComposeHashes: string[];
   /** Exact authenticated TEE OS image measurements approved for this model. */
@@ -187,7 +188,8 @@ export class NearAiProposalProvider {
     let deployment: NearAiVerifiedDeployment;
     try { deployment = await this.client.verify(this.c.model); }
     catch { throw new NearAiError("deployment attestation failed", "ATTESTATION_FAILED"); }
-    if (deployment.gateway?.tcbStatus !== "UpToDate") throw new NearAiError("Gateway TCB is not UpToDate", "GATEWAY_TCB_REJECTED");\n    if (!deployment.gateway.signer?.signingAddress || !this.c.allowedGatewaySigners.includes(deployment.gateway.signer.signingAddress)) throw new NearAiError("Gateway signer is not allowlisted", "GATEWAY_SIGNER_REJECTED");
+    if (deployment.gateway?.tcbStatus !== "UpToDate") throw new NearAiError("Gateway TCB is not UpToDate", "GATEWAY_TCB_REJECTED");
+    if (!deployment.gateway.signer?.signingAddress || !this.c.allowedGatewaySigners.includes(deployment.gateway.signer.signingAddress)) throw new NearAiError("Gateway signer is not allowlisted", "GATEWAY_SIGNER_REJECTED");
     if (!Array.isArray(deployment.models) || !deployment.models.length) throw new NearAiError("model deployment has no verified model attestation", "MODEL_NOT_ATTESTED");
     for (const model of deployment.models) {
       if (model.tcbStatus !== "UpToDate") throw new NearAiError("model TCB is not UpToDate", "MODEL_TCB_REJECTED");

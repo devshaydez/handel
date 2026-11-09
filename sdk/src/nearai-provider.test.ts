@@ -42,9 +42,9 @@ test("rejects revoked, stale-policy and unapproved signer or measurements", asyn
   await assert.rejects(() => gateway.propose({}), e => e instanceof NearAiError && e.code === "GATEWAY_TCB_REJECTED");
   const tcb = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "UpToDate", signer: { signingAddress: "gateway-1" } }, models: [{ tcbStatus: "OutOfDate" }] }) }));
   await assert.rejects(() => tcb.propose({}), e => e instanceof NearAiError && e.code === "MODEL_TCB_REJECTED");
-  const signer = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "UpToDate" }, models: [{ tcbStatus: "UpToDate", signer: { signingAddress: "unknown" } }] }) }));
+  const signer = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "UpToDate", signer: { signingAddress: "gateway-1" } }, models: [{ tcbStatus: "UpToDate", signer: { signingAddress: "unknown" } }] }) }));
   await assert.rejects(() => signer.propose({}), e => e instanceof NearAiError && e.code === "MODEL_SIGNER_REJECTED");
-  const measurement = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "UpToDate" }, models: [{ tcbStatus: "UpToDate", signer: { signingAddress: "signer-1" }, deployment: { runtimeMeasurements: { composeHash: "bad", osImageHash: "os-1" } } }] }) }));
+  const measurement = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "UpToDate", signer: { signingAddress: "gateway-1" } }, models: [{ tcbStatus: "UpToDate", signer: { signingAddress: "signer-1" }, deployment: { runtimeMeasurements: { composeHash: "bad", osImageHash: "os-1" } } }] }) }));
   await assert.rejects(() => measurement.propose({}), e => e instanceof NearAiError && e.code === "DEPLOYMENT_MEASUREMENT_REJECTED");
 });
 test("fails closed on verification errors and signature failures", async () => {
