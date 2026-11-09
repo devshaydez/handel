@@ -28,5 +28,8 @@
     "@nearai/inference-sdk": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=24.22.1"
   }
-}
+}\n
