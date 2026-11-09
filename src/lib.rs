@@ -3003,7 +3003,9 @@ mod tests {
         }));
         assert!(denied.is_err());
         assert_eq!(
-            c.get_agent_proposal("pending-before-revoke".into()).unwrap().state,
+            c.get_agent_proposal("pending-before-revoke".into())
+                .unwrap()
+                .state,
             ProposalState::PendingApproval
         );
     }
@@ -3067,7 +3069,10 @@ mod tests {
                 75,
             )
         }));
-        assert!(blocked.is_err(), "default mode must not permit delegated execution");
+        assert!(
+            blocked.is_err(),
+            "default mode must not permit delegated execution"
+        );
 
         context("attacker.testnet");
         let unauthorized = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -3086,7 +3091,10 @@ mod tests {
             80,
             75,
         );
-        assert_eq!(c.get_position(allowed).unwrap().writer, account("writer.testnet"));
+        assert_eq!(
+            c.get_position(allowed).unwrap().writer,
+            account("writer.testnet")
+        );
     }
 
     impl OptionsContract {
@@ -3095,4 +3103,3 @@ mod tests {
         }
     }
 }
-
