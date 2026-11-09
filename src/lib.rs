@@ -578,7 +578,11 @@ impl OptionsContract {
 
     pub fn accept_ownership_transfer(&mut self) {
         let caller = env::predecessor_account_id();
-        assert_eq!(self.get_pending_owner(), Some(caller.clone()), "pending owner only");
+        assert_eq!(
+            self.get_pending_owner(),
+            Some(caller.clone()),
+            "pending owner only"
+        );
         self.owner = caller;
         env::storage_remove(b"handel:options:pending-owner:v1");
     }
@@ -1631,11 +1635,13 @@ mod tests {
         assert_eq!(c.get_pending_owner(), Some(account("new-owner.testnet")));
 
         context("owner.testnet");
-        let old_owner_still_authorized = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.set_paused(false)));
+        let old_owner_still_authorized =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.set_paused(false)));
         assert!(old_owner_still_authorized.is_ok());
 
         context("attacker.testnet");
-        let wrong_accept = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.accept_ownership_transfer()));
+        let wrong_accept =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.accept_ownership_transfer()));
         assert!(wrong_accept.is_err());
 
         context("new-owner.testnet");

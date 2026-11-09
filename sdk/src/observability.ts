@@ -80,17 +80,17 @@ export class HandelMonitor {
     if (!STUCK.has(status)) return;
     if (!Number.isFinite(updatedAt) || updatedAt > now) {
       alerts.push(this.event("warning", "invalid_observation_time", id,
-        "Observation timestamp is invalid; investigate the source clock."));
+        "Observation timestamp is invalid; investigate the source clock.", now));
       return;
     }
     const age = now - updatedAt;
     if (age < this.policy.warningAfterMs) return;
     const severity: MonitorSeverity = age >= this.policy.criticalAfterMs ? "critical" : "warning";
     alerts.push(this.event(severity, "stuck_operation", id,
-      `Status ${status} has remained unchanged for ${Math.floor(age / 1000)} seconds.`));
+      `Status ${status} has remained unchanged for ${Math.floor(age / 1000)} seconds.`, now));
   }
-  private event(severity: MonitorSeverity, code: string, subjectId: string, message: string): MonitorEvent {
-    return { id: String(++this.sequence), at: Date.now(), severity, code,
+  private event(severity: MonitorSeverity, code: string, subjectId: string, message: string, at: number): MonitorEvent {
+    return { id: String(++this.sequence), at, severity, code,
       subjectId: safeId(subjectId), message: message.slice(0, 240) };
   }
   private append(event: MonitorEvent): void {
