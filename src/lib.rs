@@ -1362,14 +1362,30 @@ impl OptionsContract {
             .get(&proposal.position_id)
             .cloned()
             .expect("proposal position missing");
-        assert_eq!(position.state, PositionState::PendingCollateral, "proposal position progressed");
+        assert_eq!(
+            position.state,
+            PositionState::PendingCollateral,
+            "proposal position progressed"
+        );
         assert_eq!(position.writer, proposal.principal, "proposal writer mismatch");
         assert_eq!(position.kind, proposal.kind, "proposal kind mismatch");
         assert_eq!(position.asset_id, proposal.asset_id, "proposal asset mismatch");
-        assert_eq!(position.underlying_amount, proposal.underlying_amount, "proposal size mismatch");
-        assert_eq!(position.strike_amount_usdc, proposal.strike_amount_usdc, "proposal strike mismatch");
+        assert_eq!(
+            position.underlying_amount,
+            proposal.underlying_amount,
+            "proposal size mismatch"
+        );
+        assert_eq!(
+            position.strike_amount_usdc,
+            proposal.strike_amount_usdc,
+            "proposal strike mismatch"
+        );
         assert_eq!(position.expiry_ns, proposal.expiry_ns, "proposal expiry mismatch");
-        assert_eq!(position.premium_amount_usdc, proposal.premium_amount_usdc, "proposal premium mismatch");
+        assert_eq!(
+            position.premium_amount_usdc,
+            proposal.premium_amount_usdc,
+            "proposal premium mismatch"
+        );
         let open_count = self
             .positions
             .values()
