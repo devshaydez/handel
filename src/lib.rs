@@ -13,7 +13,7 @@ const USDC_ASSET_ID_STORAGE_KEY: &[u8] = b"handel:options:usdc-asset-id:v1";
 const AGENT_EXECUTION_MODE_STORAGE_PREFIX: &[u8] = b"handel:agent-execution-mode:v1:";
 
 #[near(serializers = [json, borsh])]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum OptionKind {
     Call,
     Put,
