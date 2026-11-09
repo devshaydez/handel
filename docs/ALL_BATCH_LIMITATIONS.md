@@ -55,7 +55,7 @@ PR #3 was squash-merged as `8d34211a3ca4729178a318da12c8777d33f27b52`. CI #275 p
 
 ## Batch 3 — Phases 7–9: monitoring, storage economics, administrative security
 
-PR #4 is open and unmerged. Batch 3 CI run #286 passed on exact head `7bff578cadaa19faa17e13b46a4b6a7932340aa1`.
+PR #4 was squash-merged as `cb3c02485b00cb5259014a72fa9b5cc1d8be11d3`. CI run #42610297142 passed before merge.
 
 ### Implemented in the current PR branch
 - SDK operation/position status counters, configurable stuck-state thresholds, bounded in-memory event retention, and normalized event fields.
@@ -72,7 +72,7 @@ PR #4 is open and unmerged. Batch 3 CI run #286 passed on exact head `7bff578cad
 
 ## Batch 4 — Phases 10–12: AI provider, UI/backend integration, adversarial testing
 
-Batch 4 implementation is on `work/batch-4-ai-integration-adversarial`, stacked against the same base as Batch 3 for CI triggering. PR #5 is open and unmerged. CI run #42650088972 passed both Rust/Sandbox and SDK jobs on exact head `9972a6fea1f256e8b08e627f64c32b8518c9f1df`.
+PR #5 was squash-merged as `94ad578f6219a53d2b4c8292ae8816dec160db1a`. CI run #42654231798 passed on rebased head `2b5d6f17a81c7f8216900e335387e4af3fd7a459`.
 
 ### Implemented in the Batch 4 branch (CI validated)
 - Provider-neutral SDK client for a Handel-controlled AI backend gateway, with HTTPS enforcement (localhost development exception), bearer authentication, bounded response size, request timeout, process-local sliding-window rate limiting, strict response envelope/proposal schema, configured model identity, stable error codes, and request/response SHA-256 provenance.
@@ -88,23 +88,51 @@ Batch 4 implementation is on `work/batch-4-ai-integration-adversarial`, stacked 
 
 ## Batch 5 — Phase 13: Testnet deployment and release readiness
 
-In progress on `work/batch-5-testnet-release-readiness`. This is a gated deployment phase, not an implication of passing CI. The branch hardens the OptionsContract deployment helpers (explicit Testnet confirmation, deterministic artifact selection, SHA-256 display, opt-in one-time initializer) and adds `docs/TESTNET_RELEASE_RUNBOOK.md`. No deployment has been performed.
+PR #6 was squash-merged as `a8f2cd3bca854a8774a9de71d2ed8ddcb2973f9a`. CI run #42676957790 passed both Rust/Sandbox and SDK jobs on exact head `81c41fe44db85dfca57928960f2a5a7757bf0bdf`.
 
-### Implemented / prepared in Batch 5
-- Safe-by-default Bash and PowerShell deployment helpers for OptionsContract only; neither chooses an arbitrary Wasm artifact.
-- Testnet-only explicit confirmation, deploy-only default, separately opt-in initializer, artifact hash display, and no account/key/token provisioning.
-- Deployment runbook covering required inputs, build identity, operator steps, independent post-deploy verification, evidence capture, and release gates.
+### Implemented / CI-validated
+- Safe-by-default Bash and PowerShell deployment helpers for OptionsContract.
+- Explicit Testnet confirmation, deterministic artifact selection, SHA-256 display, deploy-only default, and opt-in one-time initializer.
+- Testnet runbook with preflight, post-deployment verification, evidence capture, and release gates.
 
 ### Remaining release gates
-- Dedicated OptionsContract and Escrow Testnet accounts, Escrow deployment/configuration procedure, and verified account-key policy.
-- Real Testnet token registration and NEP-145 storage funding for escrow and payout recipients.
+- Dedicated OptionsContract and Escrow Testnet accounts and verified account-key policy.
+- Escrow deployment/configuration and authority handoff execution on Testnet.
+- Exact supported Testnet token IDs/decimals and NEP-145 registration/storage funding.
 - Supported-asset deposit and wallet-signed settlement, with independently inspected receipts, events, resulting contract state, and token balances.
 - End-to-end premium, exercise, expiry, payout retry, ambiguous-outcome reconciliation, and duplicate/replay tests on deployed contracts.
 - Independent verifier/RPC configuration and operational monitoring/alert delivery.
 - Migration/redeployment decision for existing persistent state, documented rollback and recovery plan.
 - Independent security review sign-off and explicit release approval.
 
-Batch 5 is not CI-validated until its integrated workflow passes. No Testnet deployment, token transaction, or release approval is claimed.
+No Testnet deployment, token transaction, or release approval is claimed.
+
+## Infrastructure readiness — Escrow deployment foundation
+
+PR #7 is open and unmerged on `work/testnet-infrastructure-readiness`. The previous complete CI run #42685027473 passed on `f368eb35af18433dc5f39abab7e23f078b5a3a9b`. A new dual-RPC verification job was added; its first attempt exposed HTTP 429 rate limiting on the deprecated public NEAR RPC, so the check now uses FastNEAR and dRPC and honors Retry-After before the next CI run.
+
+### Implemented in this branch (pending CI)
+- Dedicated Bash and PowerShell Escrow deployment helpers.
+- Explicit `.testnet` account validation and Testnet confirmation required before invoking near-cli.
+- Deterministic Escrow artifact path: `target/near/handel_escrow/handel_escrow.wasm`; no arbitrary Wasm fallback.
+- Deploy-only default; one-time `new` initialization requires a separate explicit flag.
+- SHA-256 artifact identity and existing-account/keychain preflight messaging.
+- Mocked Bash regression tests for missing confirmation, non-Testnet account rejection, deploy-only behavior, and explicit initialization.
+- CI trigger and Bash safety checks extended for this infrastructure branch.
+- Runbook documents the two-step Escrow controller handoff, token-account mapping, and trusted reconciler/payout-reconciler setup sequence.
+- Tidepool's live provider token registry observed 2026-11-09 and six NEAR-side token IDs/accounts/decimals recorded in `config/testnet-assets.tidepool.json`.
+- SDK now exposes distinct Tidepool Testnet USDC and wNEAR asset IDs; production/mainnet asset constants remain distinct.
+- OptionsContract now supports owner-only configuration of its USDC asset ID using a dedicated versioned storage key, preserving the serialized contract root layout. Configuration rejects missing, disabled, or non-six-decimal assets; existing deployments retain the previous mainnet USDC default unless explicitly changed.
+
+### Still open
+- Run all CI checks against the latest branch head, including the new dual-RPC live asset-verification job, and fix any failures.
+- Pass the new read-only dual-RPC Testnet asset-verification CI job, which checks live registry identity, `ft_metadata`, code hashes, owner/minter configuration, NEP-145 storage bounds, and provider-account storage balances. The intended Handel Escrow account's `storage_balance_of` remains unverified until its account ID exists and the script is run with `HANDEL_ESCROW_ACCOUNT`.
+- Provision dedicated Testnet accounts and approve the account-key policy outside the repository.
+- Execute deployment only after explicit deployment approval and verified account/commit/artifact mapping.
+- Independently verify code hashes, initialization state, authority views, and transaction receipts.
+- Confirm exact Testnet token contracts, decimals, NEP-145 storage requirements and funding; no token transfers until verified.
+- Implement or configure independent settlement evidence production and verification; current reconciler remains a trust root.
+- Complete deployed synthetic-asset lifecycle tests and independent security review.
 
 ## Cross-cutting limitations and rules
 

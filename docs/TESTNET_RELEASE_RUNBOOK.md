@@ -6,7 +6,7 @@
 
 ## 1. What is actually deployable
 
-The repository builds three Wasm contracts in CI: OptionsContract, Escrow, and mock-ft. The deployment helpers in this repository deploy **only** the OptionsContract artifact (target/near/handel_options.wasm). They do not deploy or configure Escrow, register tokens, provision storage, create accounts, configure a verifier, or connect a frontend.
+The repository builds three Wasm contracts in CI: OptionsContract, Escrow, and mock-ft. Separate safe-by-default Bash and PowerShell helpers now deploy the OptionsContract artifact (`target/near/handel_options.wasm`) and Escrow artifact (`target/near/handel_escrow/handel_escrow.wasm`). Neither helper deploys mock-ft, registers tokens, provisions storage, creates accounts, configures a verifier, or connects a frontend.
 
 The current OptionsContract is a policy/lifecycle state machine. It does not receive collateral through NEP-141, does not prove remote settlement, and accepts reconciliation assertions from a configured trusted account. Escrow payout legs are asynchronous and non-atomic. Do not accept real assets or describe a position as fully collateralized/settled based only on these contracts or a successful deployment.
 
@@ -42,7 +42,7 @@ Record the full commit SHA, CI run ID/URL, artifact SHA-256, build toolchain ver
 
 Bash:
 
-    ./scripts/deploy.sh <options-account.testnet> --confirm-testnet-deployment
+    bash scripts/deploy.sh <options-account.testnet> --confirm-testnet-deployment
 
 PowerShell:
 
@@ -50,15 +50,27 @@ PowerShell:
 
 These commands deploy without calling the initializer. For a **brand-new account with no prior contract state only**, initialization is a separate explicit choice:
 
-    ./scripts/deploy.sh <options-account.testnet> --confirm-testnet-deployment --initialize
+    bash scripts/deploy.sh <options-account.testnet> --confirm-testnet-deployment --initialize
 
     ./scripts/deploy-testnet.ps1 -ContractAccount <options-account.testnet> -ConfirmTestnetDeployment -Initialize
 
 Never use the initializer on an account that may already contain contract state. The helper requires an existing .testnet account and a key available through the local NEAR CLI keychain. It does not create accounts or keys. It prints the artifact hash and targets Testnet explicitly. It does not deploy Escrow or mock-ft.
 
-Before running either command, independently verify the target account and the exact candidate commit/artifact. A successful CLI command is not proof that the deployed contract has the expected state or that token custody/settlement works.
+Escrow Bash:\n\n    bash scripts/deploy-escrow-testnet.sh <escrow-account.testnet> --confirm-testnet-deployment\n\nEscrow PowerShell:\n\n    ./scripts/deploy-escrow-testnet.ps1 -ContractAccount <escrow-account.testnet> -ConfirmTestnetDeployment\n\nFor a **brand-new Escrow account only**, append `--initialize` or `-Initialize` to invoke `new`. The Escrow initializer sets its owner to the transaction predecessor. Do not initialize an account that may contain prior contract state.\n\nBefore running any command, independently verify the target account and exact candidate commit/artifact. A successful CLI command is not proof that the deployed contract has the expected state or that token custody/settlement works.
 
-## 5. Post-deployment verification — mandatory
+## 5. Tidepool Testnet asset profile
+
+The provider's live `GET https://www.usetidepool.tech/v0/tokens` registry was observed on 2026-11-09. The six NEAR-side NEP-141 test tokens and their asset IDs, token accounts, and decimals are snapshotted in `config/testnet-assets.tidepool.json`. Re-fetch the live registry immediately before use; this file is a dated record, not a source of permanent truth.
+
+For the initial valueless lifecycle test, the proposed pair is:
+- Exercise payment and premium: `nep141:usdc.tidepool-sandbox.testnet`, token account `usdc.tidepool-sandbox.testnet`, 6 decimals.
+- Candidate Call underlying: `nep141:wnear.tidepool-sandbox.testnet`, token account `wnear.tidepool-sandbox.testnet`, 24 decimals. Keep disabled until its metadata, code hash, owner/minter, and NEP-145 storage behavior are independently checked.
+
+**Important identity difference:** the default mainnet Intents USDC asset ID in OptionsContract is `nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`. Tidepool Testnet USDC uses a different ID. The OptionsContract now supports an owner-only `set_usdc_asset_id` setting, which accepts only an already-enabled six-decimal asset. For a fresh Testnet deployment, register the Tidepool USDC asset first with `set_asset`, then set it with `set_usdc_asset_id`, and bind its NEP-141 account with `set_escrow_token_account`. Do not use the production identifier against the Tidepool Testnet token.
+
+Provider-published metadata is not independent on-chain verification. The repository now includes `node scripts/verify-testnet-assets.mjs`, which re-fetches the live registry and checks all six NEP-141 contracts through FastNEAR and dRPC Testnet RPC endpoints at finality. The deprecated public `rpc.testnet.near.org` endpoint returned HTTP 429 in CI, so it is intentionally not used. It compares `ft_metadata`, `owner_id`, `is_minter`, deployed code hashes, `storage_balance_bounds`, and provider-account `storage_balance_of` results across the two RPCs. The script is read-only and is wired into CI. To additionally inspect the intended Escrow account after its ID is provisioned, run it with `HANDEL_ESCROW_ACCOUNT=<escrow-account.testnet>`. A CI pass without that variable does not prove the Handel Escrow account is registered. NEP-145 registration and storage funding require a separate approved transaction; none is performed by this script or deployment helpers.
+
+## 6. Escrow and OptionsContract authority configuration\n\nPerform this only after both contracts have been deployed and independently verified, using the intended Testnet account IDs. Use the owner account for each owner-only call and retain every transaction hash.\n\n1. The Escrow owner calls `propose_controller` on Escrow with the exact OptionsContract account ID.\n2. The OptionsContract owner calls `set_escrow_contract` on OptionsContract with the exact Escrow account ID.\n3. The OptionsContract owner calls `accept_escrow_controller` on OptionsContract. This makes the cross-contract call from OptionsContract itself so Escrow can authenticate the proposed controller. Verify Escrow's controller view afterwards.\n4. The OptionsContract owner enables each explicitly approved asset with `set_asset(asset_id, decimals, true)`, then binds its NEP-141 contract with `set_escrow_token_account(asset_id, token_account)`. Do not infer IDs or decimals from symbols; verify the exact Testnet token contract and metadata independently first.\n5. The OptionsContract owner configures `set_trusted_reconciler` only after the reconciler's authority, evidence source, operational ownership, and key policy have been reviewed. This is a trust-root assignment, not cryptographic proof verification.\n6. The Escrow owner proposes the payout reconciler with `propose_payout_reconciler`; the selected reconciler account must separately call `accept_payout_reconciler`. Verify the resulting reconciler view.\n\nDo not create positions or transfer tokens during configuration. Do not treat controller configuration as proof that collateral is reserved or that external settlement is verified.\n\n## 7. Post-deployment verification — mandatory
 
 For each deployed contract:
 
@@ -74,12 +86,12 @@ For each deployed contract:
 
 No live asset/settlement claim is permitted until the exact route, asset identity, reservation/custody mechanism, and proof authenticity are demonstrated. Tidepool is community-operated and does not currently prove support for Handel's Ondo token identifiers.
 
-## 6. Release gates still open
+## 8. Release gates still open
 
 - [ ] Dedicated OptionsContract and Escrow Testnet accounts and key policy.
-- [ ] Escrow deployment helper and explicit initialization/configuration procedure.
+- [x] Escrow Testnet deployment helpers (Bash/PowerShell), deterministic artifact selection, explicit confirmation, deploy-only default, and opt-in initializer are implemented and CI-tested.\n- [ ] Escrow deployment and owner/controller/reconciler configuration are executed and independently verified on Testnet.
 - [ ] Persistent-state migration/redeployment decision; no upgrade against unknown legacy state.
-- [ ] Exact supported Testnet token IDs/decimals and NEP-145 registration/storage funding.
+- [x] Provider-published Tidepool Testnet token IDs, token accounts, and decimals snapshotted in `config/testnet-assets.tidepool.json`; OptionsContract USDC asset identity is now configurable without changing its serialized root state.\n- [ ] Pass the dual-RPC live asset-verification CI job; then re-run with `HANDEL_ESCROW_ACCOUNT` set after the dedicated Escrow account exists and independently review its NEP-145 balance. Approve any storage registration/funding separately.
 - [ ] Independently verified settlement event/proof source; trusted reconciler assumption reviewed.
 - [ ] Enforceable per-position collateral reservation and custody authority.
 - [ ] End-to-end deployed premium, exercise, expiry, payout retry, ambiguous reconciliation, and replay tests.
@@ -90,7 +102,7 @@ No live asset/settlement claim is permitted until the exact route, asset identit
 
 Passing CI or deploying a Wasm file does not close any of these gates. Mainnet and real-asset use remain prohibited by the current architecture and evidence.
 
-## 7. Evidence record template
+## 9. Evidence record template
 
 For each deployment/test, record:
 

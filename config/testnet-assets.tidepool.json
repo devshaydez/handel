@@ -1,0 +1,63 @@
+{
+  "network": "near-testnet",
+  "provider": "Tidepool community-operated testnet",
+  "registryUrl": "https://www.usetidepool.tech/v0/tokens",
+  "registryObservedAt": "2026-11-09T06:26:27.896Z",
+  "warning": "Valueless test tokens only. Provider registry metadata is not independent on-chain verification and Tidepool is not affiliated with NEAR or 1Click.",
+  "tokens": [
+    {
+      "symbol": "USDC",
+      "assetId": "nep141:usdc.tidepool-sandbox.testnet",
+      "nep141Account": "usdc.tidepool-sandbox.testnet",
+      "decimals": 6,
+      "role": "configured exercise-payment and premium asset",
+      "contractConfiguration": {
+        "setAsset": true,
+        "setUsdcAssetId": true,
+        "setEscrowTokenAccount": true
+      }
+    },
+    {
+      "symbol": "USDT",
+      "assetId": "nep141:usdt.tidepool-sandbox.testnet",
+      "nep141Account": "usdt.tidepool-sandbox.testnet",
+      "decimals": 6,
+      "role": "not enabled"
+    },
+    {
+      "symbol": "wNEAR",
+      "assetId": "nep141:wnear.tidepool-sandbox.testnet",
+      "nep141Account": "wnear.tidepool-sandbox.testnet",
+      "decimals": 24,
+      "role": "candidate underlying; enable only after independent metadata and NEP-145 checks"
+    },
+    {
+      "symbol": "wBTC",
+      "assetId": "nep141:wbtc.tidepool-sandbox.testnet",
+      "nep141Account": "wbtc.tidepool-sandbox.testnet",
+      "decimals": 8,
+      "role": "not enabled"
+    },
+    {
+      "symbol": "ETH",
+      "assetId": "nep141:eth.tidepool-sandbox.testnet",
+      "nep141Account": "eth.tidepool-sandbox.testnet",
+      "decimals": 18,
+      "role": "not enabled"
+    },
+    {
+      "symbol": "XAUT",
+      "assetId": "nep141:xaut.tidepool-sandbox.testnet",
+      "nep141Account": "xaut.tidepool-sandbox.testnet",
+      "decimals": 6,
+      "role": "not enabled"
+    }
+  ],
+  "independentChecksRequired": [
+    "Call ft_metadata on each selected NEP-141 account using an independent NEAR Testnet RPC and compare decimals and symbol.",
+    "Inspect contract code hashes and owner/minter configuration.",
+    "Call storage_balance_bounds and storage_balance_of for the intended Escrow account; register and fund NEP-145 storage only after explicit approval.",
+    "Re-fetch the provider token registry immediately before use; never assume this snapshot is permanent.",
+    "Do not infer asset identity from symbol alone."
+  ]
+}

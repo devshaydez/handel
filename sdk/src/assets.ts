@@ -28,3 +28,24 @@ export const ASSETS = [
 export function isOndoUnderlying(assetId: string): boolean {
   return [NVDAON_ASSET_ID, TSLAON_ASSET_ID, AAPLON_ASSET_ID, SPYON_ASSET_ID].includes(assetId);
 }
+
+/**
+ * Tidepool's isolated NEAR Testnet assets. These identifiers are distinct from
+ * the production NEAR Intents registry identifiers above and carry no value.
+ * Verify the live provider registry before each deployment/configuration.
+ */
+export const TIDEPOOL_TESTNET_USDC_ASSET_ID =
+  "nep141:usdc.tidepool-sandbox.testnet";
+export const TIDEPOOL_TESTNET_USDC_DECIMALS = 6;
+export const TIDEPOOL_TESTNET_WNEAR_ASSET_ID =
+  "nep141:wnear.tidepool-sandbox.testnet";
+export const TIDEPOOL_TESTNET_WNEAR_DECIMALS = 24;
+
+export const TIDEPOOL_TESTNET_ASSETS = [
+  { assetId: TIDEPOOL_TESTNET_USDC_ASSET_ID, tokenAccount: "usdc.tidepool-sandbox.testnet", symbol: "USDC", decimals: 6, role: "exercise-and-premium" },
+  { assetId: "nep141:usdt.tidepool-sandbox.testnet", tokenAccount: "usdt.tidepool-sandbox.testnet", symbol: "USDT", decimals: 6, role: "not-enabled" },
+  { assetId: TIDEPOOL_TESTNET_WNEAR_ASSET_ID, tokenAccount: "wnear.tidepool-sandbox.testnet", symbol: "wNEAR", decimals: 24, role: "candidate-underlying" },
+  { assetId: "nep141:wbtc.tidepool-sandbox.testnet", tokenAccount: "wbtc.tidepool-sandbox.testnet", symbol: "wBTC", decimals: 8, role: "not-enabled" },
+  { assetId: "nep141:eth.tidepool-sandbox.testnet", tokenAccount: "eth.tidepool-sandbox.testnet", symbol: "ETH", decimals: 18, role: "not-enabled" },
+  { assetId: "nep141:xaut.tidepool-sandbox.testnet", tokenAccount: "xaut.tidepool-sandbox.testnet", symbol: "XAUT", decimals: 6, role: "not-enabled" },
+] as const;

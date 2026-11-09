@@ -9,6 +9,7 @@ const EXERCISE_GRACE_NS: u64 = 24 * 60 * 60 * 1_000_000_000;
 const ESCROW_REGISTER_GAS: Gas = Gas::from_tgas(20);
 const ESCROW_CALLBACK_GAS: Gas = Gas::from_tgas(10);
 const ESCROW_STORAGE_DEPOSIT: NearToken = NearToken::from_near(1);
+const USDC_ASSET_ID_STORAGE_KEY: &[u8] = b"handel:options:usdc-asset-id:v1";
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -337,8 +338,8 @@ impl OptionsContract {
             .clone()
             .or_else(|| self.escrow_contract.clone())
             .expect("escrow contract not configured");
-        let collateral_asset = Self::collateral_asset_id(&position);
-        let payment_asset = Self::exercise_payment_asset_id(&position);
+        let collateral_asset = self.collateral_asset_id(&position);
+        let payment_asset = self.exercise_payment_asset_id(&position);
         let collateral_token = position
             .escrow_collateral_token
             .clone()
@@ -480,7 +481,7 @@ impl OptionsContract {
             );
         }
         let amount = Self::required_collateral(&position);
-        let asset_id = Self::collateral_asset_id(&position);
+        let asset_id = self.collateral_asset_id(&position);
         self.begin_operation(
             operation_id.clone(),
             position_id,
@@ -696,7 +697,7 @@ impl OptionsContract {
             new_operation_id.clone(),
             position_id,
             OperationKind::LockCollateral,
-            Self::collateral_asset_id(&position),
+            self.collateral_asset_id(&position),
             Self::required_collateral(&position),
             position.writer.clone(),
             env::current_account_id(),
@@ -730,7 +731,7 @@ impl OptionsContract {
             premium_operation_id.clone(),
             position_id,
             OperationKind::PayPremium,
-            Self::usdc_asset_id(),
+            self.usdc_asset_id(),
             amount,
             position.holder.clone(),
             position.writer.clone(),
@@ -789,7 +790,7 @@ impl OptionsContract {
             new_operation_id.clone(),
             position_id,
             OperationKind::PayPremium,
-            Self::usdc_asset_id(),
+            self.usdc_asset_id(),
             position.premium_amount_usdc,
             position.holder.clone(),
             position.writer.clone(),
@@ -835,7 +836,7 @@ impl OptionsContract {
         );
         let (payment_asset, payment_amount, delivery_asset, delivery_amount) = match position.kind {
             OptionKind::Call => (
-                Self::usdc_asset_id(),
+                self.usdc_asset_id(),
                 position.strike_amount_usdc,
                 position.asset_id.clone(),
                 position.underlying_amount,
@@ -843,7 +844,7 @@ impl OptionsContract {
             OptionKind::Put => (
                 position.asset_id.clone(),
                 position.underlying_amount,
-                Self::usdc_asset_id(),
+                self.usdc_asset_id(),
                 position.strike_amount_usdc,
             ),
         };
@@ -905,7 +906,7 @@ impl OptionsContract {
         );
 
         let (asset_id, amount) = match position.kind {
-            OptionKind::Call => (Self::usdc_asset_id(), position.strike_amount_usdc),
+            OptionKind::Call => (self.usdc_asset_id(), position.strike_amount_usdc),
             OptionKind::Put => (position.asset_id.clone(), position.underlying_amount),
         };
         self.begin_operation(
@@ -958,7 +959,7 @@ impl OptionsContract {
 
         let (asset_id, amount) = match position.kind {
             OptionKind::Call => (position.asset_id.clone(), position.underlying_amount),
-            OptionKind::Put => (Self::usdc_asset_id(), position.strike_amount_usdc),
+            OptionKind::Put => (self.usdc_asset_id(), position.strike_amount_usdc),
         };
         self.begin_operation(
             new_operation_id.clone(),
@@ -996,7 +997,7 @@ impl OptionsContract {
             operation_id.clone(),
             position_id,
             OperationKind::ExpiryRelease,
-            Self::collateral_asset_id(&position),
+            self.collateral_asset_id(&position),
             Self::required_collateral(&position),
             env::current_account_id(),
             position.writer.clone(),
@@ -1034,6 +1035,26 @@ impl OptionsContract {
 
     pub fn get_asset(&self, asset_id: String) -> Option<AssetMetadata> {
         self.asset_registry.get(&asset_id).cloned()
+    }
+
+    /// Select the USDC asset identifier used for premiums and strike settlement.
+    /// The selected asset must already be enabled and use six decimal places.
+    /// This allows isolated Testnet USDC registries without changing the default
+    /// mainnet Intents USDC identifier or the contract's serialized root state.
+    pub fn set_usdc_asset_id(&mut self, asset_id: String) {
+        self.assert_owner();
+        assert!(!asset_id.trim().is_empty(), "USDC asset id required");
+        let metadata = self
+            .asset_registry
+            .get(&asset_id)
+            .expect("USDC asset must be registered");
+        assert!(metadata.enabled, "USDC asset must be enabled");
+        assert_eq!(metadata.decimals, 6, "USDC asset must use 6 decimals");
+        env::storage_write(USDC_ASSET_ID_STORAGE_KEY, asset_id.as_bytes());
+    }
+
+    pub fn get_usdc_asset_id(&self) -> String {
+        self.usdc_asset_id()
     }
 
     pub fn get_last_accepted_escrow_sequence(&self, position_id: u64) -> u64 {
@@ -1342,7 +1363,7 @@ impl OptionsContract {
         );
         assert!(
             self.asset_registry
-                .get(&Self::usdc_asset_id())
+                .get(&self.usdc_asset_id())
                 .is_some_and(|a| a.enabled),
             "usdc is not enabled"
         );
@@ -1571,16 +1592,16 @@ impl OptionsContract {
         }
     }
 
-    fn collateral_asset_id(position: &OptionPosition) -> String {
+    fn collateral_asset_id(&self, position: &OptionPosition) -> String {
         match position.kind {
             OptionKind::Call => position.asset_id.clone(),
-            OptionKind::Put => Self::usdc_asset_id(),
+            OptionKind::Put => self.usdc_asset_id(),
         }
     }
 
-    fn exercise_payment_asset_id(position: &OptionPosition) -> String {
+    fn exercise_payment_asset_id(&self, position: &OptionPosition) -> String {
         match position.kind {
-            OptionKind::Call => Self::usdc_asset_id(),
+            OptionKind::Call => self.usdc_asset_id(),
             OptionKind::Put => position.asset_id.clone(),
         }
     }
@@ -1592,8 +1613,13 @@ impl OptionsContract {
         }
     }
 
-    fn usdc_asset_id() -> String {
-        "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1".to_string()
+    fn usdc_asset_id(&self) -> String {
+        env::storage_read(USDC_ASSET_ID_STORAGE_KEY)
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+            .unwrap_or_else(|| {
+                "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1"
+                    .to_string()
+            })
     }
 
     fn assert_not_paused(&self) {
@@ -1632,7 +1658,7 @@ mod tests {
         context("owner.testnet");
         let mut c = OptionsContract::new();
         c.set_asset("nep141:stock.testnet".into(), 18, true);
-        c.set_asset(OptionsContract::usdc_asset_id(), 6, true);
+        c.set_asset(OptionsContract::usdc_asset_id_for_test(), 6, true);
         c
     }
 
@@ -1794,7 +1820,7 @@ mod tests {
         assert_eq!(requested.requested_amount, 9_876);
         assert_eq!(
             requested.requested_asset_id,
-            OptionsContract::usdc_asset_id()
+            OptionsContract::usdc_asset_id_for_test()
         );
     }
 
@@ -1898,7 +1924,7 @@ mod tests {
         );
         assert_eq!(
             c.get_operation("pay-x".into()).unwrap().requested_asset_id,
-            OptionsContract::usdc_asset_id()
+            OptionsContract::usdc_asset_id_for_test()
         );
         let delivery = evidence(
             "deliver-x",
@@ -2350,7 +2376,7 @@ mod tests {
             account("stock-token.testnet"),
         );
         c.set_escrow_token_account(
-            OptionsContract::usdc_asset_id(),
+            OptionsContract::usdc_asset_id_for_test(),
             account("usdc-token.testnet"),
         );
 
@@ -2561,7 +2587,7 @@ mod tests {
             account("stock-token.testnet"),
         );
         c.set_escrow_token_account(
-            OptionsContract::usdc_asset_id(),
+            OptionsContract::usdc_asset_id_for_test(),
             account("usdc-token.testnet"),
         );
         let id = create_call(&mut c);
@@ -2665,9 +2691,54 @@ mod tests {
         assert_eq!(c.get_position(id).unwrap().state, PositionState::Settled);
     }
 
+    #[test]
+    fn owner_can_configure_six_decimal_testnet_usdc_without_changing_default_asset() {
+        let mut c = contract();
+        let testnet_usdc = "nep141:usdc.tidepool-sandbox.testnet".to_string();
+
+        context("owner.testnet");
+        c.set_asset(testnet_usdc.clone(), 6, true);
+        c.set_usdc_asset_id(testnet_usdc.clone());
+        assert_eq!(c.get_usdc_asset_id(), testnet_usdc);
+
+        context("writer.testnet");
+        let id = c.create_call(
+            account("holder.testnet"),
+            "nep141:stock.testnet".to_string(),
+            1,
+            1_000_000,
+            100,
+            10_000,
+        );
+        assert_eq!(c.get_position(id).unwrap().asset_id, "nep141:stock.testnet");
+    }
+
+    #[test]
+    fn usdc_asset_configuration_rejects_unregistered_disabled_and_wrong_precision_assets() {
+        let mut c = contract();
+        context("owner.testnet");
+
+        let missing = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.set_usdc_asset_id("nep141:missing.testnet".into())
+        }));
+        assert!(missing.is_err());
+
+        c.set_asset("nep141:disabled.testnet".into(), 6, false);
+        let disabled = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.set_usdc_asset_id("nep141:disabled.testnet".into())
+        }));
+        assert!(disabled.is_err());
+
+        c.set_asset("nep141:wrong-precision.testnet".into(), 18, true);
+        let wrong_precision = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.set_usdc_asset_id("nep141:wrong-precision.testnet".into())
+        }));
+        assert!(wrong_precision.is_err());
+    }
+
     impl OptionsContract {
         fn usdc_asset_id_for_test() -> String {
-            Self::usdc_asset_id()
+            "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1".to_string()
         }
     }
 }
