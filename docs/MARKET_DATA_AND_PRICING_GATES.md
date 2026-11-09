@@ -1,6 +1,6 @@
 # Market data and deterministic pricing — Phase 16 gates
 
-**Status:** Phase 16 is not complete. No provider is currently approved as an authoritative NEAR execution/risk oracle for Handel's Ondo instruments.
+**Status:** Phase 16 is not complete. A deterministic European Black–Scholes reference engine is implemented with explicit unit handling and offline reference tests. No provider is currently approved as an authoritative NEAR execution/risk oracle for Handel's Ondo instruments.
 
 ## Ondo API findings
 
@@ -27,10 +27,10 @@ Official references:
 - Identify and approve the actual NEAR Intents route and its supported chain/asset identifiers.
 - Obtain a source that is contractually and technically approved for authoritative spot/reference prices for that exact route, or wait for Ondo's documented oracle.
 - Verify timestamp, market session, stale-data behavior, outlier handling, decimal conversion, USDon/USDC conversion, and source signatures/provenance.
-- Build a deterministic option premium engine with explicit unit/decimal definitions, volatility source, risk-free rate, dividend assumptions, time-to-expiry, pricing model/version, rounding policy, and independent reference vectors.
+- The reference Black–Scholes engine requires explicit spot, annualized volatility, risk-free rate, dividend yield, and time-to-expiry inputs. It uses 18-decimal Ondo quantity, 6-decimal USDC total strike/premium, a documented European model, and round-up to one USDC minor unit. It is not production-approved until inputs are sourced from an approved feed and the implementation is independently reviewed against a trusted pricing library/reference suite.
 - Keep any Ondo display prices or soft quotes in a separate display/analytics channel; never silently promote them into execution/risk inputs.
 - Add tests proving stale, unsigned, wrong-chain, wrong-asset, or unsupported quote data cannot produce a tradable proposal.
 
 ## Release rule
 
-Until these requirements are evidenced, the runtime must abstain from live trading when authoritative market inputs or deterministic pricing are unavailable. A market display adapter, a model-generated price, or a soft quote does not satisfy this gate.
+Until these requirements are evidenced, the runtime must abstain from live trading when authoritative market inputs or deterministic pricing are unavailable. A market display adapter, a model-generated price, or a soft quote does not satisfy this gate. The current Black–Scholes engine is a deterministic reference implementation only; it must not be connected to live execution until the source and unit assumptions are independently verified.
