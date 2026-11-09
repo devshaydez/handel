@@ -6,6 +6,7 @@ on:
       - work/testnet-backend-hardening
       - work/batch-4-ai-integration-adversarial
       - work/batch-5-testnet-release-readiness
+      - work/testnet-infrastructure-readiness
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
@@ -29,7 +30,9 @@ jobs:
       - name: Validate Bash deployment helper syntax
         run: |
           bash -n scripts/deploy.sh
+          bash -n scripts/deploy-escrow-testnet.sh
           bash scripts/test-deploy-safety.sh
+          bash scripts/test-escrow-deploy-safety.sh
 
       - name: Install system dependencies for cargo-near
         run: |
