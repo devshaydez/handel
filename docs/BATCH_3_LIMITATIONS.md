@@ -1,5 +1,7 @@
 # Batch 3 limitations register
 
+> This file is the Phase 7–9 detail only. The authoritative project-wide list, including Batch 1 and Batch 2 carry-forward items, is [ALL_BATCH_LIMITATIONS.md](./ALL_BATCH_LIMITATIONS.md).
+
 Status: 2026-11-09. Carry these items forward; do not close an item until code, tests, and required external evidence exist.
 
 ## Phase 7 — Monitoring and observability

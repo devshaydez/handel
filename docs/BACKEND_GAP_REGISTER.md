@@ -1,5 +1,7 @@
 # Backend gap register
 
+> **Project-wide limitation tracking:** see [ALL_BATCH_LIMITATIONS.md](./ALL_BATCH_LIMITATIONS.md) for the consolidated open items from Batch 1 / Phase 1 through Batch 5 / Phase 13. This gap register remains the technical issue breakdown.
+
 Status snapshot: 2026-11-09, Batch 1 and Batch 2 merged; Batch 3 implementation in progress.
 
 Batch 1 head `80fce7a47de96d711446f4f15eb60fffac2dfe90` passed CI run #42543351501 (run 267): Rust format/unit tests, production Wasm, isolated callback-failure Wasm, contract/Sandbox integration tests, TypeScript SDK build/tests, and offline lifecycle demo. PR #2 was squash-merged as `d9c188ba29e51d2e39a44146c37fbcfbe7138178`. Sandbox assets remain mocks.
