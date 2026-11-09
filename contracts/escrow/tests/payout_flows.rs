@@ -189,7 +189,8 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
         .transact()
         .await?
         .into_result()?;
-    controller.call(escrow.id(), "accept_controller")
+    controller
+        .call(escrow.id(), "accept_controller")
         .args_json(json!({}))
         .transact()
         .await?
@@ -373,7 +374,8 @@ async fn callback_receipt_failure_keeps_payout_pending_and_blocks_retry() -> any
         .transact()
         .await?
         .into_result()?;
-    controller.call(escrow.id(), "accept_controller")
+    controller
+        .call(escrow.id(), "accept_controller")
         .args_json(json!({}))
         .transact()
         .await?
@@ -492,7 +494,8 @@ async fn expiry_callback_receipt_failure_is_reconciled_without_duplicate_transfe
         .transact()
         .await?
         .into_result()?;
-    controller.call(escrow.id(), "accept_controller")
+    controller
+        .call(escrow.id(), "accept_controller")
         .args_json(json!({}))
         .transact()
         .await?

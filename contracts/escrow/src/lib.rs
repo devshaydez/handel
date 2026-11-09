@@ -672,7 +672,8 @@ impl EscrowContract {
     pub fn propose_payout_reconciler(&mut self, reconciler: AccountId) {
         self.assert_owner();
         assert_ne!(reconciler, env::current_account_id(), "invalid reconciler");
-        let bytes = near_sdk::serde_json::to_vec(&reconciler).expect("serialize pending reconciler");
+        let bytes =
+            near_sdk::serde_json::to_vec(&reconciler).expect("serialize pending reconciler");
         env::storage_write(b"handel:escrow:pending-payout-reconciler:v1", &bytes);
     }
 
@@ -969,7 +970,8 @@ impl EscrowContract {
         let position = self.position(position_id);
         let byte_cost = env::storage_byte_cost().as_yoctonear();
         let estimated_record_bytes = near_sdk::serde_json::to_vec(&position)
-            .expect("serialize position for storage estimate").len() as u128;
+            .expect("serialize position for storage estimate")
+            .len() as u128;
         let estimated_required = estimated_record_bytes.saturating_mul(byte_cost);
         StorageEconomics {
             position_id,
