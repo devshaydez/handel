@@ -99,7 +99,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .transact()
         .await?
         .into_result()?;
-    options
+    escrow
         .call("accept_controller")
         .args_json(json!({}))
         .transact()
