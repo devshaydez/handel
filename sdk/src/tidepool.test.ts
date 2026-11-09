@@ -74,14 +74,18 @@ test("status assessment never calls provider success cryptographic proof", () =>
 
 test("status and deposit submit encode the deposit address and tx hash", async () => {
   const seen: string[] = [];
+  let submitted: Record<string, unknown> | undefined;
   const client = new TidepoolClient("https://www.usetidepool.tech", async (input, init) => {
     seen.push(String(input));
+    if (init?.body) submitted = JSON.parse(String(init.body)) as Record<string, unknown>;
     return new Response(JSON.stringify({ status: "PROCESSING" }), { status: 200 });
   });
-  await client.status("abc.testnet");
-  await client.submitDeposit("tx-hash", "abc.testnet");
+  await client.status("abc.testnet", "memo-7");
+  await client.submitDeposit("tx-hash", "abc.testnet", { memo: "memo-7", nearSenderAccount: "alice.testnet" });
   assert.match(seen[0]!, /depositAddress=abc.testnet/);
+  assert.match(seen[0]!, /depositMemo=memo-7/);
   assert.equal(seen[1], "https://www.usetidepool.tech/v0/deposit/submit");
+  assert.deepEqual(submitted, { txHash: "tx-hash", depositAddress: "abc.testnet", memo: "memo-7", nearSenderAccount: "alice.testnet" });
 });
 
 test("client rejects insecure non-local endpoint", () => {

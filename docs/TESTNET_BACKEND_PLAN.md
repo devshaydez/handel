@@ -22,8 +22,8 @@
 - NEP-413 payload builders create unsigned payloads only. The user's wallet must sign; this SDK never handles private keys.
 - OperationJournal provides in-memory operation-ID idempotency, transaction/result correlation, explicit unknown-outcome handling, and retries only after definitive failure.
 - Batch 2 adds a durable file snapshot store for Node backends, serialized journal writes with rollback on persistence failure, a wallet signing boundary, and a concrete NEAR Testnet JSON-RPC observer that waits for FINAL execution. A hosted database, wallet implementation, RPC quorum/indexer, and automatic transaction submission remain host responsibilities.
-- Batch 2 adds a Tidepool 1Click-compatible Testnet adapter for dynamic token discovery, dry quotes, explicit opt-in before deposit-address creation, deposit notification, and status polling. It rejects Handel's configured Ondo assets because Tidepool's published token registry does not list them.
-- Batch 2 adds normalized settlement-receipt validation and replay protection. A host-supplied ReceiptInspector must independently fetch and decode canonical NEAR verifier receipts; the SDK validation module is not itself a light client or cryptographic proof implementation.
+- Batch 2 adds a Tidepool 1Click-compatible Testnet adapter for dynamic token discovery, dry quotes, explicit opt-in before deposit-address creation, memo-aware deposit notification, and status polling. It rejects Handel's configured Ondo assets because Tidepool's published token registry does not list them.
+- Batch 2 adds normalized settlement-receipt validation, a durable serialized evidence service, and replay protection persisted with accepted evidence. A host-supplied ReceiptInspector must independently fetch and decode canonical NEAR verifier receipts; the SDK validation module is not itself a light client or cryptographic proof implementation.
 - LifecycleEventCursor enforces ordered sequence delivery, rejects gaps/conflicting replays, and treats exact event replays as idempotent. Persist its snapshot in the host application.
 
 ## Critical remaining blockers

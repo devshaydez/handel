@@ -30,6 +30,7 @@ export interface TidepoolQuoteRequest {
   depositType?: "ORIGIN_CHAIN" | "INTENTS";
   refundType?: "ORIGIN_CHAIN" | "INTENTS";
   recipientType?: "DESTINATION_CHAIN" | "INTENTS";
+  depositMode?: "SIMPLE" | "MEMO";
   dry?: boolean;
   /** Must be true to create a live testnet deposit address (dry=false). */
   allowTestnetDepositAddress?: boolean;
@@ -193,17 +194,31 @@ export class TidepoolClient {
     });
   }
 
-  async status(depositAddress: string): Promise<TidepoolStatus> {
+  async status(depositAddress: string, depositMemo?: string): Promise<TidepoolStatus> {
     nonEmpty(depositAddress, "depositAddress");
-    return this.request<TidepoolStatus>("/v0/status?depositAddress=" + encodeURIComponent(depositAddress));
+    const query = new URLSearchParams({ depositAddress });
+    if (depositMemo !== undefined) {
+      nonEmpty(depositMemo, "depositMemo");
+      query.set("depositMemo", depositMemo);
+    }
+    return this.request<TidepoolStatus>("/v0/status?" + query.toString());
   }
 
-  async submitDeposit(txHash: string, depositAddress: string): Promise<Record<string, unknown>> {
+  async submitDeposit(
+    txHash: string,
+    depositAddress: string,
+    options: { memo?: string; nearSenderAccount?: string } = {},
+  ): Promise<Record<string, unknown>> {
     nonEmpty(txHash, "txHash");
     nonEmpty(depositAddress, "depositAddress");
+    if (options.memo !== undefined) nonEmpty(options.memo, "memo");
+    if (options.nearSenderAccount !== undefined) nonEmpty(options.nearSenderAccount, "nearSenderAccount");
+    const body: Record<string, string> = { txHash, depositAddress };
+    if (options.memo !== undefined) body.memo = options.memo;
+    if (options.nearSenderAccount !== undefined) body.nearSenderAccount = options.nearSenderAccount;
     return this.request<Record<string, unknown>>("/v0/deposit/submit", {
       method: "POST",
-      body: JSON.stringify({ txHash, depositAddress }),
+      body: JSON.stringify(body),
     });
   }
 }

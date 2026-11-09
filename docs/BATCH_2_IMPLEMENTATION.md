@@ -16,7 +16,7 @@ This batch adds safe NEAR Testnet integration primitives. It does not authorize 
 
 - Added normalized receipt evidence types binding operation ID, position ID, operation kind, canonical asset ID, raw amount, sender, receiver, transaction hash, receipt ID, and event index.
 - Verification rejects failed/unknown execution, non-canonical or non-finalized receipts, and mismatched event bindings.
-- Added persisted replay-key snapshot support.
+- Added persisted replay-key snapshot support and a serialized durable evidence service that atomically stores accepted evidence with replay keys; failed writes do not consume a replay key.
 - The host must implement `ReceiptInspector` using independently queried NEAR RPC/indexer infrastructure and a defined finality/reorg policy. The SDK is a validation layer, not a light client or cryptographic proof system.
 - Tidepool's `SUCCESS` is classified as provider-reported success only. It is not accepted as proof of Handel contract settlement.
 
@@ -26,11 +26,11 @@ This batch adds safe NEAR Testnet integration primitives. It does not authorize 
 - Writes are serialized; a failed persistence operation rolls back the in-memory transition.
 - Added wallet NEP-413 signing boundary and a concrete NEAR JSON-RPC observer that requests `wait_until: FINAL`; unknown RPC/network outcomes remain unknown. The connected wallet signs; Handel never handles private keys.
 - Unknown transaction outcomes remain unknown and cannot be retried. Retry requires a recorded definitive failure and a fresh operation ID.
-- Wallet-selector integration, RPC quorum/indexer, verifier-event decoder, worker process, monitoring, and recovery UI remain deployment work.
+- Tidepool adapter now supports MEMO quote mode, memo-aware status polling, and deposit submission with memo / NEAR sender metadata. Wallet-selector integration, RPC quorum/indexer, verifier-event decoder, worker process, monitoring, and recovery UI remain deployment work.
 
 ## Validation and release boundary
 
-- Unit tests cover dynamic token discovery, quote safety, unsupported Ondo assets, provider-status classification, durable restart/recovery, failed persistence, concurrent writes, receipt binding, finality, and replay protection.
+- Unit tests cover dynamic token discovery, quote safety, unsupported Ondo assets, provider-status classification, memo-aware deposit/status flow, durable restart/recovery, failed persistence, concurrent writes, receipt binding, finality, and replay protection.
 - CI status is recorded in the Batch 2 pull request after the full run completes.
 - This is SDK/Testnet adapter implementation only. No Tidepool deposit, NEAR Testnet contract deployment, real Ondo transfer, or production verifier has been performed.
 
