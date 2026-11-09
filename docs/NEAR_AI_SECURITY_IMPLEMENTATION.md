@@ -25,11 +25,11 @@ System One is a separate structured decision API. The official SDK requires a se
 
 Provide the approved model identity and measured deployment values through protected runtime configuration:
 - `NEARAI_API_KEY` (secret; never commit it).
-- `NEARAI_MODEL` (canonical Gateway model ID).
+- `NEARAI_MODEL` (canonical Chat model ID).\n- `NEARAI_SYSTEMONE_MODEL` (canonical System One decision model ID).
 - `NEARAI_ALLOWED_GATEWAY_SIGNERS`.
 - `NEARAI_ALLOWED_MODEL_SIGNERS`.
 - `NEARAI_ALLOWED_COMPOSE_HASHES`.
-- `NEARAI_ALLOWED_OS_IMAGE_HASHES`.
+- `NEARAI_ALLOWED_OS_IMAGE_HASHES`.\n- Separate `NEARAI_SYSTEMONE_ALLOWED_GATEWAY_SIGNERS`, `NEARAI_SYSTEMONE_ALLOWED_MODEL_SIGNERS`, `NEARAI_SYSTEMONE_ALLOWED_COMPOSE_HASHES`, and `NEARAI_SYSTEMONE_ALLOWED_OS_IMAGE_HASHES` for the System One deployment; do not reuse Chat allowlists unless the verified signer/measurement evidence is exactly the same.
 - A budget ceiling derived from current provider pricing. Create one `NearAiBudgetLedger` and pass the same instance to both `NearAiProposalProvider` and `NearAiSystemOneGuard` so chat and guardrail calls consume one shared cap. System One state is byte-capped (16 KB by default).
 
 The deployment allowlists must be populated from a deployment independently reviewed and approved by Handel. Do not copy arbitrary measurements from an untrusted response just to make verification pass.
