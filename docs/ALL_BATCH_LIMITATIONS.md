@@ -165,3 +165,26 @@ For each item, record:
 ## Cross-batch product requirements — AI education and decision accountability
 
 Tracked in [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md). These are open acceptance requirements across Batches 8–10, not completed features: the same agent must teach in context and trade only under the user's selected authority mode; each consequential action, rejection, and no-trade decision must be linked to a durable, evidence-grounded decision record. User-facing explanations must distinguish proposals from confirmed execution and must never invent evidence or outcomes. Close only with implementation, tests, and auditable evidence.
+
+
+## Batch 9 — Phases 17–19: execution and safety (in progress)
+
+### Implemented in the Batch 9 branch; final integrated CI pending
+- Added SDK validation for on-chain agent permission snapshots: principal binding, expiry, enabled/revoked state, allowed assets, uint256 exposure values, underlying/premium/collateral caps, open-position count, and execution mode.
+- Added delegated Put creation to OptionsContract with explicit USDC collateral cap enforcement and tests for revocation and cap boundaries.
+- Added connected-wallet NEP-413 signing boundary: explicit approval, connected-principal match, verifier allowlist, signer/deadline/intent checks; no private-key handling.
+- Added paired NEAR Intents execution helpers: signed-intent validation, read-only simulate_intents RPC call, and explicit-approval execute_intents wallet callback.
+- Added SDK NEP-141 escrow transfer_call argument builder for collateral, premium, and exercise payment. uint64 position IDs are preserved as exact JSON integer text.
+- Existing Escrow contract implements exact-token/sender/amount/position/leg validation in ft_on_transfer and rejects invalid transfers by returning the full amount.
+- Initial SDK build, SDK unit tests and live read-only Tidepool dual-RPC asset verification passed on an earlier Batch 9 commit. Rust CI was still running; later Rust changes and latest Phase 18/19 helpers require a final integrated run.
+
+### Open limitations / release gates
+1. **Permission model is not a complete autonomous signing authority.** Contract policy bounds agent-created positions, but no production key architecture grants the agent a narrow, revocable NEP-413 signing capability. Never provide an AI service with a user's unrestricted full-access key. NEP-413 wallet signing remains a user-wallet action unless a separately audited delegated authority is implemented.
+2. **Wallet integration is an adapter, not a deployed wallet selector.** The SDK accepts a connected-wallet callback; a real wallet selector, key registration checks, signature-format verification, and end-to-end wallet tests remain.
+3. **NEAR Intents Testnet is unavailable.** The Verifier is Mainnet-only according to its official integration documentation. No Mainnet signing, submission, or asset movement has been performed. Tidepool is a separate community Testnet and does not prove Ondo asset support.
+4. **No production Ondo route is proven.** Exact Ondo stock token IDs, decimals, deposits, withdrawals, and verifier support remain unverified. Do not map Tidepool test assets to NVDAon, TSLAon, AAPL on or SPYon.
+5. **No per-position Intents-ledger collateral reservation.** A balance inside intents.near is not automatically locked for a Handel option. A separately audited reservation mechanism is required before claiming fully collateralized options.
+6. **Intents simulation is not settlement proof.** simulate_intents validates the verifier's proposed ledger execution, not external NEP-141 withdrawal callbacks or cross-chain settlement. Canonical event parsing, final transaction proof, balance reconciliation and ambiguous-outcome handling remain.
+7. **Escrow exercise payouts are sequential, not atomic.** The first payout may succeed while the second fails. The position must remain in recovery/reconciliation; no automatic duplicate payout based on timeout is safe.
+8. **Reconciler remains a trust root.** The configured account can attest to ambiguous payout outcomes; this is not a trustless light-client or verifier proof. Independent proof and audit remain.
+9. **Independent security review and deployed end-to-end tests remain mandatory.** No Mainnet/real-asset readiness is claimed.
