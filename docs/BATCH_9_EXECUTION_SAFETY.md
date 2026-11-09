@@ -33,3 +33,31 @@ Remaining: actual NEP-141/NEP-245 collateral intake; immutable per-position rese
 - Unknown or delayed outcomes remain unknown; no timeout-based duplicate retry.
 - A quote, API status, indexer row, or trusted reconciler assertion is not proof of custody or settlement.
 - No real assets or Mainnet claims until independent review and end-to-end proof.
+
+## Current implementation evidence
+
+### Phase 17 — implemented in this branch (automated tests pending final integrated run)
+- Added SDK permission snapshot validation and exposure preflight in sdk/src/agent-permissions.ts.
+- Added delegated Put creation to OptionsContract. It enforces enabled/unexpired policy, allowed asset, underlying cap, premium cap, explicit USDC collateral cap, expiry bound, open-position cap, and principal attribution. Added revocation and collateral-cap tests.
+- Existing on-chain policy is stored per agent and revocation is principal-only. The SDK preflight does not replace those contract checks.
+
+### Phase 18 — integration boundary added; live route still open
+- Added connected-wallet NEP-413 signing helper with explicit approval, principal matching, verifier allowlist, signer_id/deadline/intent validation. It never receives a private key.
+- Added paired signed-intent argument validation, read-only simulate_intents RPC call, and an explicit-approval wallet callback for execute_intents.
+- The Verifier is deployed on Mainnet; official docs state there is no Testnet deployment. No Mainnet signature, transaction, or asset movement was attempted. Exact Ondo token support and an enforceable reservation inside the Verifier ledger are not established.
+- Simulation is not a proof of external token transfer completion; external withdrawal/deposit callbacks require separate finality and reconciliation.
+
+### Phase 19 — custody primitives exist; production proof remains open
+- The Escrow contract already implements NEP-141 ft_on_transfer and accepts only exact configured token, sender, amount, position, and allowed lifecycle leg. Rejected transfers are returned to the sender.
+- Added an SDK builder for exact collateral, premium, and exercise-payment transfer_call arguments, preserving uint64 position IDs without JavaScript number truncation.
+- Escrow exercise payout is sequential and non-atomic. Ambiguous callback outcomes remain pending; the configured reconciler is a trust assumption, not a trustless proof.
+- Per-position NEP-141 collateral custody is not equivalent to a locked balance in the NEAR Intents internal ledger. No Ondo collateral is currently proven supported by the Testnet sandbox.
+
+## Remaining acceptance gates
+1. Verify all new SDK and Rust tests on the same final commit.
+2. Integrate a production wallet-selector implementation and verify NEP-413 payloads/signatures against the deployed Verifier ABI.
+3. Add canonical Verifier event/receipt parsing and independently reconcile the final transaction plus resulting balances.
+4. Prove the exact underlying and USDC asset IDs, decimals, and deposit/withdraw routes.
+5. Design and audit per-position reservation for Intents-ledger balances; an ordinary account balance is not locked collateral.
+6. Prove partial-failure recovery and callback-receipt failure behavior in Sandbox, with no timeout-based duplicate transfer.
+7. Independent security review before any real-asset use.
