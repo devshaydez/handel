@@ -1121,6 +1121,12 @@ impl OptionsContract {
     ) {
         let principal = env::predecessor_account_id();
         assert_ne!(principal, agent_id, "agent must be distinct");
+        if let Some(existing) = self.agent_policies.get(&agent_id) {
+            assert_eq!(
+                existing.principal, principal,
+                "only the existing principal may update this agent policy"
+            );
+        }
         assert!(!allowed_assets.is_empty(), "allowed asset list required");
         assert!(
             max_underlying_amount > 0 && max_premium_usdc > 0 && max_collateral_usdc > 0,
@@ -3088,7 +3094,7 @@ mod tests {
     }
 
     #[test]
-    fn manual_approval_revalidates_policy_caps_and_principal_after_proposal() {
+    fn manual_approval_revalidates_policy_caps_and_prevents_principal_takeover() {
         let mut c = contract();
         context("writer.testnet");
         c.set_agent_policy(
@@ -3129,15 +3135,18 @@ mod tests {
         assert!(reduced_cap.is_err());
 
         context("new-writer.testnet");
-        c.set_agent_policy(
-            account("agent.testnet"),
-            vec!["nep141:stock.testnet".into()],
-            50,
-            100,
-            1_500,
-            2,
-            90,
-        );
+        let takeover = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.set_agent_policy(
+                account("agent.testnet"),
+                vec!["nep141:stock.testnet".into()],
+                50,
+                100,
+                1_500,
+                2,
+                90,
+            )
+        }));
+        assert!(takeover.is_err(), "a different principal cannot replace an existing policy");
         context("writer.testnet");
         let changed_principal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.approve_agent_proposal("proposal-policy-recheck".into())
