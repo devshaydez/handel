@@ -55,7 +55,7 @@ PR #3 was squash-merged as `8d34211a3ca4729178a318da12c8777d33f27b52`. CI #275 p
 
 ## Batch 3 — Phases 7–9: monitoring, storage economics, administrative security
 
-PR #4 is open and unmerged. Batch 3 CI run #286 passed on exact head `7bff578cadaa19faa17e13b46a4b6a7932340aa1`.
+PR #4 was squash-merged as `cb3c02485b00cb5259014a72fa9b5cc1d8be11d3`. CI run #42610297142 passed before merge.
 
 ### Implemented in the current PR branch
 - SDK operation/position status counters, configurable stuck-state thresholds, bounded in-memory event retention, and normalized event fields.
@@ -72,7 +72,7 @@ PR #4 is open and unmerged. Batch 3 CI run #286 passed on exact head `7bff578cad
 
 ## Batch 4 — Phases 10–12: AI provider, UI/backend integration, adversarial testing
 
-Batch 4 implementation is on `work/batch-4-ai-integration-adversarial`, stacked against the same base as Batch 3 for CI triggering. PR #5 is open and unmerged. CI run #42650088972 passed both Rust/Sandbox and SDK jobs on exact head `9972a6fea1f256e8b08e627f64c32b8518c9f1df`.
+PR #5 was squash-merged as `94ad578f6219a53d2b4c8292ae8816dec160db1a`. CI run #42654231798 passed on rebased head `2b5d6f17a81c7f8216900e335387e4af3fd7a459`.
 
 ### Implemented in the Batch 4 branch (CI validated)
 - Provider-neutral SDK client for a Handel-controlled AI backend gateway, with HTTPS enforcement (localhost development exception), bearer authentication, bounded response size, request timeout, process-local sliding-window rate limiting, strict response envelope/proposal schema, configured model identity, stable error codes, and request/response SHA-256 provenance.
@@ -109,7 +109,7 @@ No Testnet deployment, token transaction, or release approval is claimed.
 
 ## Infrastructure readiness — Escrow deployment foundation
 
-Implementation is underway on `work/testnet-infrastructure-readiness`.
+PR #7 is open and unmerged on `work/testnet-infrastructure-readiness`. The previous complete CI run #42685027473 passed on `f368eb35af18433dc5f39abab7e23f078b5a3a9b`; subsequent commits add automated dual-RPC asset verification and are awaiting a fresh CI result.
 
 ### Implemented in this branch (pending CI)
 - Dedicated Bash and PowerShell Escrow deployment helpers.
@@ -125,8 +125,8 @@ Implementation is underway on `work/testnet-infrastructure-readiness`.
 - OptionsContract now supports owner-only configuration of its USDC asset ID using a dedicated versioned storage key, preserving the serialized contract root layout. Configuration rejects missing, disabled, or non-six-decimal assets; existing deployments retain the previous mainnet USDC default unless explicitly changed.
 
 ### Still open
-- Run all CI checks against the latest branch head and fix any failures.
-- Independently verify selected Testnet token `ft_metadata`, code hashes, owner/minter configuration and NEP-145 storage bounds/balances over independent NEAR Testnet RPC; provider-published metadata alone is insufficient.
+- Run all CI checks against the latest branch head, including the new dual-RPC live asset-verification job, and fix any failures.
+- Pass the new read-only dual-RPC Testnet asset-verification CI job, which checks live registry identity, `ft_metadata`, code hashes, owner/minter configuration, NEP-145 storage bounds, and provider-account storage balances. The intended Handel Escrow account's `storage_balance_of` remains unverified until its account ID exists and the script is run with `HANDEL_ESCROW_ACCOUNT`.
 - Provision dedicated Testnet accounts and approve the account-key policy outside the repository.
 - Execute deployment only after explicit deployment approval and verified account/commit/artifact mapping.
 - Independently verify code hashes, initialization state, authority views, and transaction receipts.
