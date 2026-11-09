@@ -128,13 +128,13 @@ export class NearRpcReceiptInspector implements ReceiptInspector {
     }
     const receipt = receiptMatches[0]!;
     const outcome = receipt.outcome;
-    if (outcome?.executor_id !== this.verifierAccountId) {
+    if (!outcome || outcome.executor_id !== this.verifierAccountId) {
       throw new SettlementVerificationError("receipt was not executed by the configured verifier");
     }
     const executionStatus = statusOf(outcome.status);
     const blockHeight = receipt.block_height;
     const blockHash = receipt.block_hash;
-    if (!Number.isSafeInteger(blockHeight) || (blockHeight ?? 0) < 1 ||
+    if (typeof blockHeight !== "number" || !Number.isSafeInteger(blockHeight) || blockHeight < 1 ||
         typeof blockHash !== "string" || !blockHash.trim()) {
       throw new SettlementVerificationError("receipt block identity is invalid");
     }
