@@ -41,8 +41,7 @@ export class NearAiSystemOneGuard {
     if (!config.apiKey.trim() || !config.model.trim()) {
       throw new NearAiError("System One API key and canonical model ID are required", "SYSTEMONE_CONFIG_INVALID");
     }
-    if (new URL(baseUrl).protocol !== "https:") throw new NearAiError("HTTPS is required for System One", "SYSTEMONE_CONFIG_INVALID");
-  if (!config.allowedGatewaySigners.length || !config.allowedModelSigners.length || !config.allowedComposeHashes.length || !config.allowedOsImageHashes.length) {
+    if (!config.allowedGatewaySigners.length || !config.allowedModelSigners.length || !config.allowedComposeHashes.length || !config.allowedOsImageHashes.length) {
       throw new NearAiError("System One TEE allowlists are required", "SYSTEMONE_ALLOWLIST_REQUIRED");
     }
     const threshold = config.minimumConfidence ?? 0.8;
@@ -59,8 +58,11 @@ export class NearAiSystemOneGuard {
     confidence: number;
     decisionId: string;
     signatureKind: "provider_tee";
+    usage: ReturnType<NearAiBudgetLedger["snapshot"]>;
   }> {
-    const stateBytes = new TextEncoder().encode(JSON.stringify(state) ?? "").byteLength;
+    const serializedState = JSON.stringify(state);
+    if (!serializedState) throw new NearAiError("System One state must be JSON serializable", "SYSTEMONE_STATE_INVALID");
+    const stateBytes = new TextEncoder().encode(serializedState).byteLength;
     const maxStateBytes = this.config.maxStateBytes ?? 16_000;
     if (!Number.isInteger(maxStateBytes) || maxStateBytes < 1 || stateBytes > maxStateBytes) {
       throw new NearAiError("System One state exceeds configured byte cap", "SYSTEMONE_STATE_TOO_LARGE");
@@ -141,6 +143,7 @@ export async function createOfficialNearAiSystemOneClient(
   config: NearAiSystemOneConfig,
   baseUrl = "https://cloud-api.near.ai/v1/",
 ): Promise<NearAiSystemOneClient> {
+  if (new URL(baseUrl).protocol !== "https:") throw new NearAiError("HTTPS is required for System One", "SYSTEMONE_CONFIG_INVALID");
   if (!config.allowedGatewaySigners.length || !config.allowedModelSigners.length || !config.allowedComposeHashes.length || !config.allowedOsImageHashes.length) {
     throw new NearAiError("System One TEE allowlists are required", "SYSTEMONE_ALLOWLIST_REQUIRED");
   }
