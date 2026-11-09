@@ -77,6 +77,9 @@ export class NearAiSystemOneGuard {
     if (deployment.gateway?.tcbStatus !== "UpToDate") {
       throw new NearAiError("System One Gateway TCB is not UpToDate", "SYSTEMONE_GATEWAY_TCB_REJECTED");
     }
+    if (!deployment.gateway.signer?.signingAddress || !this.config.allowedGatewaySigners.includes(deployment.gateway.signer.signingAddress)) {
+      throw new NearAiError("System One Gateway signer is not allowlisted", "SYSTEMONE_GATEWAY_SIGNER_REJECTED");
+    }
     if (!deployment.models?.length) {
       throw new NearAiError("System One model has no verified TEE attestation", "SYSTEMONE_MODEL_NOT_ATTESTED");
     }
