@@ -296,8 +296,8 @@ See [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCATION_AN
 Work is underway on branch `work/batch-9-execution-safety`, stacked on Batch 8 branch `work/batch-8-ai-agent-intelligence`.
 
 - Phase 17: implemented on-chain Education/Advisory/ManualApproval/Delegated modes (new policies default to ManualApproval), principal-only mode changes, direct Call/Put gating, live-policy approval checks, and SDK stale-snapshot/mode preflight. Tests added; final integrated CI still required.
-- Phase 18: added connected-wallet NEP-413 signing boundary plus paired Intents simulation/submission helpers. No private key handling. Verifier Mainnet-only; no Mainnet transaction or asset movement performed.
-- Phase 19: added NEP-141 escrow transfer_call builder. Existing Escrow ft_on_transfer validates exact sender/token/amount/position/leg. Sequential payout, trusted reconciler, missing Intents-ledger reservation and missing Ondo route remain open.
+- Phase 18: added connected-wallet NEP-413 signing boundary, distinct-nonce paired intent validation, read-only finality simulation, and SHA-256 binding of the exact signed pair/verifier to the simulation before explicit-approval wallet submission. No private key handling. Verifier Mainnet-only; no Mainnet transaction or asset movement performed.
+- Phase 19: added NEP-141 escrow transfer_call builder and regression coverage for partial exercise payout recovery (confirmed payment leg is never repeated when collateral payout fails). Existing Escrow ft_on_transfer validates exact sender/token/amount/position/leg. Payout remains sequential; trusted reconciler, independent finality proof, exact Ondo route and Intents-ledger reservation remain open.
 - Batch 9 detail: [BATCH_9_EXECUTION_SAFETY.md](./BATCH_9_EXECUTION_SAFETY.md).
 - AI security architecture: [AI_GUARDRAILS_AND_TEE_ARCHITECTURE.md](./AI_GUARDRAILS_AND_TEE_ARCHITECTURE.md). NEAR TEE attestation is not a substitute for deterministic trade/risk/authority gates; E2EE/OHTTP and System One guardrails remain integration work.
 - Project-wide remaining gates: [ALL_BATCH_LIMITATIONS.md](./ALL_BATCH_LIMITATIONS.md).

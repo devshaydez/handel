@@ -167,15 +167,16 @@ For each item, record:
 Tracked in [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md). These are open acceptance requirements across Batches 8–10, not completed features: the same agent must teach in context and trade only under the user's selected authority mode; each consequential action, rejection, and no-trade decision must be linked to a durable, evidence-grounded decision record. User-facing explanations must distinguish proposals from confirmed execution and must never invent evidence or outcomes. Close only with implementation, tests, and auditable evidence.
 
 
-## Batch 9 — Phases 17–19: execution and safety (in progress; Phase 17 implementation complete, CI pending)
+## Batch 9 — Phases 17–19: execution and safety (in progress; Phase 17 implemented, Phases 18–19 SDK/contract foundations added; integrated CI pending)
 
 ### Phase 17 — bounded agent authority: implemented in branch; final integrated CI pending
 - Added on-chain Education, Advisory, ManualApproval and Delegated execution modes, stored separately from AgentPolicy to avoid changing its Borsh value layout. New policies default to ManualApproval; only the principal may change the mode.
 - Direct delegated Call/Put methods require explicit Delegated mode and enforce live/revocable policy, allowlist, caps, expiry and open-position limits. Expired positions are excluded from the count.
 - Manual proposal creation/approval requires ManualApproval mode and a live policy; revocation before approval blocks the pending proposal. Education/Advisory modes cannot trade.
 - SDK preflight now rejects stale/future snapshots, invalid principal and Education/Advisory trading attempts. It remains a preflight; contract checks are authoritative.
+- Rust tests cover safe default, principal-only delegation, education/advisory denial, and revocation before manual proposal approval.
 - Added connected-wallet NEP-413 signing boundary: explicit approval, connected-principal match, verifier allowlist, signer/deadline/intent checks; no private-key handling.
-- Added paired NEAR Intents execution helpers: signed-intent validation, read-only simulate_intents RPC call, and explicit-approval execute_intents wallet callback.
+- Added paired NEAR Intents execution helpers: signed-intent validation with distinct nonces, read-only simulate_intents RPC call, and explicit-approval execute_intents wallet callback. Simulation is bound to the exact signed payload pair and verifier using SHA-256; mismatched payloads cannot reuse a prior simulation.
 - Added SDK NEP-141 escrow transfer_call argument builder for collateral, premium, and exercise payment. uint64 position IDs are preserved as exact JSON integer text.
 - Existing Escrow contract implements exact-token/sender/amount/position/leg validation in ft_on_transfer and rejects invalid transfers by returning the full amount.
 - Initial SDK build, SDK unit tests and live read-only Tidepool dual-RPC asset verification passed on an earlier Batch 9 commit. Rust CI was still running; later Rust changes and latest Phase 18/19 helpers require a final integrated run.

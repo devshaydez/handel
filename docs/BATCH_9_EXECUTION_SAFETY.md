@@ -19,11 +19,23 @@ The SDK does not store private keys or sign NEP-413 messages. NEP-413 signing co
 
 ## Phase 18 — NEAR Intents execution
 
-Remaining: verified exact asset IDs and route support; wallet-side NEP-413 signing integration; verifier submission/receipt decoding; operation-to-intent binding; finality and ambiguous-outcome handling; real Ondo token support proof. Tidepool test assets remain segregated and cannot be represented as Ondo stock collateral.
+Implemented SDK boundary:
+- Connected-wallet NEP-413 signing helper requires explicit approval, connected-principal match, verifier allowlist, signer/deadline/intent checks and does not receive a private key.
+- Paired signed-intent builder validates both signatures and requires distinct 32-byte nonces.
+- Read-only `simulate_intents` call runs at finality. The returned simulation is bound to the SHA-256 of the exact signed pair and verifier; submission rejects a different payload or verifier.
+- `execute_intents` submission requires explicit approval and the connected wallet callback.
+
+Still blocked: production wallet-selector integration; exact current Verifier ABI/signature conformance; canonical Verifier event/receipt parsing; exact Ondo/USDC IDs and routes; and real-asset execution proof. The Verifier is Mainnet-only; no Mainnet signature, transaction or asset movement was attempted. Tidepool test assets remain segregated and cannot be represented as Ondo stock collateral.
 
 ## Phase 19 — custody and settlement
 
-Remaining: actual NEP-141/NEP-245 collateral intake; immutable per-position reservation; no withdrawal/reuse while open; independently verified settlement outcomes; safe partial-failure recovery; payout/expiry release proof; replay protection and adversarial tests.
+Implemented custody primitives:
+- Escrow accepts exact configured NEP-141 token, sender, amount, position and lifecycle leg through `ft_on_transfer`; invalid transfers are returned.
+- SDK builds exact collateral, premium and exercise-payment `ft_transfer_call` arguments and preserves uint64 position IDs without JavaScript number truncation.
+- Exercise payout is sequential but recoverable: the payment leg is recorded before collateral payout; a definitive second-leg failure records `ExerciseCollateral`; retry submits only the failed collateral leg. A new regression test proves the first successful leg is not repeated.
+- A missing callback remains pending and is not timeout-retried. Ambiguous outcomes require the configured reconciler.
+
+Still blocked: deployed token custody evidence; exact Ondo/USDC route support; independent proof of payout/finality and balances; reconciler trust minimisation; Sandbox callback-failure verification; and proof that no collateral can be withdrawn/reused while a position remains open.
 
 ## Non-negotiable safety limits
 
@@ -56,10 +68,10 @@ Remaining: actual NEP-141/NEP-245 collateral intake; immutable per-position rese
 - Per-position NEP-141 collateral custody is not equivalent to a locked balance in the NEAR Intents internal ledger. No Ondo collateral is currently proven supported by the Testnet sandbox.
 
 ## Remaining acceptance gates
-1. Verify all new SDK and Rust tests on the same final commit (latest known CI failed only at rustfmt; formatting was corrected, and additional Phase 17 mode tests were added afterward).
+1. Verify all new SDK and Rust tests on the same final commit. Earlier runs exposed Rust formatting and one simulation-test assertion mismatch; both were corrected, and a partial-payout recovery regression test was added. Final integrated CI is still pending.
 2. Integrate a production wallet-selector implementation and verify NEP-413 payloads/signatures against the deployed Verifier ABI.
 3. Add canonical Verifier event/receipt parsing and independently reconcile the final transaction plus resulting balances.
 4. Prove the exact underlying and USDC asset IDs, decimals, and deposit/withdraw routes.
 5. Design and audit per-position reservation for Intents-ledger balances; an ordinary account balance is not locked collateral.
-6. Prove partial-failure recovery and callback-receipt failure behavior in Sandbox, with no timeout-based duplicate transfer.
+6. Run the partial-failure recovery and callback-receipt failure scenarios in Sandbox; unit coverage is not a substitute for deployed receipt/finality proof.
 7. Independent security review before any real-asset use.
