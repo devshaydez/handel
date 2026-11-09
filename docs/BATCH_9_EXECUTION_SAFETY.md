@@ -48,7 +48,7 @@ Still blocked: deployed token custody evidence; exact Ondo/USDC route support; i
 
 ## Current implementation evidence
 
-### Phase 17 — implementation complete; final integrated CI required
+### Phase 17 — implementation and integrated CI complete
 - Added SDK permission snapshot validation and exposure preflight in sdk/src/agent-permissions.ts, including stale/future snapshot rejection and hard denial in Education/Advisory modes.
 - Added on-chain Education, Advisory, ManualApproval and Delegated modes. Mode is stored separately under a versioned storage key so the AgentPolicy Borsh layout is unchanged. New policies default to ManualApproval; only the principal can change mode.
 - Direct delegated Call and Put entry points require explicit Delegated mode, live enabled policy, allowlisted asset, configured caps, expiry bound and open-position cap. Expired positions no longer consume the open-position limit.
@@ -68,7 +68,7 @@ Still blocked: deployed token custody evidence; exact Ondo/USDC route support; i
 - Per-position NEP-141 collateral custody is not equivalent to a locked balance in the NEAR Intents internal ledger. No Ondo collateral is currently proven supported by the Testnet sandbox.
 
 ## Remaining acceptance gates
-1. Verify all new SDK and Rust tests on the same final commit. Earlier runs exposed Rust formatting and one simulation-test assertion mismatch; both were corrected, and a partial-payout recovery regression test was added. Final integrated CI is still pending.
+1. **Integrated CI passed** on code commit `95278bf7b2b13425b928c0e6bdec982a2c63b8f6` (run [#42708258643](https://github.com/devshaydez/handel/actions/runs/42708258643)): Rust formatting, optimized Wasm builds, contract/sandbox tests, TypeScript build/unit tests/offline demo, and dual-RPC Testnet asset verification all passed.
 2. Integrate a production wallet-selector implementation and verify NEP-413 payloads/signatures against the deployed Verifier ABI.
 3. Add canonical Verifier event/receipt parsing and independently reconcile the final transaction plus resulting balances.
 4. Prove the exact underlying and USDC asset IDs, decimals, and deposit/withdraw routes.
