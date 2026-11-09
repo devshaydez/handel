@@ -20,3 +20,4 @@ export * from "./market-context.js";
 export * from "./agent-runtime.js";
 export * from "./agent-permissions.js";
 export * from "./wallet-nep413.js";
+export * from "./escrow-custody.js";
