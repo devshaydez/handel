@@ -23,9 +23,9 @@ test("prices European calls and puts deterministically in total USDC minor units
 });
 test("rejects stale, wrong-asset, expired and unsupported market assumptions", () => {
   assert.throws(() => engine.quote({ type: "Call", assetId: "other", quantity: "1000000000000000000", strike: "100000000", expiryNs: expiry, market }));
-  assert.throws(() => engine.quote({ type: "Call", assetId: NVDAON_ASSET_ID, quantity: "1000000000000000000", strike: "100000000", expiryNs: expiry, market: { ...market, volatilityObservedAt: new Date(now - 400000).toISOString() } }));
+  assert.throws(() => engine.quote({ type: "Call", assetId: NVDAON_ASSET_ID, quantity: "1000000000000000000", strike: "100000000", expiryNs: expiry, market: { ...market, volatilityObservedAt: new Date(now - 400000).toISOString() } as PricingMarketSnapshot }));
   assert.throws(() => engine.quote({ type: "Put", assetId: NVDAON_ASSET_ID, quantity: "1000000000000000000", strike: "100000000", expiryNs: (BigInt(now) - 1n).toString(), market }));
-  assert.throws(() => engine.quote({ type: "Call", assetId: NVDAON_ASSET_ID, quantity: "1000000000000000000", strike: "100000000", expiryNs: expiry, market: { ...market, annualizedVolatility: "9" } }));
+  assert.throws(() => engine.quote({ type: "Call", assetId: NVDAON_ASSET_ID, quantity: "1000000000000000000", strike: "100000000", expiryNs: expiry, market: { ...market, annualizedVolatility: "9" } as PricingMarketSnapshot }));
 });
 test("supports total strike notional for fractional quantities and rejects unsafe numeric ranges", () => {
   const result = engine.quote({ type: "Call", assetId: NVDAON_ASSET_ID, quantity: "500000000000000000", strike: "50000000", expiryNs: expiry, market });
