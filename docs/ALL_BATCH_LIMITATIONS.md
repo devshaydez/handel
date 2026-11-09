@@ -120,9 +120,13 @@ Implementation is underway on `work/testnet-infrastructure-readiness`.
 - Mocked Bash regression tests for missing confirmation, non-Testnet account rejection, deploy-only behavior, and explicit initialization.
 - CI trigger and Bash safety checks extended for this infrastructure branch.
 - Runbook documents the two-step Escrow controller handoff, token-account mapping, and trusted reconciler/payout-reconciler setup sequence.
+- Tidepool's live provider token registry observed 2026-11-09 and six NEAR-side token IDs/accounts/decimals recorded in `config/testnet-assets.tidepool.json`.
+- SDK now exposes distinct Tidepool Testnet USDC and wNEAR asset IDs; production/mainnet asset constants remain distinct.
+- OptionsContract now supports owner-only configuration of its USDC asset ID using a dedicated versioned storage key, preserving the serialized contract root layout. Configuration rejects missing, disabled, or non-six-decimal assets; existing deployments retain the previous mainnet USDC default unless explicitly changed.
 
 ### Still open
-- Run all CI checks against this branch and fix any failures.
+- Run all CI checks against the latest branch head and fix any failures.
+- Independently verify selected Testnet token `ft_metadata`, code hashes, owner/minter configuration and NEP-145 storage bounds/balances over independent NEAR Testnet RPC; provider-published metadata alone is insufficient.
 - Provision dedicated Testnet accounts and approve the account-key policy outside the repository.
 - Execute deployment only after explicit deployment approval and verified account/commit/artifact mapping.
 - Independently verify code hashes, initialization state, authority views, and transaction receipts.
