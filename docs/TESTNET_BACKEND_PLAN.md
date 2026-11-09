@@ -1,61 +1,41 @@
-# Handel testnet backend plan
+# Handel Testnet backend plan
 
 ## Agreed scope
 
-- NEAR contract development and demo target: NEAR Testnet.
-- No mainnet deployment, real-asset custody, or real-fund operation.
-- Backend first; defer the frontend until the user supplies their existing UI.
-- Deterministic local AI proposal fallback now; add NEAR AI Cloud adapter later when the user has access.
+- NEAR Testnet only; no mainnet, real-asset custody, or real-fund operation.
+- Backend first; integrate the user's existing UI when supplied.
+- Deterministic local AI proposal fallback now; provider adapter only when API access is available.
 - Never request or commit wallet secrets or API credentials.
 
-## Intents/Testnet boundary
+## Current implementation status
 
-The hackathon materials describe no official NEAR Intents Testnet. A community-operated sandbox called Tidepool now advertises a Testnet deployment of the official, unmodified Intents verifier and a 1Click-compatible API. It is not affiliated with NEAR/1Click and uses a single maker. Its published token list does not include Handel's BNB-chain Ondo assets; the ondoTokens query is documented as ignored.
+### OptionsContract and EscrowContract
 
-Tidepool can be evaluated as an optional integration harness using its own clearly labelled test assets. It does not make the current Ondo asset IDs usable on Testnet and does not replace the offline mock. See docs/SETTLEMENT_ARCHITECTURE.md.
+- Persistent position records, idempotent registration, pinned token/escrow accounts, premium sidecar, asynchronous premium payout/refund, authenticated sequenced lifecycle outbox, replay protection, and evidence-attested ambiguous payout reconciliation are implemented in PR #2.
+- Combined Sandbox coverage exercises Call/Put premium and exercise settlement, lifecycle synchronization, and replay of missing lifecycle events. Sandbox tokens are mocks, not live assets.
+- Registration retry and expiry mapping/release have unit coverage; combined cross-contract fault-injection and full expiry callback persistence remain unproven.
+- Escrow exercise payout legs remain sequential and non-atomic. Ambiguous callbacks require the configured human evidence attestor; timeout alone is never grounds for retry.
+- OptionsContract legacy Borsh root migration is not implemented. Do not upgrade a legacy deployment until exact V1 layouts and a separately reviewed migration or audited redeployment process are established.
 
-## Implementation status
+### SDK
 
-### Completed in the work branch
+- NEP-413 payload builders create unsigned payloads only. The user's wallet must sign; this SDK never handles private keys.
+- OperationJournal provides in-memory operation-ID idempotency, transaction/result correlation, explicit unknown-outcome handling, and retries only after definitive failure. The host application must persist snapshots; this is not a durable backend service.
+- LifecycleEventCursor enforces ordered sequence delivery, rejects gaps/conflicting replays, and treats exact event replays as idempotent. Persist its snapshot in the host application.
+- These are orchestration primitives, not a transaction submitter, indexer, verifier, or proof of settlement.
 
-- Explicit contract owner initialized from the initializer's predecessor account, with owner-authorized transfer.
-- Owner authorization for administrative methods and pause state.
-- GitHub Actions for Rust formatting, contract tests, Wasm build, SDK build/tests, and offline lifecycle demo.
-- SDK lifecycle states and call builders aligned with the Rust contract methods.
-- Deterministic local proposal fallback and SDK argument-mapping tests.
-- Writer-only collateral retry and holder-only premium retry after definitive failure, with fresh operation IDs and pause checks.
-- Exercise payment/delivery retry paths and late-receipt handling.
-- Agent policy includes max_collateral_usdc and rejects put proposals above the cap.
-- European exercise timing: no exercise before maturity, a 24-hour transaction-submission grace period, and expiry release only after that grace period.
-- Testnet deployment scripts explicitly target Testnet and do not create accounts or keys.
-- Custody, settlement, Tidepool compatibility, proof requirements and release gates documented in docs/SETTLEMENT_ARCHITECTURE.md.
+## Critical remaining blockers
 
-### Validation
+1. Combined failure-path Sandbox tests: registration callback receipt failure/recovery, expiry release with callback persistence, and ambiguous lifecycle delivery under fault injection.
+2. Migration: exact legacy Borsh root layouts, versioned migration entrypoints or audited redeployment with explicit asset/position handling.
+3. Independent verification: verifier service for evidence inspection, finality/reorg handling, and independently verifiable external events. The on-chain evidence attestor is a human trust root.
+4. Real asset admission: verify exact token contracts, canonical asset IDs, decimals, supported routes, NEP-145 storage deposits and recipient registration. Existing mock tests do not establish Ondo support.
+5. Settlement atomicity/compensation: escrow's two payout legs are sequential and non-atomic; specify and audit compensation/dispute handling for partial success.
+6. Transaction infrastructure: wallet/RPC adapter, durable operation storage, event indexer, monitoring/alerting, and recovery UI are not implemented.
+7. Security and operations: admin/key rotation, pause/unpause authority, storage economics/archival, adversarial/property testing, and independent security review.
+8. Testnet release gate: deploy to NEAR Testnet and verify actual transactions, receipts, token balances, and final contract state. Never label Sandbox or offline results as Testnet verification.
 
-- Latest successful push and PR workflows before the European maturity change passed Rust formatting, 18 Rust tests, Wasm release build, SDK build, 3 SDK tests, and offline lifecycle demo.
-- The European maturity change was validated by the successful push and PR workflows at commit `b3e98329fdc3231713a4fe737ed5c58941a0e55b` (19 Rust tests, Wasm release build, SDK build, 3 SDK tests, offline lifecycle demo). The isolated escrow prototype is a new change and must pass its own workspace CI before it is considered validated.
-- No mainnet deployment or real asset transfer has been performed.
+## Validation labels
 
-### Escrow prototype added
-
-- Added a separate `contracts/escrow` NEP-141 receiver contract for synthetic Testnet assets.
-- Exact per-position writer collateral and holder exercise-payment deposits are checked against immutable token, sender, amount and time terms.
-- Sequential payout callbacks track partial success; only a failed payout leg can be retried. This is not atomic settlement.
-- Added escrow unit tests and workspace CI coverage. See `docs/ESCROW_TESTNET_PROTOTYPE.md`.
-- The prototype is not connected to OptionsContract and is not ready for deployment; persistent storage, storage staking, integration and recovery review remain open.
-- Fresh workspace CI passed at `1cd2a2d481b8fd8b32ad51d321ff97717a4e19e8`: escrow tests 8/8, OptionsContract tests 19/19, Rust formatting, Wasm workspace build, SDK build, 3 SDK tests, and offline lifecycle demo. This validates compilation and unit paths only, not deployment or live token transfers.
-
-## Remaining blockers
-
-1. **Custody:** no per-position escrow/reservation currently holds collateral.
-2. **Settlement:** two external transfers are not atomic; use a verified atomic verifier exchange or implement an enforceable escrow with explicit recovery/compensation.
-3. **Proofs:** the trusted reconciler remains a trust root; no cryptographic remote-event verifier is implemented.
-4. **Asset support:** exact Ondo token representations, decimals, verifier support and bridge routes must be verified.
-5. **Storage:** assess replacing in-memory BTreeMap state with NEAR persistent collections before deployment.
-6. **Testnet adapter:** optionally validate Tidepool using only its own test tokens; do not claim Ondo coverage.
-7. **AI service:** keep deterministic fallback, add schema validation/audit records, and integrate a provider only after API access is available.
-8. **UI integration:** wait for the user's existing UI; do not replace it.
-
-## Current branch
-
-work/testnet-backend-hardening, based on feat/handel-archive-core. Keep main untouched until the work is reviewed and the user approves a merge.
+Report these separately: Implemented; Sandbox-tested; Testnet-deployed; Testnet-verified.
+Never promote one label to another. Never commit secrets. Keep main untouched until the user explicitly approves a merge.

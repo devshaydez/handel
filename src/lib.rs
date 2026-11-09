@@ -1,9 +1,14 @@
-use near_sdk::{env, near, AccountId, PanicOnDefault};
-use std::collections::BTreeMap;
+use near_sdk::{
+    env, near, store::UnorderedMap, AccountId, Gas, NearToken, PanicOnDefault, Promise,
+    PromiseResult,
+};
 
 /// Holders get a 24-hour post-maturity window to submit exercise transactions.
 /// This is a transaction-submission grace period, not an American early-exercise window.
 const EXERCISE_GRACE_NS: u64 = 24 * 60 * 60 * 1_000_000_000;
+const ESCROW_REGISTER_GAS: Gas = Gas::from_tgas(20);
+const ESCROW_CALLBACK_GAS: Gas = Gas::from_tgas(10);
+const ESCROW_STORAGE_DEPOSIT: NearToken = NearToken::from_near(1);
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -92,6 +97,15 @@ pub struct AssetMetadata {
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone)]
+pub struct EscrowLifecycleEvent {
+    pub source_position_id: u64,
+    pub escrow_position_id: u64,
+    pub sequence: u64,
+    pub state: String,
+}
+
+#[near(serializers = [json, borsh])]
+#[derive(Clone)]
 pub struct OptionPosition {
     pub id: u64,
     pub kind: OptionKind,
@@ -109,6 +123,11 @@ pub struct OptionPosition {
     pub exercise_delivery_operation_id: Option<String>,
     pub expiry_release_operation_id: Option<String>,
     pub exercised_at_ns: Option<u64>,
+    pub escrow_position_id: Option<u64>,
+    pub escrow_registration_pending: bool,
+    pub escrow_contract_id: Option<AccountId>,
+    pub escrow_collateral_token: Option<AccountId>,
+    pub escrow_payment_token: Option<AccountId>,
 }
 
 #[near(serializers = [json, borsh])]
@@ -154,14 +173,16 @@ pub struct AgentProposal {
 pub struct OptionsContract {
     owner: AccountId,
     next_id: u64,
-    positions: BTreeMap<u64, OptionPosition>,
-    asset_registry: BTreeMap<String, AssetMetadata>,
-    operations: BTreeMap<String, Operation>,
-    used_operation_ids: BTreeMap<String, bool>,
+    positions: UnorderedMap<u64, OptionPosition>,
+    asset_registry: UnorderedMap<String, AssetMetadata>,
+    operations: UnorderedMap<String, Operation>,
+    used_operation_ids: UnorderedMap<String, bool>,
     paused: bool,
     trusted_reconciler: Option<AccountId>,
-    agent_policies: BTreeMap<AccountId, AgentPolicy>,
-    proposals: BTreeMap<String, AgentProposal>,
+    agent_policies: UnorderedMap<AccountId, AgentPolicy>,
+    proposals: UnorderedMap<String, AgentProposal>,
+    escrow_contract: Option<AccountId>,
+    escrow_token_accounts: UnorderedMap<String, AccountId>,
 }
 
 #[near]
@@ -171,14 +192,16 @@ impl OptionsContract {
         Self {
             owner: env::predecessor_account_id(),
             next_id: 0,
-            positions: BTreeMap::new(),
-            asset_registry: BTreeMap::new(),
-            operations: BTreeMap::new(),
-            used_operation_ids: BTreeMap::new(),
+            positions: UnorderedMap::new(b"p".to_vec()),
+            asset_registry: UnorderedMap::new(b"a".to_vec()),
+            operations: UnorderedMap::new(b"o".to_vec()),
+            used_operation_ids: UnorderedMap::new(b"u".to_vec()),
             paused: false,
             trusted_reconciler: None,
-            agent_policies: BTreeMap::new(),
-            proposals: BTreeMap::new(),
+            agent_policies: UnorderedMap::new(b"g".to_vec()),
+            proposals: UnorderedMap::new(b"r".to_vec()),
+            escrow_contract: None,
+            escrow_token_accounts: UnorderedMap::new(b"e".to_vec()),
         }
     }
 
@@ -226,11 +249,196 @@ impl OptionsContract {
         )
     }
 
+    /// Configure the isolated NEP-141 escrow contract. The escrow must set this
+    /// OptionsContract account as its controller before registration is attempted.
+    pub fn set_escrow_contract(&mut self, escrow_contract: AccountId) {
+        self.assert_owner();
+        assert_ne!(
+            escrow_contract,
+            env::current_account_id(),
+            "invalid escrow contract"
+        );
+        self.escrow_contract = Some(escrow_contract);
+    }
+
+    /// Bind a Handel asset identifier to its deployed NEP-141 token contract.
+    /// This is explicit because some asset identifiers (notably the USDC registry ID)
+    /// are not NEAR account IDs.
+    pub fn set_escrow_token_account(&mut self, asset_id: String, token_account: AccountId) {
+        self.assert_owner();
+        assert!(
+            self.asset_registry
+                .get(&asset_id)
+                .is_some_and(|asset| asset.enabled),
+            "asset must be enabled"
+        );
+        self.escrow_token_accounts.insert(asset_id, token_account);
+    }
+
+    /// Register immutable option terms in the isolated NEP-141 escrow.
+    /// This does not deposit collateral or move the option into the external-reconciliation
+    /// lifecycle. The writer must use the escrow's NEP-141 transfer_call flow separately.
+    pub fn register_escrow_position(&mut self, position_id: u64) -> Promise {
+        self.assert_not_paused();
+        let mut position = self.position_owned_by_writer(position_id);
+        assert_eq!(
+            position.state,
+            PositionState::PendingCollateral,
+            "option already entered another lifecycle"
+        );
+        // The escrow rail must enforce the same principal-approval gate as the
+        // external collateral rail. Otherwise an agent proposal could bypass approval
+        // simply by choosing register_escrow_position instead of begin_collateral_lock.
+        assert!(
+            self.proposals.values().all(|proposal| {
+                proposal.position_id != position_id || proposal.state == ProposalState::Approved
+            }),
+            "agent proposal requires principal approval"
+        );
+        for proposal in self
+            .proposals
+            .values()
+            .filter(|proposal| proposal.position_id == position_id)
+        {
+            assert_eq!(
+                proposal.state,
+                ProposalState::Approved,
+                "agent proposal not approved"
+            );
+        }
+        assert!(
+            position.escrow_position_id.is_none(),
+            "escrow position already registered"
+        );
+        assert!(
+            !position.escrow_registration_pending,
+            "escrow registration already pending"
+        );
+        let escrow = position
+            .escrow_contract_id
+            .clone()
+            .or_else(|| self.escrow_contract.clone())
+            .expect("escrow contract not configured");
+        let collateral_asset = Self::collateral_asset_id(&position);
+        let payment_asset = Self::exercise_payment_asset_id(&position);
+        let collateral_token = position
+            .escrow_collateral_token
+            .clone()
+            .or_else(|| self.escrow_token_accounts.get(&collateral_asset).cloned())
+            .expect("collateral NEP-141 token not configured");
+        let payment_token = position
+            .escrow_payment_token
+            .clone()
+            .or_else(|| self.escrow_token_accounts.get(&payment_asset).cloned())
+            .expect("payment NEP-141 token not configured");
+        // Pin all external contract/token addresses on the option at first attempt so
+        // configuration changes cannot redirect an ambiguous retry to a different escrow.
+        position.escrow_contract_id = Some(escrow.clone());
+        position.escrow_collateral_token = Some(collateral_token.clone());
+        position.escrow_payment_token = Some(payment_token.clone());
+        let premium_token = if position.kind == OptionKind::Call {
+            payment_token.clone()
+        } else {
+            collateral_token.clone()
+        };
+        let args = near_sdk::serde_json::json!({
+            "source_position_id": position.id,
+            "writer": position.writer,
+            "holder": position.holder,
+            "collateral_token": collateral_token,
+            "collateral_amount": Self::required_collateral(&position).to_string(),
+            "payment_token": payment_token,
+            "payment_amount": Self::exercise_payment_amount(&position).to_string(),
+            "expiry_ns": position.expiry_ns,
+            "premium_token": premium_token,
+            "premium_amount": position.premium_amount_usdc.to_string()
+        });
+        position.escrow_registration_pending = true;
+        self.positions.insert(position_id, position);
+        Promise::new(escrow)
+            .function_call(
+                "create_position_v2".to_string(),
+                near_sdk::serde_json::to_vec(&args).expect("serialize escrow registration"),
+                ESCROW_STORAGE_DEPOSIT,
+                ESCROW_REGISTER_GAS,
+            )
+            .then(
+                Promise::new(env::current_account_id()).function_call(
+                    "on_escrow_position_registered".to_string(),
+                    near_sdk::serde_json::to_vec(&near_sdk::serde_json::json!({
+                        "position_id": position_id
+                    }))
+                    .expect("serialize escrow callback"),
+                    NearToken::from_yoctonear(0),
+                    ESCROW_CALLBACK_GAS,
+                ),
+            )
+    }
+
+    /// Retry an ambiguous/failed registration. Escrow registration is idempotent by source ID.
+    pub fn retry_escrow_registration(&mut self, position_id: u64) -> Promise {
+        let position = self.position_owned_by_writer(position_id);
+        assert!(
+            position.escrow_position_id.is_none(),
+            "escrow position already registered"
+        );
+        // A callback receipt may have failed after escrow committed the registration.
+        // Clear the local in-flight marker and safely repeat the idempotent escrow call.
+        self.positions
+            .get_mut(&position_id)
+            .unwrap()
+            .escrow_registration_pending = false;
+        self.register_escrow_position(position_id)
+    }
+
+    #[cfg(feature = "fault-injection")]
+    pub fn set_registration_callback_failure(&mut self, enabled: bool) {
+        self.assert_owner();
+        let key = b"handel:options:test:registration-callback-failure";
+        if enabled {
+            env::storage_write(key, b"1");
+        } else {
+            env::storage_remove(key);
+        }
+    }
+
+    #[private]
+    pub fn on_escrow_position_registered(&mut self, position_id: u64) -> bool {
+        #[cfg(feature = "fault-injection")]
+        if env::storage_read(b"handel:options:test:registration-callback-failure").is_some() {
+            env::panic_str("injected registration callback receipt failure (test-only Wasm)");
+        }
+
+        let mut position = self.position(position_id);
+        match env::promise_result(0) {
+            PromiseResult::Successful(bytes) => {
+                let escrow_id: u64 = near_sdk::serde_json::from_slice(&bytes)
+                    .expect("invalid escrow registration result");
+                if let Some(existing_id) = position.escrow_position_id {
+                    assert_eq!(existing_id, escrow_id, "escrow registration ID changed");
+                }
+                position.escrow_position_id = Some(escrow_id);
+                position.escrow_registration_pending = false;
+                self.positions.insert(position_id, position);
+                true
+            }
+            PromiseResult::Failed => {
+                position.escrow_registration_pending = false;
+                self.positions.insert(position_id, position);
+                false
+            }
+        }
+    }
+
     /// Starts a collateral operation after the writer has submitted their own NEP-413 transfer.
     /// Never accepts or stores a signature or signing key. Pending until explicit reconciliation.
     pub fn begin_collateral_lock(&mut self, position_id: u64, operation_id: String) {
         self.assert_not_paused();
         let position = self.position_owned_by_writer(position_id);
+        assert!(
+            position.escrow_position_id.is_none() && !position.escrow_registration_pending,
+            "position belongs to escrow lifecycle"
+        );
         assert_eq!(
             position.state,
             PositionState::PendingCollateral,
@@ -267,6 +475,85 @@ impl OptionsContract {
         let position = self.positions.get_mut(&position_id).unwrap();
         position.state = PositionState::PendingCollateralReconciliation;
         position.collateral_operation_id = Some(operation_id);
+    }
+
+    /// Accept a lifecycle event only from the escrow contract pinned to this position.
+    /// Sequence and digest are stored in disjoint raw-storage keys, preserving all existing
+    /// Borsh root and OptionPosition layouts.
+    pub fn on_escrow_lifecycle_event(&mut self, event: EscrowLifecycleEvent) -> bool {
+        let position = self
+            .positions
+            .get(&event.source_position_id)
+            .cloned()
+            .expect("source option position missing");
+        let escrow = position
+            .escrow_contract_id
+            .as_ref()
+            .expect("escrow contract not pinned");
+        assert_eq!(
+            env::predecessor_account_id(),
+            *escrow,
+            "pinned escrow contract only"
+        );
+        assert_eq!(
+            position.escrow_position_id,
+            Some(event.escrow_position_id),
+            "escrow position ID mismatch"
+        );
+        assert_eq!(
+            position.id, event.source_position_id,
+            "source position ID mismatch"
+        );
+
+        let sequence_key = format!("handel:options:v2:escrow-seq:{}", position.id).into_bytes();
+        let digest_key = format!("handel:options:v2:escrow-digest:{}", position.id).into_bytes();
+        let last_sequence = env::storage_read(&sequence_key)
+            .and_then(|bytes| {
+                if bytes.len() == 8 {
+                    Some(u64::from_le_bytes(bytes.try_into().ok()?))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
+        let encoded = near_sdk::serde_json::to_vec(&event).expect("serialize event");
+        let digest = env::sha256(&encoded);
+        if event.sequence == last_sequence {
+            assert_eq!(
+                env::storage_read(&digest_key),
+                Some(digest),
+                "conflicting lifecycle event replay"
+            );
+            return true;
+        }
+        assert_eq!(
+            event.sequence,
+            last_sequence
+                .checked_add(1)
+                .expect("event sequence overflow"),
+            "stale or out-of-order lifecycle event"
+        );
+
+        let next_state = match event.state.as_str() {
+            "CollateralLocked" => PositionState::CollateralLocked,
+            "PremiumPaid" => PositionState::Open,
+            "PremiumPayoutFailed" => PositionState::ReconciliationRequired,
+            "PremiumRefunded" => PositionState::Expired,
+            "PremiumRefundFailed" => PositionState::ReconciliationRequired,
+            "ExercisePaymentReceived" | "PaymentPayoutPending" | "CollateralPayoutPending" => {
+                PositionState::PendingSettlement
+            }
+            "ReconciliationRequired" => PositionState::ReconciliationRequired,
+            "Settled" => PositionState::Settled,
+            "Expired" => PositionState::Expired,
+            "AwaitingCollateral" => PositionState::PendingCollateral,
+            "ExpiryPayoutPending" => PositionState::PendingExpiry,
+            other => env::panic_str(&format!("unsupported escrow lifecycle state: {other}")),
+        };
+        self.positions.get_mut(&position.id).unwrap().state = next_state;
+        env::storage_write(&sequence_key, &event.sequence.to_le_bytes());
+        env::storage_write(&digest_key, &digest);
+        true
     }
 
     /// Configure the identity allowed to submit independently verified transfer receipts.
@@ -388,6 +675,10 @@ impl OptionsContract {
     pub fn begin_premium_payment(&mut self, position_id: u64, premium_operation_id: String) {
         self.assert_not_paused();
         let position = self.position(position_id);
+        assert!(
+            position.escrow_position_id.is_none(),
+            "escrow position cannot use external premium rail"
+        );
         assert_eq!(
             position.state,
             PositionState::CollateralLocked,
@@ -482,6 +773,10 @@ impl OptionsContract {
     ) {
         self.assert_not_paused();
         let position = self.position(position_id);
+        assert!(
+            position.escrow_position_id.is_none(),
+            "escrow position cannot use external exercise rail"
+        );
         assert_eq!(
             env::predecessor_account_id(),
             position.holder,
@@ -648,6 +943,10 @@ impl OptionsContract {
     pub fn request_expiry_release(&mut self, position_id: u64, operation_id: String) {
         self.assert_not_paused();
         let position = self.position_owned_by_writer(position_id);
+        assert!(
+            position.escrow_position_id.is_none(),
+            "escrow position cannot use external expiry rail"
+        );
         assert_eq!(position.state, PositionState::Open, "position not open");
         let exercise_deadline_ns = position
             .expiry_ns
@@ -699,6 +998,19 @@ impl OptionsContract {
 
     pub fn get_asset(&self, asset_id: String) -> Option<AssetMetadata> {
         self.asset_registry.get(&asset_id).cloned()
+    }
+
+    pub fn get_last_accepted_escrow_sequence(&self, position_id: u64) -> u64 {
+        let key = format!("handel:options:v2:escrow-seq:{position_id}").into_bytes();
+        env::storage_read(&key)
+            .and_then(|bytes| {
+                if bytes.len() == 8 {
+                    Some(u64::from_le_bytes(bytes.try_into().ok()?))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0)
     }
 
     pub fn get_position(&self, id: u64) -> Option<OptionPosition> {
@@ -1023,6 +1335,11 @@ impl OptionsContract {
                 exercise_delivery_operation_id: None,
                 expiry_release_operation_id: None,
                 exercised_at_ns: None,
+                escrow_position_id: None,
+                escrow_registration_pending: false,
+                escrow_contract_id: None,
+                escrow_collateral_token: None,
+                escrow_payment_token: None,
             },
         );
         id
@@ -1222,6 +1539,20 @@ impl OptionsContract {
         match position.kind {
             OptionKind::Call => position.asset_id.clone(),
             OptionKind::Put => Self::usdc_asset_id(),
+        }
+    }
+
+    fn exercise_payment_asset_id(position: &OptionPosition) -> String {
+        match position.kind {
+            OptionKind::Call => Self::usdc_asset_id(),
+            OptionKind::Put => position.asset_id.clone(),
+        }
+    }
+
+    fn exercise_payment_amount(position: &OptionPosition) -> u128 {
+        match position.kind {
+            OptionKind::Call => position.strike_amount_usdc,
+            OptionKind::Put => position.underlying_amount,
         }
     }
 
@@ -1718,7 +2049,7 @@ mod tests {
     #[test]
     fn agent_put_proposal_respects_usdc_collateral_policy_cap() {
         let mut c = contract();
-        context("writer.testnet");
+        context("owner.testnet");
         c.set_agent_policy(
             account("agent.testnet"),
             vec!["nep141:stock.testnet".into()],
@@ -1948,6 +2279,62 @@ mod tests {
     }
 
     #[test]
+    fn agent_proposal_cannot_bypass_principal_approval_through_escrow_registration() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            2_000,
+            2,
+            80,
+        );
+
+        context("owner.testnet");
+        c.set_escrow_contract(account("escrow.testnet"));
+        c.set_escrow_token_account(
+            "nep141:stock.testnet".into(),
+            account("stock-token.testnet"),
+        );
+        c.set_escrow_token_account(
+            OptionsContract::usdc_asset_id(),
+            account("usdc-token.testnet"),
+        );
+
+        context("agent.testnet");
+        c.create_agent_proposal(
+            "escrow-approval-gate".into(),
+            OptionKind::Call,
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            10,
+            20,
+            70,
+            5,
+            "sha256:approval-gate".into(),
+        );
+
+        context("writer.testnet");
+        let bypass = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.register_escrow_position(0)
+        }));
+        assert!(bypass.is_err(), "unapproved proposal must not enter escrow");
+
+        context("writer.testnet");
+        c.approve_agent_proposal("escrow-approval-gate".into());
+        context("writer.testnet");
+        let approved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.register_escrow_position(0)
+        }));
+        assert!(
+            approved.is_ok(),
+            "approved proposal may register with escrow"
+        );
+    }
+
+    #[test]
     fn replay_operation_ids_are_rejected() {
         let mut c = contract();
         let id1 = create_call(&mut c);
@@ -2089,6 +2476,141 @@ mod tests {
             "holder.testnet",
             EvidenceOutcome::Completed,
         ));
+        assert_eq!(c.get_position(id).unwrap().state, PositionState::Settled);
+    }
+
+    #[test]
+    fn authenticated_escrow_expiry_event_marks_option_expired() {
+        let mut c = contract();
+        let id = create_call(&mut c);
+        {
+            let position = c.positions.get_mut(&id).unwrap();
+            position.escrow_position_id = Some(7);
+            position.escrow_contract_id = Some(account("escrow.testnet"));
+            position.state = PositionState::CollateralLocked;
+        }
+
+        context("escrow.testnet");
+        assert!(c.on_escrow_lifecycle_event(EscrowLifecycleEvent {
+            source_position_id: id,
+            escrow_position_id: 7,
+            sequence: 1,
+            state: "Expired".to_string(),
+        }));
+        assert_eq!(c.get_position(id).unwrap().state, PositionState::Expired);
+    }
+
+    #[test]
+    fn failed_escrow_registration_callback_can_be_retried_idempotently() {
+        let mut c = contract();
+        context("owner.testnet");
+        c.set_escrow_contract(account("escrow.testnet"));
+        c.set_escrow_token_account(
+            "nep141:stock.testnet".into(),
+            account("stock-token.testnet"),
+        );
+        c.set_escrow_token_account(
+            OptionsContract::usdc_asset_id(),
+            account("usdc-token.testnet"),
+        );
+        let id = create_call(&mut c);
+
+        context("writer.testnet");
+        let _first_registration = c.register_escrow_position(id);
+        assert!(c.get_position(id).unwrap().escrow_registration_pending);
+
+        let mut callback = VMContextBuilder::new();
+        callback
+            .current_account_id(account("handel.testnet"))
+            .predecessor_account_id(account("handel.testnet"))
+            .block_timestamp(11);
+        testing_env!(
+            callback.build(),
+            near_sdk::test_vm_config(),
+            near_sdk::RuntimeFeesConfig::test(),
+            std::collections::HashMap::default(),
+            vec![near_sdk::PromiseResult::Failed],
+        );
+        assert!(!c.on_escrow_position_registered(id));
+        let failed = c.get_position(id).unwrap();
+        assert!(!failed.escrow_registration_pending);
+        assert_eq!(failed.escrow_position_id, None);
+
+        context("writer.testnet");
+        let _retry = c.retry_escrow_registration(id);
+        assert!(c.get_position(id).unwrap().escrow_registration_pending);
+
+        let mut success = VMContextBuilder::new();
+        success
+            .current_account_id(account("handel.testnet"))
+            .predecessor_account_id(account("handel.testnet"))
+            .block_timestamp(12);
+        testing_env!(
+            success.build(),
+            near_sdk::test_vm_config(),
+            near_sdk::RuntimeFeesConfig::test(),
+            std::collections::HashMap::default(),
+            vec![near_sdk::PromiseResult::Successful(
+                near_sdk::serde_json::to_vec(&7u64).unwrap(),
+            )],
+        );
+        assert!(c.on_escrow_position_registered(id));
+        let registered = c.get_position(id).unwrap();
+        assert_eq!(registered.escrow_position_id, Some(7));
+        assert!(!registered.escrow_registration_pending);
+    }
+
+    #[test]
+    fn escrow_lifecycle_events_are_authenticated_ordered_and_idempotent() {
+        let mut c = contract();
+        let id = create_call(&mut c);
+        {
+            let position = c.positions.get_mut(&id).unwrap();
+            position.escrow_position_id = Some(77);
+            position.escrow_contract_id = Some(account("escrow.testnet"));
+        }
+        let event = EscrowLifecycleEvent {
+            source_position_id: id,
+            escrow_position_id: 77,
+            sequence: 1,
+            state: "CollateralLocked".into(),
+        };
+        context("attacker.testnet");
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.on_escrow_lifecycle_event(event.clone())
+        }))
+        .is_err());
+
+        context("escrow.testnet");
+        assert!(c.on_escrow_lifecycle_event(event.clone()));
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::CollateralLocked
+        );
+        assert!(c.on_escrow_lifecycle_event(event.clone()));
+
+        let mut conflicting = event.clone();
+        conflicting.state = "Settled".into();
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.on_escrow_lifecycle_event(conflicting)
+        }))
+        .is_err());
+
+        let mut skipped = event;
+        skipped.sequence = 3;
+        skipped.state = "Settled".into();
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.on_escrow_lifecycle_event(skipped)
+        }))
+        .is_err());
+
+        let settled = EscrowLifecycleEvent {
+            source_position_id: id,
+            escrow_position_id: 77,
+            sequence: 2,
+            state: "Settled".into(),
+        };
+        assert!(c.on_escrow_lifecycle_event(settled));
         assert_eq!(c.get_position(id).unwrap().state, PositionState::Settled);
     }
 

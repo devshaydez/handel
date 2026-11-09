@@ -52,8 +52,13 @@ jobs:
       - name: Build isolated callback-failure test Wasm
         run: |
           (cd contracts/escrow && cargo near build non-reproducible-wasm --no-abi --features fault-injection)
+          cp target/near/handel_escrow/handel_escrow.wasm target/near/handel_escrow_fault_injection_payment.wasm
+          (cd contracts/escrow && cargo near build non-reproducible-wasm --no-abi --features "fault-injection expiry-fast-forward")
           cp target/near/handel_escrow/handel_escrow.wasm target/near/handel_escrow_fault_injection.wasm
           (cd contracts/escrow && cargo near build non-reproducible-wasm --no-abi)
+          cargo near build non-reproducible-wasm --no-abi --features fault-injection
+          cp target/near/handel_options.wasm target/near/handel_options_fault_injection.wasm
+          cargo near build non-reproducible-wasm --no-abi
       - name: Run contract and sandbox integration tests
         run: cargo test --workspace
 
