@@ -30,7 +30,7 @@ Provide the approved model identity and measured deployment values through prote
 - `NEARAI_ALLOWED_MODEL_SIGNERS`.
 - `NEARAI_ALLOWED_COMPOSE_HASHES`.
 - `NEARAI_ALLOWED_OS_IMAGE_HASHES`.
-- A budget ceiling derived from current provider pricing.
+- A budget ceiling derived from current provider pricing. Create one `NearAiBudgetLedger` and pass the same instance to both `NearAiProposalProvider` and `NearAiSystemOneGuard` so chat and guardrail calls consume one shared cap. System One state is byte-capped (16 KB by default).
 
 The deployment allowlists must be populated from a deployment independently reviewed and approved by Handel. Do not copy arbitrary measurements from an untrusted response just to make verification pass.
 
@@ -39,7 +39,7 @@ The deployment allowlists must be populated from a deployment independently revi
 - Offline unit tests use a fake SDK client; they prove rejection behavior, not that a remote TEE is honest.
 - No live inference request or System One decision has been sent.
 - No live E2EE/OHTTP key exchange has been observed end-to-end yet.
-- The budget ledger remains process-local and must be replaced with durable shared accounting before multi-instance production use.
+- The budget ledger is shareable across Chat and System One within one process, but remains process-local and must be replaced with durable shared accounting before multi-instance production use.
 - The System One structured guardrail adapter is implemented and trading proposal runtime now requires an allowlisted, verified provider-TEE System One decision.
 - Trading proposal runtime also requires a durable decision recorder; records are hash-chained and explanations are rendered from stored evidence. A host must provide durable storage and production WORM/anchoring controls.
 - Trading proposal runtime now also requires a source-specific market evidence verifier returning an approval result, verification method, and evidence hash. No current live provider is approved; display-only sources cannot be used by a verifier as execution-grade inputs.
