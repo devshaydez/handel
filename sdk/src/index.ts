@@ -18,3 +18,4 @@ export * from "./observability.js";
 export * from "./nearai-provider.js";
 export * from "./market-context.js";
 export * from "./agent-runtime.js";
+export * from "./agent-permissions.js";
