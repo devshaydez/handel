@@ -154,3 +154,10 @@ For each item, record:
 - [ ] Security/review sign-off obtained where required.
 - [ ] Documentation and operational runbook updated.
 - [ ] Status changed here with commit/run/evidence references.
+
+
+## Testnet deployment preflight — implementation in progress
+
+Branch `work/testnet-deployment-preflight` adds a fail-closed, read-only deployment manifest validator, a non-secret example manifest, and regression tests. It requires distinct OptionsContract/Escrow `.testnet` accounts, exact Wasm SHA-256 hashes, operator/key-policy attestation, explicit state disposition, reviewed rollback plan, independent security review, explicit deployment approval, and enabled assets with verified metadata plus NEP-145 registration for both contracts. It rejects placeholders and credential-bearing fields. CI runs the Node syntax check and regression suite.
+
+This is a preflight guard, not deployment automation or independent proof of the attestations. No populated manifest is checked in, and no accounts, keys, storage deposits, deployments, or token transfers are created by it. Actual account provisioning, account-specific storage verification, approvals, and deployed lifecycle evidence remain external gates.
