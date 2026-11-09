@@ -20,3 +20,5 @@ export * from "./market-context.js";
 export * from "./agent-runtime.js";
 
 export * from "./nearai-systemone.js";
+
+export * from "./decision-journal.js";
