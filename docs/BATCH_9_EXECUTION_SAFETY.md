@@ -6,7 +6,7 @@ Status: in progress. No deployment, signing, funding, or asset movement performe
 
 ## Phase 17 — bounded agent authority
 
-The existing OptionsContract stores a principal-bound AgentPolicy with allowed assets, underlying/premium/collateral caps, open-position limit, expiry, enabled state, and principal-only revocation. Agent proposal creation checks those limits; manual proposals require principal approval before collateral entry.
+The existing OptionsContract stores a principal-bound AgentPolicy with allowed assets, underlying/premium/collateral caps, open-position limit, expiry, enabled state, and principal-only revocation. Execution mode is stored separately under a versioned storage key to avoid changing the Borsh layout of AgentPolicy. New policies default to ManualApproval; only the principal can explicitly switch to Delegated. Direct delegated Call/Put methods require Delegated mode. Proposal creation and approval require ManualApproval mode and a live policy; revocation/expiry blocks pending approval. Education and Advisory modes cannot create trade proposals.
 
 This batch adds an SDK fail-closed permission snapshot validator and exposure preflight. It checks the connected principal, expiry and enabled state, allowed assets, canonical uint256 values, all configured caps, open-position count, and execution mode. This is a preflight only; the contract remains authoritative.
 
@@ -36,10 +36,12 @@ Remaining: actual NEP-141/NEP-245 collateral intake; immutable per-position rese
 
 ## Current implementation evidence
 
-### Phase 17 — implemented in this branch (automated tests pending final integrated run)
-- Added SDK permission snapshot validation and exposure preflight in sdk/src/agent-permissions.ts.
-- Added delegated Put creation to OptionsContract. It enforces enabled/unexpired policy, allowed asset, underlying cap, premium cap, explicit USDC collateral cap, expiry bound, open-position cap, and principal attribution. Added revocation and collateral-cap tests.
-- Existing on-chain policy is stored per agent and revocation is principal-only. The SDK preflight does not replace those contract checks.
+### Phase 17 — implementation complete; final integrated CI required
+- Added SDK permission snapshot validation and exposure preflight in sdk/src/agent-permissions.ts, including stale/future snapshot rejection and hard denial in Education/Advisory modes.
+- Added on-chain Education, Advisory, ManualApproval and Delegated modes. Mode is stored separately under a versioned storage key so the AgentPolicy Borsh layout is unchanged. New policies default to ManualApproval; only the principal can change mode.
+- Direct delegated Call and Put entry points require explicit Delegated mode, live enabled policy, allowlisted asset, configured caps, expiry bound and open-position cap. Expired positions no longer consume the open-position limit.
+- Manual proposal creation and approval require ManualApproval mode and a still-live, non-revoked policy. Education/Advisory cannot create trade proposals. Added tests for default-deny, principal-only mode change, mode boundaries, revocation before approval, collateral cap and delegated Put.
+- The SDK preflight is advisory only; the contract remains authoritative.
 
 ### Phase 18 — integration boundary added; live route still open
 - Added connected-wallet NEP-413 signing helper with explicit approval, principal matching, verifier allowlist, signer_id/deadline/intent validation. It never receives a private key.
@@ -54,7 +56,7 @@ Remaining: actual NEP-141/NEP-245 collateral intake; immutable per-position rese
 - Per-position NEP-141 collateral custody is not equivalent to a locked balance in the NEAR Intents internal ledger. No Ondo collateral is currently proven supported by the Testnet sandbox.
 
 ## Remaining acceptance gates
-1. Verify all new SDK and Rust tests on the same final commit.
+1. Verify all new SDK and Rust tests on the same final commit (latest known CI failed only at rustfmt; formatting was corrected, and additional Phase 17 mode tests were added afterward).
 2. Integrate a production wallet-selector implementation and verify NEP-413 payloads/signatures against the deployed Verifier ABI.
 3. Add canonical Verifier event/receipt parsing and independently reconcile the final transaction plus resulting balances.
 4. Prove the exact underlying and USDC asset IDs, decimals, and deposit/withdraw routes.
