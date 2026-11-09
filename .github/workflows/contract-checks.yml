@@ -5,11 +5,14 @@ on:
     branches:
       - work/testnet-backend-hardening
       - work/batch-4-ai-integration-adversarial
+      - work/batch-5-testnet-release-readiness
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
       - feat/handel-archive-core
       - work/testnet-backend-hardening
+      - work/batch-4-ai-integration-adversarial
   workflow_dispatch:
 
 permissions:
@@ -22,6 +25,11 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Validate Bash deployment helper syntax
+        run: |
+          bash -n scripts/deploy.sh
+          bash scripts/test-deploy-safety.sh
 
       - name: Install system dependencies for cargo-near
         run: |
@@ -60,6 +68,7 @@ jobs:
           cargo near build non-reproducible-wasm --no-abi --features fault-injection
           cp target/near/handel_options.wasm target/near/handel_options_fault_injection.wasm
           cargo near build non-reproducible-wasm --no-abi
+
       - name: Run contract and sandbox integration tests
         run: cargo test --workspace
 

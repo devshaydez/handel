@@ -40,9 +40,9 @@ The offline lifecycle demo prints contract-compatible method names and argument 
 
 ## Testnet deployment preparation
 
-A PowerShell deployment script is available at `scripts/deploy-testnet.ps1`; a Bash equivalent is at `scripts/deploy.sh`. Both require an existing dedicated `.testnet` contract account and that account's full-access key in the NEAR CLI keychain. They build from the repository root and explicitly select `network-config testnet`. They do not create accounts or keys. Do not run either script until CI passes and the custody/reconciliation design has been reviewed. The account that initializes the contract becomes its owner.
+The PowerShell deployment helper is `scripts/deploy-testnet.ps1`; the Bash equivalent is `scripts/deploy.sh`. Both now require an explicit Testnet confirmation flag, build only the OptionsContract artifact (never an arbitrary workspace Wasm), print its SHA-256, and deploy only to `network-config testnet`. They require an existing dedicated `.testnet` account and its full-access key in the local NEAR CLI keychain; they do not create accounts, keys, register tokens, or fund storage. Initialization is opt-in and must be used only for a brand-new account with no prior contract state. See `docs/TESTNET_RELEASE_RUNBOOK.md` for mandatory preflight and post-deployment evidence. Do not deploy until the exact CI commit, account/key policy, custody/reconciliation design, and independent review are approved.
 
-GitHub Actions runs Rust formatting, Rust unit tests, the Wasm build, SDK compilation, SDK unit tests, and the offline demo on pushes to `work/testnet-backend-hardening` and pull requests.
+GitHub Actions runs Rust formatting, unit tests, optimized Wasm builds, callback-failure Wasm builds, Sandbox/workspace integration tests, SDK compilation/tests, and the offline demo. The workflow also syntax-checks the Bash deployment helper.
 
 ## Contract lifecycle
 
