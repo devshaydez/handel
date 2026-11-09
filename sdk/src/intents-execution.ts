@@ -4,7 +4,6 @@
  * No direct transaction signing or private-key handling exists in this module.
  */
 import type { SignedNep413 } from "./types.js";
-import { createHash } from "node:crypto";
 
 export interface IntentsSimulation {
   intents_executed?: unknown[];
@@ -28,7 +27,7 @@ export interface IntentsWalletSubmitter {
   }): Promise<{ transactionHash: string }>;
 }
 const ACCOUNT=/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
-function signedPayloadHash(args:ExecuteIntentsArgs):string{return createHash("sha256").update(JSON.stringify(args)).digest("hex");}
+async function signedPayloadHash(args:ExecuteIntentsArgs):Promise<string>{const bytes=await globalThis.crypto.subtle.digest("SHA-256",new TextEncoder().encode(JSON.stringify(args)));return [...new Uint8Array(bytes)].map(v=>v.toString(16).padStart(2,"0")).join("");}
 
 export function buildExecuteIntentsArgs(signed: SignedNep413[], verifier="intents.near"): ExecuteIntentsArgs {
   if(!Array.isArray(signed)||signed.length<2) throw new Error("paired settlement requires at least two independently signed intents");
@@ -68,7 +67,7 @@ export async function simulateSignedIntents(input:{
   if(!Array.isArray(body.result?.result)) throw new Error("NEAR RPC simulation returned no result bytes");
   const decoded=Buffer.from(body.result.result).toString("utf8");
   let result:IntentsSimulation;try{result=JSON.parse(decoded)}catch{throw new Error("NEAR Intents simulation result is invalid JSON")}
-  return {...result,payloadHash:signedPayloadHash(args),verifier};
+  return {...result,payloadHash:await signedPayloadHash(args),verifier};
 }
 
 /** Submits only after a positive simulation and explicit user approval. */
@@ -82,7 +81,7 @@ export async function executeSimulatedIntents(input:{
   if(!Array.isArray(input.simulation.intents_executed)||input.simulation.intents_executed.length===0) throw new Error("simulation did not confirm executable intents");
   const verifier=input.verifier??"intents.near";
   const args=buildExecuteIntentsArgs(input.signed,verifier);
-  if(input.simulation.verifier!==verifier||input.simulation.payloadHash!==signedPayloadHash(args)) throw new Error("simulation does not bind to this exact signed intent pair and verifier");
+  if(input.simulation.verifier!==verifier||input.simulation.payloadHash!==await signedPayloadHash(args)) throw new Error("simulation does not bind to this exact signed intent pair and verifier");
   const result=await input.submitter.callFunction({contractId:input.verifier??"intents.near",methodName:"execute_intents",args,gas:"100000000000000",depositYocto:"0"});
   if(!result.transactionHash) throw new Error("wallet did not return a transaction hash");
   return result;
