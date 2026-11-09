@@ -167,11 +167,13 @@ For each item, record:
 Tracked in [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md). These are open acceptance requirements across Batches 8–10, not completed features: the same agent must teach in context and trade only under the user's selected authority mode; each consequential action, rejection, and no-trade decision must be linked to a durable, evidence-grounded decision record. User-facing explanations must distinguish proposals from confirmed execution and must never invent evidence or outcomes. Close only with implementation, tests, and auditable evidence.
 
 
-## Batch 9 — Phases 17–19: execution and safety (in progress)
+## Batch 9 — Phases 17–19: execution and safety (in progress; Phase 17 implementation complete, CI pending)
 
-### Implemented in the Batch 9 branch; final integrated CI pending
-- Added SDK validation for on-chain agent permission snapshots: principal binding, expiry, enabled/revoked state, allowed assets, uint256 exposure values, underlying/premium/collateral caps, open-position count, and execution mode.
-- Added delegated Put creation to OptionsContract with explicit USDC collateral cap enforcement and tests for revocation and cap boundaries.
+### Phase 17 — bounded agent authority: implemented in branch; final integrated CI pending
+- Added on-chain Education, Advisory, ManualApproval and Delegated execution modes, stored separately from AgentPolicy to avoid changing its Borsh value layout. New policies default to ManualApproval; only the principal may change the mode.
+- Direct delegated Call/Put methods require explicit Delegated mode and enforce live/revocable policy, allowlist, caps, expiry and open-position limits. Expired positions are excluded from the count.
+- Manual proposal creation/approval requires ManualApproval mode and a live policy; revocation before approval blocks the pending proposal. Education/Advisory modes cannot trade.
+- SDK preflight now rejects stale/future snapshots, invalid principal and Education/Advisory trading attempts. It remains a preflight; contract checks are authoritative.
 - Added connected-wallet NEP-413 signing boundary: explicit approval, connected-principal match, verifier allowlist, signer/deadline/intent checks; no private-key handling.
 - Added paired NEAR Intents execution helpers: signed-intent validation, read-only simulate_intents RPC call, and explicit-approval execute_intents wallet callback.
 - Added SDK NEP-141 escrow transfer_call argument builder for collateral, premium, and exercise payment. uint64 position IDs are preserved as exact JSON integer text.
@@ -179,7 +181,7 @@ Tracked in [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCA
 - Initial SDK build, SDK unit tests and live read-only Tidepool dual-RPC asset verification passed on an earlier Batch 9 commit. Rust CI was still running; later Rust changes and latest Phase 18/19 helpers require a final integrated run.
 
 ### Open limitations / release gates
-1. **Permission model is not a complete autonomous signing authority.** Contract policy bounds agent-created positions, but no production key architecture grants the agent a narrow, revocable NEP-413 signing capability. Never provide an AI service with a user's unrestricted full-access key. NEP-413 wallet signing remains a user-wallet action unless a separately audited delegated authority is implemented.
+1. **Permission mode does not solve signing authority.** On-chain modes now gate proposal/delegated position creation, but no production key architecture grants the agent a narrow, revocable NEP-413 signing capability. Never provide an AI service with a user's unrestricted full-access key. NEP-413 wallet signing remains a user-wallet action unless a separately audited delegated authority is implemented.
 2. **Wallet integration is an adapter, not a deployed wallet selector.** The SDK accepts a connected-wallet callback; a real wallet selector, key registration checks, signature-format verification, and end-to-end wallet tests remain.
 3. **NEAR Intents Testnet is unavailable.** The Verifier is Mainnet-only according to its official integration documentation. No Mainnet signing, submission, or asset movement has been performed. Tidepool is a separate community Testnet and does not prove Ondo asset support.
 4. **No production Ondo route is proven.** Exact Ondo stock token IDs, decimals, deposits, withdrawals, and verifier support remain unverified. Do not map Tidepool test assets to NVDAon, TSLAon, AAPL on or SPYon.
