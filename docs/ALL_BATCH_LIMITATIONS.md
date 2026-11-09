@@ -109,9 +109,9 @@ No Testnet deployment, token transaction, or release approval is claimed.
 
 ## Infrastructure readiness — Escrow deployment foundation
 
-PR #7 is open and unmerged on `work/testnet-infrastructure-readiness`. The previous complete CI run #42685027473 passed on `f368eb35af18433dc5f39abab7e23f078b5a3a9b`. A new dual-RPC verification job was added; its first attempt exposed HTTP 429 rate limiting on the deprecated public NEAR RPC, so the check now uses FastNEAR and dRPC and honors Retry-After before the next CI run.
+PR #7 was squash-merged into `feat/handel-archive-core` on 2026-11-09 as `e6a37f33aaac5249934be59a7dc6862ddfdcaf19`. The exact PR head `50c58c6981532a5d8c7831d1bdf6420388c3c0ca` passed the complete backend workflow before merge: [CI #42686870141](https://github.com/devshaydez/handel/actions/runs/42686870141). The PR-triggered validation also passed: [CI #42686880752](https://github.com/devshaydez/handel/actions/runs/42686880752).
 
-### Implemented in this branch (pending CI)
+### Implemented / CI-validated
 - Dedicated Bash and PowerShell Escrow deployment helpers.
 - Explicit `.testnet` account validation and Testnet confirmation required before invoking near-cli.
 - Deterministic Escrow artifact path: `target/near/handel_escrow/handel_escrow.wasm`; no arbitrary Wasm fallback.
@@ -121,19 +121,22 @@ PR #7 is open and unmerged on `work/testnet-infrastructure-readiness`. The previ
 - CI trigger and Bash safety checks extended for this infrastructure branch.
 - Runbook documents the two-step Escrow controller handoff, token-account mapping, and trusted reconciler/payout-reconciler setup sequence.
 - Tidepool's live provider token registry observed 2026-11-09 and six NEAR-side token IDs/accounts/decimals recorded in `config/testnet-assets.tidepool.json`.
-- SDK now exposes distinct Tidepool Testnet USDC and wNEAR asset IDs; production/mainnet asset constants remain distinct.
-- OptionsContract now supports owner-only configuration of its USDC asset ID using a dedicated versioned storage key, preserving the serialized contract root layout. Configuration rejects missing, disabled, or non-six-decimal assets; existing deployments retain the previous mainnet USDC default unless explicitly changed.
+- SDK exposes distinct Tidepool Testnet USDC and wNEAR asset IDs; production/mainnet asset constants remain distinct.
+- OptionsContract supports owner-only configuration of its USDC asset ID using a dedicated versioned storage key, preserving the serialized contract root layout. Configuration rejects missing, disabled, or non-six-decimal assets; existing deployments retain the previous mainnet USDC default unless explicitly changed.
+- A read-only dual-RPC asset-verification script and CI job check the published registry against NEAR Testnet contract metadata, code hashes, owner/minter configuration, NEP-145 storage bounds, and provider-account storage balances. The final CI run passed using FastNEAR and dRPC.
 
-### Still open
-- Run all CI checks against the latest branch head, including the new dual-RPC live asset-verification job, and fix any failures.
-- Pass the new read-only dual-RPC Testnet asset-verification CI job, which checks live registry identity, `ft_metadata`, code hashes, owner/minter configuration, NEP-145 storage bounds, and provider-account storage balances. The intended Handel Escrow account's `storage_balance_of` remains unverified until its account ID exists and the script is run with `HANDEL_ESCROW_ACCOUNT`.
-- Provision dedicated Testnet accounts and approve the account-key policy outside the repository.
+### Still open — external release gates
+- Provision dedicated OptionsContract and Escrow Testnet accounts and approve the account-key policy outside the repository.
+- Verify the intended Handel Escrow account's own `storage_balance_of` after its account ID exists; provider-account checks do not substitute for this.
 - Execute deployment only after explicit deployment approval and verified account/commit/artifact mapping.
-- Independently verify code hashes, initialization state, authority views, and transaction receipts.
-- Confirm exact Testnet token contracts, decimals, NEP-145 storage requirements and funding; no token transfers until verified.
-- Implement or configure independent settlement evidence production and verification; current reconciler remains a trust root.
-- Complete deployed synthetic-asset lifecycle tests and independent security review.
+- Independently verify deployed code hashes, initialization state, authority views, and transaction receipts.
+- Complete NEP-145 registration/storage funding for the actual Handel accounts; no token transfer or storage funding has been performed by this work.
+- Implement or configure independent settlement evidence production and verification; the current reconciler remains a trust root.
+- Complete deployed synthetic-asset lifecycle tests (premium, exercise, expiry, payout retry, ambiguous-outcome reconciliation, duplicate/replay) and independent security review.
+- Resolve the broader Batch 1–5 limitations above, including migration/redeployment, payout non-atomicity, governance, production monitoring, UI integration, and live AI-provider configuration.
 
+No Testnet deployment, token transaction, account provisioning, or release approval is claimed. Passing CI and read-only token verification do not make the contracts safe for real assets or Mainnet.
+ 
 ## Cross-cutting limitations and rules
 
 - **No mainnet or real-asset readiness claim** follows from CI or Sandbox tests.
