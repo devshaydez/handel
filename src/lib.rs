@@ -1167,6 +1167,10 @@ impl OptionsContract {
         self.store_agent_execution_mode(&agent_id, mode);
     }
 
+    pub fn get_agent_execution_mode(&self, agent_id: AccountId) -> AgentExecutionMode {
+        self.agent_execution_mode(&agent_id)
+    }
+
     fn agent_execution_mode(&self, agent_id: &AccountId) -> AgentExecutionMode {
         let mut key = AGENT_EXECUTION_MODE_STORAGE_PREFIX.to_vec();
         key.extend_from_slice(agent_id.as_bytes());
@@ -1311,6 +1315,20 @@ impl OptionsContract {
             proposal.state,
             ProposalState::PendingApproval,
             "proposal not pending"
+        );
+        let policy = self
+            .agent_policies
+            .get(&proposal.agent_id)
+            .cloned()
+            .expect("agent policy missing");
+        assert!(
+            policy.enabled && env::block_timestamp() < policy.expires_at_ns,
+            "agent policy inactive"
+        );
+        assert_eq!(
+            self.agent_execution_mode(&proposal.agent_id),
+            AgentExecutionMode::ManualApproval,
+            "proposal is no longer in manual-approval mode"
         );
         self.proposals.get_mut(&proposal_id).unwrap().state = ProposalState::Approved;
     }
@@ -2951,6 +2969,77 @@ mod tests {
             )
         }));
         assert!(denied.is_err());
+    }
+
+    #[test]
+    fn revoked_or_expired_policy_cannot_approve_a_pending_proposal() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            1_500,
+            2,
+            90,
+        );
+        context("agent.testnet");
+        c.create_agent_proposal(
+            "pending-before-revoke".into(),
+            OptionKind::Call,
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            5,
+            1_000,
+            80,
+            75,
+            "sha256:pending".into(),
+        );
+        context("writer.testnet");
+        c.revoke_agent(account("agent.testnet"));
+        let denied = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.approve_agent_proposal("pending-before-revoke".into())
+        }));
+        assert!(denied.is_err());
+        assert_eq!(
+            c.get_agent_proposal("pending-before-revoke".into()).unwrap().state,
+            ProposalState::PendingApproval
+        );
+    }
+
+    #[test]
+    fn education_and_advisory_modes_cannot_create_trade_proposals() {
+        for mode in [AgentExecutionMode::Education, AgentExecutionMode::Advisory] {
+            let mut c = contract();
+            context("writer.testnet");
+            c.set_agent_policy(
+                account("agent.testnet"),
+                vec!["nep141:stock.testnet".into()],
+                50,
+                100,
+                1_500,
+                2,
+                90,
+            );
+            c.set_agent_execution_mode(account("agent.testnet"), mode);
+            assert_eq!(c.get_agent_execution_mode(account("agent.testnet")), mode);
+            context("agent.testnet");
+            let denied = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                c.create_agent_proposal(
+                    "education-mode-proposal".into(),
+                    OptionKind::Call,
+                    account("holder.testnet"),
+                    "nep141:stock.testnet".into(),
+                    5,
+                    1_000,
+                    80,
+                    75,
+                    "sha256:education".into(),
+                )
+            }));
+            assert!(denied.is_err());
+        }
     }
 
     #[test]
