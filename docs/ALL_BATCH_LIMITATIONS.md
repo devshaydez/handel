@@ -72,12 +72,19 @@ PR #4 is open and unmerged. Its latest CI state must be checked against the curr
 
 ## Batch 4 — Phases 10–12: AI provider, UI/backend integration, adversarial testing
 
-These phases are not yet declared complete.
+Batch 4 implementation is in progress on `work/batch-4-ai-integration-adversarial`, stacked on the unmerged Batch 3 PR branch. CI and independent review are pending.
 
-1. **AI provider integration:** SDK validation and deterministic offline fallback exist. A live provider adapter, request authentication, timeouts, rate limiting, provenance, provider-failure handling, and operational monitoring remain. Contract policy must remain authoritative; model output must never directly authorize custody or settlement.
-2. **UI/backend integration:** the user's existing UI has not yet been integrated. Once its code/interface is available, define typed API/SDK calls, wallet signing, position queries, transaction status, error handling, and recovery presentation. Do not assume a UI integration is complete from SDK helpers alone.
-3. **Adversarial/property testing:** expand property/fuzz coverage for amount bounds, timestamp overflow, duplicate IDs, replay, lifecycle invariants, malicious NEP-141 callback messages, authorization boundaries, callback ordering, and partial/ambiguous settlement. Add regression cases for every confirmed security finding.
-4. **Independent security review:** access control, callback handling, storage/migration, pause semantics, payout recovery, verifier trust, and key-management boundaries require independent review before real-asset use.
+### Implemented in the Batch 4 branch (pending CI)
+- Provider-neutral SDK client for a Handel-controlled AI backend gateway, with HTTPS enforcement (localhost development exception), bearer authentication, bounded response size, request timeout, process-local sliding-window rate limiting, strict response envelope/proposal schema, configured model identity, stable error codes, and request/response SHA-256 provenance.
+- Deterministic fallback when no backend key is configured; fallback makes no network request. Configured-provider errors fail closed rather than silently substituting a model result.
+- Explicit proposal preparation/preview and a separate approval-gated connected-wallet signer callback. The SDK does not hold keys or sign server-side; signer is not called without affirmative approval.
+- Hardened uint256 decimal-string policy parsing, bounded identifiers, permission-bound validation, and adversarial/boundary tests.
+
+### Open limitations / external gates
+1. **No live AI provider is configured.** No vendor, endpoint, model, backend secret manager, shared/distributed rate-limit store, budget/quota policy, durable audit sink, or production monitoring is provisioned. The SDK expects a Handel-controlled gateway; deployment and real provider contract tests remain. No live provider credentials are stored in the repository.
+2. **No existing UI application is present in this repository tree.** Phase 11 currently supplies a typed SDK boundary only. Actual UI screens, wallet adapter, position queries/indexer, status subscriptions, recovery UX, and production API deployment remain external integration work and require the UI/backend repository.
+3. **Adversarial coverage is partial.** Tests cover malformed/extra provider fields, oversized responses, model mismatch, rate limiting, approval gating, amount parsing and policy boundaries. Comprehensive property/fuzz coverage for malicious NEP-141 callback messages, all timestamp overflow paths, callback ordering, and partial/ambiguous settlement state machines remains.
+4. **Independent security review remains outstanding.** Access control, callback handling, storage/migration, pause semantics, payout recovery, verifier trust, and key-management boundaries require independent review before real-asset use.
 
 ## Batch 5 — Phase 13: Testnet deployment and release readiness
 

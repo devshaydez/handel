@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - work/testnet-backend-hardening
+      - work/batch-4-ai-integration-adversarial
   pull_request:
     branches:
       - main
