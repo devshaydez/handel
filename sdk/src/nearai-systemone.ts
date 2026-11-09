@@ -1,5 +1,5 @@
 import type { NearAiVerifiedDeployment } from "./nearai-provider.js";
-import { NearAiBudgetLedger, NearAiError, type NearAiBudget } from "./nearai-provider.js";
+import { NearAiBudgetLedger, NearAiError } from "./nearai-provider.js";
 
 export interface NearAiSystemOneClient {
   verify(model: string): Promise<NearAiVerifiedDeployment>;
@@ -31,7 +31,8 @@ export interface NearAiSystemOneConfig {
   allowedModelSigners: string[];
   allowedComposeHashes: string[];
   allowedOsImageHashes: string[];
-  minimumConfidence?: number;\n  maxStateBytes?: number;
+  minimumConfidence?: number;
+  maxStateBytes?: number;
 }
 
 /** Independent structured System One decision gate. It never authorizes execution. */
@@ -40,7 +41,8 @@ export class NearAiSystemOneGuard {
     if (!config.apiKey.trim() || !config.model.trim()) {
       throw new NearAiError("System One API key and canonical model ID are required", "SYSTEMONE_CONFIG_INVALID");
     }
-    if (new URL(baseUrl).protocol !== "https:") throw new NearAiError("HTTPS is required for System One", "SYSTEMONE_CONFIG_INVALID");\n  if (!config.allowedGatewaySigners.length || !config.allowedModelSigners.length || !config.allowedComposeHashes.length || !config.allowedOsImageHashes.length) {
+    if (new URL(baseUrl).protocol !== "https:") throw new NearAiError("HTTPS is required for System One", "SYSTEMONE_CONFIG_INVALID");
+  if (!config.allowedGatewaySigners.length || !config.allowedModelSigners.length || !config.allowedComposeHashes.length || !config.allowedOsImageHashes.length) {
       throw new NearAiError("System One TEE allowlists are required", "SYSTEMONE_ALLOWLIST_REQUIRED");
     }
     const threshold = config.minimumConfidence ?? 0.8;
@@ -49,14 +51,22 @@ export class NearAiSystemOneGuard {
     }
   }
 
-  budgetSnapshot() { return this.ledger.snapshot(); }\n\n  async evaluate(state: unknown): Promise<{
+  budgetSnapshot() { return this.ledger.snapshot(); }
+
+  async evaluate(state: unknown): Promise<{
     allowed: boolean;
     outcome: "allow" | "block" | "review";
     confidence: number;
     decisionId: string;
     signatureKind: "provider_tee";
   }> {
-    const stateBytes = new TextEncoder().encode(JSON.stringify(state) ?? "").byteLength;\n    const maxStateBytes = this.config.maxStateBytes ?? 16_000;\n    if (!Number.isInteger(maxStateBytes) || maxStateBytes < 1 || stateBytes > maxStateBytes) {\n      throw new NearAiError("System One state exceeds configured byte cap", "SYSTEMONE_STATE_TOO_LARGE");\n    }\n    const usage = this.ledger.reserve();\n    let deployment: NearAiVerifiedDeployment;
+    const stateBytes = new TextEncoder().encode(JSON.stringify(state) ?? "").byteLength;
+    const maxStateBytes = this.config.maxStateBytes ?? 16_000;
+    if (!Number.isInteger(maxStateBytes) || maxStateBytes < 1 || stateBytes > maxStateBytes) {
+      throw new NearAiError("System One state exceeds configured byte cap", "SYSTEMONE_STATE_TOO_LARGE");
+    }
+    const usage = this.ledger.reserve();
+    let deployment: NearAiVerifiedDeployment;
     try {
       deployment = await this.client.verify(this.config.model);
     } catch {
