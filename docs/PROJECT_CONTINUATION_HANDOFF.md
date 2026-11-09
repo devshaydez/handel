@@ -289,3 +289,16 @@ Never use one status label as a substitute for another.
 ## New durable product requirement — AI education and decision accountability
 
 See [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md). This requirement applies across Batches 8–10: one agent combines contextual education with permissioned trading; every consequential action and no-trade decision must have a traceable, evidence-grounded explanation and durable decision record. Education never grants trading authority. This is a product requirement, not evidence of implementation. Do not omit it from future handoffs, implementation plans, acceptance tests, or release reviews.
+
+
+## Batch 9 progress — Execution & Safety (Phases 17–19)
+
+Work is underway on branch `work/batch-9-execution-safety`, stacked on Batch 8 branch `work/batch-8-ai-agent-intelligence`.
+
+- Phase 17: added delegated Put contract entry point with USDC collateral cap checks; added SDK permission snapshot/exposure preflight and tests.
+- Phase 18: added connected-wallet NEP-413 signing boundary plus paired Intents simulation/submission helpers. No private key handling. Verifier Mainnet-only; no Mainnet transaction or asset movement performed.
+- Phase 19: added NEP-141 escrow transfer_call builder. Existing Escrow ft_on_transfer validates exact sender/token/amount/position/leg. Sequential payout, trusted reconciler, missing Intents-ledger reservation and missing Ondo route remain open.
+- Batch 9 detail: [BATCH_9_EXECUTION_SAFETY.md](./BATCH_9_EXECUTION_SAFETY.md).
+- Project-wide remaining gates: [ALL_BATCH_LIMITATIONS.md](./ALL_BATCH_LIMITATIONS.md).
+
+Batch 9 is not complete until all phases are implemented, the full branch passes one final integrated CI run, and the outstanding custody, verifier, wallet, and security-review gates are accurately recorded. No deployment, signing, funding, or asset movement is implied by SDK helpers or passing CI.
