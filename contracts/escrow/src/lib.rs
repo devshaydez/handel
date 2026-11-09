@@ -179,14 +179,9 @@ impl EscrowContract {
 
     pub fn accept_controller(&mut self) {
         let caller = env::predecessor_account_id();
-        let pending: Option<AccountId> =
-            env::storage_read(b"handel:escrow:pending-controller:v1")
-                .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok());
-        assert_eq!(
-            pending,
-            Some(caller.clone()),
-            "pending controller only"
-        );
+        let pending: Option<AccountId> = env::storage_read(b"handel:escrow:pending-controller:v1")
+            .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok());
+        assert_eq!(pending, Some(caller.clone()), "pending controller only");
         self.controller = Some(caller);
         env::storage_remove(b"handel:escrow:pending-controller:v1");
     }
@@ -195,16 +190,14 @@ impl EscrowContract {
         self.assert_owner();
         assert_ne!(new_owner, self.owner, "new owner must differ");
         assert_ne!(new_owner, env::current_account_id(), "invalid owner");
-        let bytes = near_sdk::serde_json::to_vec(&new_owner)
-            .expect("serialize pending owner");
+        let bytes = near_sdk::serde_json::to_vec(&new_owner).expect("serialize pending owner");
         env::storage_write(b"handel:escrow:pending-owner:v1", &bytes);
     }
 
     pub fn accept_ownership_transfer(&mut self) {
         let caller = env::predecessor_account_id();
-        let pending: Option<AccountId> =
-            env::storage_read(b"handel:escrow:pending-owner:v1")
-                .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok());
+        let pending: Option<AccountId> = env::storage_read(b"handel:escrow:pending-owner:v1")
+            .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok());
         assert_eq!(pending, Some(caller.clone()), "pending owner only");
         self.owner = caller;
         env::storage_remove(b"handel:escrow:pending-owner:v1");
@@ -682,11 +675,7 @@ impl EscrowContract {
         let pending: Option<AccountId> =
             env::storage_read(b"handel:escrow:pending-payout-reconciler:v1")
                 .and_then(|bytes| near_sdk::serde_json::from_slice(&bytes).ok());
-        assert_eq!(
-            pending,
-            Some(caller.clone()),
-            "pending reconciler only"
-        );
+        assert_eq!(pending, Some(caller.clone()), "pending reconciler only");
         let bytes = near_sdk::serde_json::to_vec(&caller).expect("serialize reconciler");
         env::storage_write(&Self::payout_reconciler_key(), &bytes);
         env::storage_remove(b"handel:escrow:pending-payout-reconciler:v1");

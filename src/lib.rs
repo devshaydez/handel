@@ -1640,8 +1640,9 @@ mod tests {
         assert!(old_owner_still_authorized.is_ok());
 
         context("attacker.testnet");
-        let wrong_accept =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.accept_ownership_transfer()));
+        let wrong_accept = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.accept_ownership_transfer()
+        }));
         assert!(wrong_accept.is_err());
 
         context("new-owner.testnet");
