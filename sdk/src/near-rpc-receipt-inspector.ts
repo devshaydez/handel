@@ -27,6 +27,15 @@ interface RpcResponse {
   error?: { message?: string; cause?: { name?: string } };
 }
 
+export interface NearRpcReceiptInspectorOptions {
+  /** Account ID that actually executed the settlement receipt. */
+  verifierAccountId: string;
+  /** Signer account ID required by the NEAR tx-status JSON-RPC method. */
+  transactionSignerAccountId: string;
+  rpcUrl?: string;
+  fetcher?: (input: string | URL, init?: RequestInit) => Promise<Response>;
+}
+
 function statusOf(status: RpcStatus | undefined): "success" | "failure" | "unknown" {
   if (typeof status !== "object" || status === null) return "unknown";
   if ("SuccessValue" in status) return "success";
@@ -34,20 +43,9 @@ function statusOf(status: RpcStatus | undefined): "success" | "failure" | "unkno
   return "unknown";
 }
 
-function asEventRecords(value: unknown): Record<string, unknown>[] {
-  if (Array.isArray(value)) return value.filter(
-    (item): item is Record<string, unknown> =>
-      typeof item === "object" && item !== null && !Array.isArray(item),
-  );
-  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    return [value as Record<string, unknown>];
-  }
-  return [];
-}
-
 /**
  * Independently inspects a finalized NEAR transaction through JSON-RPC and
- * decodes the configured verifier receipt's NEP-297-style EVENT_JSON logs.
+ * decodes the configured verifier receipt's EVENT_JSON logs.
  *
  * The verifier must emit:
  *   EVENT_JSON:{"standard":"handel.settlement.v1","data":[{...settlement fields...}]}
@@ -57,13 +55,20 @@ function asEventRecords(value: unknown): Record<string, unknown>[] {
  * closed when the receipt, verifier executor, finality, or event binding is absent.
  */
 export class NearRpcReceiptInspector implements ReceiptInspector {
-  constructor(
-    private readonly verifierAccountId: string,
-    private readonly rpcUrl = "https://rpc.testnet.near.org",
-    private readonly fetcher: (input: string | URL, init?: RequestInit) => Promise<Response> = fetch,
-  ) {
-    if (!verifierAccountId.trim()) throw new Error("verifierAccountId is required");
-    const url = new URL(rpcUrl);
+  private readonly verifierAccountId: string;
+  private readonly transactionSignerAccountId: string;
+  private readonly rpcUrl: string;
+  private readonly fetcher: (input: string | URL, init?: RequestInit) => Promise<Response>;
+
+  constructor(options: NearRpcReceiptInspectorOptions) {
+    this.verifierAccountId = options.verifierAccountId;
+    this.transactionSignerAccountId = options.transactionSignerAccountId;
+    this.rpcUrl = options.rpcUrl ?? "https://rpc.testnet.near.org";
+    this.fetcher = options.fetcher ?? fetch;
+    if (!this.verifierAccountId.trim() || !this.transactionSignerAccountId.trim()) {
+      throw new Error("verifierAccountId and transactionSignerAccountId are required");
+    }
+    const url = new URL(this.rpcUrl);
     if (url.protocol !== "https:" &&
         !(url.protocol === "http:" && (url.hostname === "localhost" || url.hostname === "127.0.0.1"))) {
       throw new Error("NEAR RPC endpoint must use HTTPS");
@@ -85,7 +90,7 @@ export class NearRpcReceiptInspector implements ReceiptInspector {
           method: "tx",
           params: {
             tx_hash: transactionHash,
-            sender_account_id: this.verifierAccountId,
+            sender_account_id: this.transactionSignerAccountId,
             wait_until: "FINAL",
           },
         }),
@@ -117,7 +122,7 @@ export class NearRpcReceiptInspector implements ReceiptInspector {
     if (receiptMatches.length !== 1) {
       throw new SettlementVerificationError(
         receiptMatches.length === 0
-          ? "requested verifier receipt is absent from finalized transaction"
+          ? "requested verifier receipt is absent from transaction"
           : "NEAR RPC returned duplicate receipt outcomes",
       );
     }
@@ -147,7 +152,17 @@ export class NearRpcReceiptInspector implements ReceiptInspector {
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) continue;
       const envelope = parsed as Record<string, unknown>;
       if (envelope.standard !== "handel.settlement.v1") continue;
-      for (const record of asEventRecords(envelope.data)) {
+      const rawData = envelope.data;
+      const records = Array.isArray(rawData) ? rawData :
+        (typeof rawData === "object" && rawData !== null ? [rawData] : null);
+      if (!records || records.length === 0) {
+        throw new SettlementVerificationError("verifier settlement event has invalid data");
+      }
+      for (const rawRecord of records) {
+        if (typeof rawRecord !== "object" || rawRecord === null || Array.isArray(rawRecord)) {
+          throw new SettlementVerificationError("verifier settlement event contains invalid data");
+        }
+        const record = rawRecord as Record<string, unknown>;
         const fields = [
           "operationId", "positionId", "operationKind", "assetId",
           "amount", "sender", "receiver",

@@ -12,7 +12,7 @@ const event = {
   receiver: "holder.testnet",
 };
 
-function response(overrides: Record<string, unknown> = {}) {
+function response(overrides: Record<string, unknown> = {}): any {
   return {
     result: {
       final_execution_status: "FINAL",
@@ -40,21 +40,22 @@ function response(overrides: Record<string, unknown> = {}) {
 }
 
 function inspector(body: unknown) {
-  return new NearRpcReceiptInspector(
-    "verifier.testnet",
-    "https://rpc.testnet.near.org",
-    async (_input, init) => {
+  return new NearRpcReceiptInspector({
+    verifierAccountId: "verifier.testnet",
+    transactionSignerAccountId: "alice.testnet",
+    rpcUrl: "https://rpc.testnet.near.org",
+    fetcher: async (_input, init) => {
       const request = JSON.parse(String(init?.body)) as {
         method: string;
         params: { tx_hash: string; sender_account_id: string; wait_until: string };
       };
       assert.equal(request.method, "tx");
       assert.equal(request.params.tx_hash, "tx-1");
-      assert.equal(request.params.sender_account_id, "verifier.testnet");
+      assert.equal(request.params.sender_account_id, "alice.testnet");
       assert.equal(request.params.wait_until, "FINAL");
       return new Response(JSON.stringify(body), { status: 200 });
     },
-  );
+  });
 }
 
 test("NEAR receipt inspector binds a settlement event to a finalized verifier receipt", async () => {
@@ -75,14 +76,14 @@ test("NEAR receipt inspector binds a settlement event to a finalized verifier re
 
 test("NEAR receipt inspector rejects a receipt executed by another account", async () => {
   const body = response();
-  body.result.receipts_outcome[0]!.outcome.executor_id = "attacker.testnet";
+  body.result.receipts_outcome[0].outcome.executor_id = "attacker.testnet";
   await assert.rejects(() => inspector(body).inspect("tx-1", "receipt-1"),
     /not executed by the configured verifier/);
 });
 
 test("NEAR receipt inspector preserves failed and non-final execution as non-success", async () => {
   const failed = response();
-  failed.result.receipts_outcome[0]!.outcome.status = { Failure: { error: "failed" } };
+  failed.result.receipts_outcome[0].outcome.status = { Failure: { error: "failed" } };
   assert.equal((await inspector(failed).inspect("tx-1", "receipt-1")).executionStatus, "failure");
 
   const pending = response({ final_execution_status: "EXECUTED_OPTIMISTIC" });
@@ -96,17 +97,20 @@ test("NEAR receipt inspector rejects absent receipts, malformed events, and bad 
     /receipt is absent/);
 
   const malformed = response();
-  malformed.result.receipts_outcome[0]!.outcome.logs = ["EVENT_JSON:{broken"];
+  malformed.result.receipts_outcome[0].outcome.logs = ["EVENT_JSON:{broken"];
   await assert.rejects(() => inspector(malformed).inspect("tx-1", "receipt-1"),
     /malformed EVENT_JSON/);
 
   const noBlock = response();
-  noBlock.result.receipts_outcome[0]!.block_hash = "";
+  noBlock.result.receipts_outcome[0].block_hash = "";
   await assert.rejects(() => inspector(noBlock).inspect("tx-1", "receipt-1"),
     /block identity is invalid/);
 });
 
 test("NEAR receipt inspector rejects non-HTTPS endpoints", () => {
-  assert.throws(() => new NearRpcReceiptInspector("verifier.testnet", "http://remote.example"),
-    /must use HTTPS/);
+  assert.throws(() => new NearRpcReceiptInspector({
+    verifierAccountId: "verifier.testnet",
+    transactionSignerAccountId: "alice.testnet",
+    rpcUrl: "http://remote.example",
+  }), /must use HTTPS/);
 });

@@ -18,7 +18,7 @@ This batch adds safe NEAR Testnet integration primitives. It does not authorize 
 - Verification rejects failed/unknown execution, non-canonical or non-finalized receipts, mismatched event bindings, and replayed events.
 - Added durable evidence persistence with serialized acceptance and atomic evidence/replay-key snapshots.
 - Added `NearRpcReceiptInspector`: it queries NEAR JSON-RPC at `FINAL`, selects exactly one requested receipt, checks the receipt executor against the configured verifier account, validates receipt block identity, and decodes strict `EVENT_JSON` records using the `handel.settlement.v1` schema. Missing, malformed, wrong-executor, or failed evidence is rejected.
-- The verifier must actually emit the documented settlement event. The current OptionsContract and the published Tidepool adapter do not emit a Handel-specific settlement event; therefore the inspector is an executable integration boundary, not proof that a live Tidepool settlement can already be decoded.
+- The verifier must actually emit the documented settlement event. The current OptionsContract and published Tidepool adapter do not emit a Handel-specific settlement event; therefore the inspector is an executable integration boundary, not proof that a live Tidepool settlement can already be decoded.
 - A single RPC endpoint remains an infrastructure trust assumption. Production needs independently operated RPC endpoints or a quorum, plus a documented reorg/finality policy. This is not a light client or cryptographic proof.
 
 ## Phase 6 — Transaction orchestration
