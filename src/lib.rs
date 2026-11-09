@@ -1335,6 +1335,75 @@ impl OptionsContract {
         )
     }
 
+    /// Create a fully collateralized Put offer through the bounded delegated agent policy.
+    /// The principal remains the writer and must still fund the position through the escrow.
+    pub fn agent_create_put(
+        &mut self,
+        holder: AccountId,
+        asset_id: String,
+        underlying_amount: u128,
+        strike_amount_usdc: u128,
+        expiry_ns: u64,
+        premium_amount_usdc: u128,
+    ) -> u64 {
+        self.assert_not_paused();
+        let agent = env::predecessor_account_id();
+        let policy = self
+            .agent_policies
+            .get(&agent)
+            .cloned()
+            .expect("agent not authorized");
+        assert!(policy.enabled, "agent revoked");
+        assert!(
+            env::block_timestamp() < policy.expires_at_ns,
+            "agent policy expired"
+        );
+        assert!(
+            policy.allowed_assets.iter().any(|asset| asset == &asset_id),
+            "asset not allowed"
+        );
+        assert!(
+            underlying_amount <= policy.max_underlying_amount,
+            "size exceeds limit"
+        );
+        assert!(
+            premium_amount_usdc <= policy.max_premium_usdc,
+            "premium exceeds limit"
+        );
+        assert!(
+            strike_amount_usdc <= policy.max_collateral_usdc,
+            "USDC collateral exceeds limit"
+        );
+        assert!(expiry_ns <= policy.expires_at_ns, "expiry exceeds policy");
+        let open_count = self
+            .positions
+            .values()
+            .filter(|position| {
+                position.writer == policy.principal
+                    && !matches!(
+                        position.state,
+                        PositionState::Settled
+                            | PositionState::Cancelled
+                            | PositionState::Expired
+                    )
+            })
+            .count();
+        assert!(
+            open_count < policy.max_open_positions as usize,
+            "open position limit"
+        );
+        self.create_offer(
+            OptionKind::Put,
+            policy.principal,
+            holder,
+            asset_id,
+            underlying_amount,
+            strike_amount_usdc,
+            expiry_ns,
+            premium_amount_usdc,
+        )
+    }
+
     pub fn set_paused(&mut self, paused: bool) {
         self.assert_owner();
         self.paused = paused;
@@ -2734,6 +2803,72 @@ mod tests {
             c.set_usdc_asset_id("nep141:wrong-precision.testnet".into())
         }));
         assert!(wrong_precision.is_err());
+    }
+
+    #[test]
+    fn delegated_agent_can_create_put_only_within_usdc_collateral_cap() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            1_500,
+            2,
+            90,
+        );
+        context("agent.testnet");
+        let id = c.agent_create_put(
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            5,
+            1_400,
+            80,
+            75,
+        );
+        let position = c.get_position(id).unwrap();
+        assert_eq!(position.kind, OptionKind::Put);
+        assert_eq!(position.writer, account("writer.testnet"));
+        let over_cap = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.agent_create_put(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                1_501,
+                80,
+                75,
+            )
+        }));
+        assert!(over_cap.is_err());
+    }
+
+    #[test]
+    fn delegated_agent_put_is_blocked_after_revocation() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            1_500,
+            2,
+            90,
+        );
+        c.revoke_agent(account("agent.testnet"));
+        context("agent.testnet");
+        let denied = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.agent_create_put(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                1_000,
+                80,
+                75,
+            )
+        }));
+        assert!(denied.is_err());
     }
 
     impl OptionsContract {
