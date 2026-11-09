@@ -1,6 +1,6 @@
 # NEAR AI security integration — Batch 8
 
-**Status:** Offline implementation and tests are in progress. Chat E2EE/OHTTP, explicit TEE deployment pinning, and a fail-closed System One proposal guard are implemented on the Batch 8 branch. Live Gateway inference and live System One decisions have not been run.
+**Status:** Offline implementation and tests are in progress. Chat E2EE/OHTTP, explicit TEE deployment pinning, a fail-closed System One proposal guard, and a hash-chained durable decision journal are implemented on the Batch 8 branch. Live Gateway inference and live System One decisions have not been run.
 
 ## Verified SDK contract
 
@@ -39,5 +39,7 @@ The deployment allowlists must be populated from a deployment independently revi
 - No live inference request or System One decision has been sent.
 - No live E2EE/OHTTP key exchange has been observed end-to-end yet.
 - The budget ledger remains process-local and must be replaced with durable shared accounting before multi-instance production use.
-- The System One structured guardrail adapter is implemented and trading proposal runtime now requires an allowlisted, verified provider-TEE System One decision. Live model compatibility and receipt verification still require a credentialed smoke test.
+- The System One structured guardrail adapter is implemented and trading proposal runtime now requires an allowlisted, verified provider-TEE System One decision.
+- Trading proposal runtime also requires a durable decision recorder; records are hash-chained and explanations are rendered from stored evidence. A host must provide durable storage and production WORM/anchoring controls.
+- Live model compatibility and receipt verification still require a credentialed smoke test.
 - TEE attestation does not grant wallet authority. On-chain policy, user approval, deterministic limits, and verified settlement remain mandatory.
