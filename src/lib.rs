@@ -2316,6 +2316,7 @@ mod tests {
             1,
             100,
         );
+        c.set_agent_execution_mode(account("agent.testnet"), AgentExecutionMode::Delegated);
         context("agent.testnet");
         let id = c.agent_create_call(
             account("holder.testnet"),
@@ -2899,6 +2900,7 @@ mod tests {
             2,
             90,
         );
+        c.set_agent_execution_mode(account("agent.testnet"), AgentExecutionMode::Delegated);
         context("agent.testnet");
         let id = c.agent_create_put(
             account("holder.testnet"),
@@ -2937,6 +2939,7 @@ mod tests {
             2,
             90,
         );
+        c.set_agent_execution_mode(account("agent.testnet"), AgentExecutionMode::Delegated);
         c.revoke_agent(account("agent.testnet"));
         context("agent.testnet");
         let denied = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -2950,6 +2953,53 @@ mod tests {
             )
         }));
         assert!(denied.is_err());
+    }
+
+    #[test]
+    fn agent_execution_mode_defaults_to_manual_and_requires_principal_delegation() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            1_500,
+            2,
+            90,
+        );
+
+        context("agent.testnet");
+        let blocked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.agent_create_call(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                1_000,
+                80,
+                75,
+            )
+        }));
+        assert!(blocked.is_err(), "default mode must not permit delegated execution");
+
+        context("attacker.testnet");
+        let unauthorized = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.set_agent_execution_mode(account("agent.testnet"), AgentExecutionMode::Delegated)
+        }));
+        assert!(unauthorized.is_err(), "only the principal may delegate");
+
+        context("writer.testnet");
+        c.set_agent_execution_mode(account("agent.testnet"), AgentExecutionMode::Delegated);
+        context("agent.testnet");
+        let allowed = c.agent_create_call(
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            5,
+            1_000,
+            80,
+            75,
+        );
+        assert_eq!(c.get_position(allowed).unwrap().writer, account("writer.testnet"));
     }
 
     impl OptionsContract {
