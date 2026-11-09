@@ -18,7 +18,7 @@ Batch 1 head `80fce7a47de96d711446f4f15eb60fffac2dfe90` passed CI run #425433515
 
 - Phase 4: Tidepool Testnet adapter and live token registry discovery added, including MEMO deposit/status support; no live deposit or Ondo support claim.
 - Phase 5: settlement receipt binding/finality validation and a durable evidence store with atomic replay-key persistence added behind an independently supplied receipt inspector; no in-house RPC quorum or light client yet.
-- Phase 6: durable file-backed journal, serialized persistence, wallet signing boundary, and concrete FINAL-level NEAR RPC observer added; concrete hosted worker, RPC quorum/indexer, and event ingestion remain.
+- Phase 6: durable file-backed journal, pre-submit crash-safe operation runner, wallet signing boundary, and concrete FINAL-level NEAR RPC observer added; multi-instance transactional database, wallet selector, RPC quorum/indexer, and event ingestion remain.
 - Initial Batch 2 CI run passed. The durable evidence service and memo-flow additions are pending a follow-up CI run.
 
 ## P1 — Backend service and operational completeness

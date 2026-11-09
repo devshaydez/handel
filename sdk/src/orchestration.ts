@@ -7,7 +7,7 @@ export type WorkflowOperationKind =
   | "register_escrow" | "lock_collateral" | "pay_premium"
   | "exercise_payment" | "exercise_delivery" | "expiry_release";
 export type WorkflowOperationStatus =
-  | "prepared" | "submitted" | "succeeded" | "failed_definitive" | "outcome_unknown";
+  | "prepared" | "submitting" | "submitted" | "succeeded" | "failed_definitive" | "outcome_unknown";
 export interface WorkflowOperation {
   operationId: string; positionId: string; kind: WorkflowOperationKind;
   requestDigest: string; status: WorkflowOperationStatus; attempt: number;
@@ -54,11 +54,24 @@ export class OperationJournal {
     this.items.set(item.operationId, item);
     return copy(item);
   }
+  markSubmitting(id: string, now = Date.now()): WorkflowOperation {
+    const item = this.require(id);
+    if (item.status !== "prepared") throw new OrchestrationError("operation is not prepared");
+    item.status = "submitting"; item.updatedAt = now;
+    return copy(item);
+  }
+  recordSubmissionUnknown(id: string, now = Date.now()): WorkflowOperation {
+    const item = this.require(id);
+    if (item.status === "outcome_unknown") return copy(item);
+    if (item.status !== "submitting") throw new OrchestrationError("only a submitting operation can have an unknown submission outcome");
+    item.status = "outcome_unknown"; item.updatedAt = now;
+    return copy(item);
+  }
   markSubmitted(id: string, tx: string, now = Date.now()): WorkflowOperation {
     required(tx, "transactionId");
     const item = this.require(id);
     if (item.status === "submitted" && item.transactionId === tx) return copy(item);
-    if (item.status !== "prepared") throw new OrchestrationError("operation is not prepared");
+    if (item.status !== "prepared" && item.status !== "submitting") throw new OrchestrationError("operation is not prepared or submitting");
     item.status = "submitted"; item.transactionId = tx; item.updatedAt = now;
     return copy(item);
   }

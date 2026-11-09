@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DurableOperationJournal, submitWalletIntent, type JsonSnapshotStore } from "./durable-orchestration.js";
+import { DurableOperationJournal, executeWalletOperation, submitWalletIntent, type JsonSnapshotStore } from "./durable-orchestration.js";
 import type { WorkflowOperation } from "./orchestration.js";
 
 class MemoryStore implements JsonSnapshotStore<WorkflowOperation[]> {
@@ -59,4 +59,74 @@ test("wallet boundary signs exact payload and rejects altered signatures", async
     { submit: async () => ({ transactionId: "should-not-submit" }) },
     payload,
   ), /different NEP-413 payload/);
+});
+
+const operationInput = {
+  operationId: "op-run", positionId: "p-run", kind: "pay_premium" as const,
+  requestDigest: "sha256:run",
+};
+const payload = { recipient: "verifier.testnet", nonce: "nonce-2", message: "{}" };
+const wallet = {
+  signNep413: async (p: typeof payload) => ({
+    standard: "nep413" as const, payload: p, public_key: "ed25519:pub", signature: "ed25519:sig",
+  }),
+};
+
+test("wallet operation persists submitting before submit and records FINAL success", async () => {
+  const store = new MemoryStore();
+  const journal = await DurableOperationJournal.open(store);
+  let submitted = 0;
+  const result = await executeWalletOperation(
+    journal, wallet,
+    { submit: async () => { submitted++; return { transactionId: "tx-run" }; } },
+    { waitForFinalExecution: async () => ({ outcome: "success", transactionId: "tx-run", receiptIds: ["r-1"] }) },
+    operationInput, payload, "alice.testnet",
+  );
+  assert.equal(submitted, 1);
+  assert.equal(result.status, "succeeded");
+  assert.equal(store.value?.[0]?.status, "succeeded");
+});
+
+test("ambiguous submit response is quarantined and never automatically resubmitted", async () => {
+  const store = new MemoryStore();
+  const journal = await DurableOperationJournal.open(store);
+  let submitted = 0;
+  const submitter = { submit: async () => { submitted++; throw new Error("connection reset after request"); } };
+  const observer = { waitForFinalExecution: async () => ({ outcome: "unknown" as const, transactionId: "none" }) };
+  const first = await executeWalletOperation(journal, wallet, submitter, observer,
+    operationInput, payload, "alice.testnet");
+  assert.equal(first.status, "outcome_unknown");
+  const restored = await DurableOperationJournal.open(store);
+  const second = await executeWalletOperation(restored, wallet, submitter, observer,
+    operationInput, payload, "alice.testnet");
+  assert.equal(second.status, "outcome_unknown");
+  assert.equal(submitted, 1);
+});
+
+test("crash-recovered submitting operation is quarantined without another submit", async () => {
+  const store = new MemoryStore();
+  const journal = await DurableOperationJournal.open(store);
+  await journal.begin(operationInput);
+  await journal.markSubmitting(operationInput.operationId);
+  const restored = await DurableOperationJournal.open(store);
+  let submitted = false;
+  const result = await executeWalletOperation(
+    restored, wallet, { submit: async () => { submitted = true; return { transactionId: "tx" }; } },
+    { waitForFinalExecution: async () => ({ outcome: "unknown", transactionId: "tx" }) },
+    operationInput, payload, "alice.testnet",
+  );
+  assert.equal(result.status, "outcome_unknown");
+  assert.equal(submitted, false);
+});
+
+test("wallet rejection leaves operation prepared and safe to retry", async () => {
+  const store = new MemoryStore();
+  const journal = await DurableOperationJournal.open(store);
+  const rejectingWallet = { signNep413: async () => { throw new Error("user rejected"); } };
+  await assert.rejects(() => executeWalletOperation(
+    journal, rejectingWallet, { submit: async () => ({ transactionId: "unused" }) },
+    { waitForFinalExecution: async () => ({ outcome: "unknown", transactionId: "unused" }) },
+    operationInput, payload, "alice.testnet",
+  ), /user rejected/);
+  assert.equal(journal.snapshot()[0]?.status, "prepared");
 });

@@ -24,13 +24,14 @@ This batch adds safe NEAR Testnet integration primitives. It does not authorize 
 
 - Added a Node file-backed JSON snapshot store with mode-0600 temporary writes and atomic rename, plus a generic host-supplied snapshot-store interface.
 - Writes are serialized; a failed persistence operation rolls back the in-memory transition.
-- Added wallet NEP-413 signing boundary and a concrete NEAR JSON-RPC observer that requests `wait_until: FINAL`; unknown RPC/network outcomes remain unknown. The connected wallet signs; Handel never handles private keys.
+- Added an end-to-end wallet operation runner. It persists a `submitting` marker before network submission, records definitive FINAL outcomes, and quarantines submit timeouts or crash-recovered in-flight submissions as unknown without resubmitting. Wallet signing remains inside the connected wallet; Handel never handles private keys.
+- The durable file store is single-process only; multi-instance deployments must use a transactional database adapter.
 - Unknown transaction outcomes remain unknown and cannot be retried. Retry requires a recorded definitive failure and a fresh operation ID.
 - Tidepool adapter now supports MEMO quote mode, memo-aware status polling, and deposit submission with memo / NEAR sender metadata. Wallet-selector integration, RPC quorum/indexer, verifier-event decoder, worker process, monitoring, and recovery UI remain deployment work.
 
 ## Validation and release boundary
 
-- Unit tests cover dynamic token discovery, quote safety, unsupported Ondo assets, provider-status classification, memo-aware deposit/status flow, durable restart/recovery, failed persistence, concurrent writes, receipt binding, finality, and replay protection.
+- Unit tests cover dynamic token discovery, quote safety, unsupported Ondo assets, provider-status classification, memo-aware deposit/status flow, durable restart/recovery, pre-submit crash quarantine, ambiguous submission, wallet rejection, failed persistence, concurrent writes, receipt binding, finality, and replay protection.
 - CI status is recorded in the Batch 2 pull request after the full run completes.
 - This is SDK/Testnet adapter implementation only. No Tidepool deposit, NEAR Testnet contract deployment, real Ondo transfer, or production verifier has been performed.
 
