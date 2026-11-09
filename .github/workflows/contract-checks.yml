@@ -75,6 +75,22 @@ jobs:
       - name: Run contract and sandbox integration tests
         run: cargo test --workspace
 
+  testnet-assets:
+    name: Live Testnet asset verification (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify Tidepool assets through two independent Testnet RPCs
+        run: node scripts/verify-testnet-assets.mjs
+
   sdk:
     name: TypeScript SDK build and offline demo
     runs-on: ubuntu-latest
