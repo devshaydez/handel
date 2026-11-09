@@ -1321,6 +1321,10 @@ impl OptionsContract {
             .get(&proposal.agent_id)
             .cloned()
             .expect("agent policy missing");
+        assert_eq!(
+            policy.principal, proposal.principal,
+            "agent policy principal changed"
+        );
         assert!(
             policy.enabled && env::block_timestamp() < policy.expires_at_ns,
             "agent policy inactive"
@@ -1329,6 +1333,57 @@ impl OptionsContract {
             self.agent_execution_mode(&proposal.agent_id),
             AgentExecutionMode::ManualApproval,
             "proposal is no longer in manual-approval mode"
+        );
+        assert!(
+            policy.allowed_assets.contains(&proposal.asset_id),
+            "proposal asset no longer allowed"
+        );
+        assert!(
+            proposal.underlying_amount <= policy.max_underlying_amount,
+            "proposal underlying cap changed"
+        );
+        assert!(
+            proposal.premium_amount_usdc <= policy.max_premium_usdc,
+            "proposal premium cap changed"
+        );
+        if proposal.kind == OptionKind::Put {
+            assert!(
+                proposal.strike_amount_usdc <= policy.max_collateral_usdc,
+                "proposal collateral cap changed"
+            );
+        }
+        assert!(
+            proposal.expiry_ns > env::block_timestamp()
+                && proposal.expiry_ns <= policy.expires_at_ns,
+            "proposal expiry is no longer valid"
+        );
+        let position = self
+            .positions
+            .get(&proposal.position_id)
+            .cloned()
+            .expect("proposal position missing");
+        assert_eq!(position.state, PositionState::PendingCollateral, "proposal position progressed");
+        assert_eq!(position.writer, proposal.principal, "proposal writer mismatch");
+        assert_eq!(position.kind, proposal.kind, "proposal kind mismatch");
+        assert_eq!(position.asset_id, proposal.asset_id, "proposal asset mismatch");
+        assert_eq!(position.underlying_amount, proposal.underlying_amount, "proposal size mismatch");
+        assert_eq!(position.strike_amount_usdc, proposal.strike_amount_usdc, "proposal strike mismatch");
+        assert_eq!(position.expiry_ns, proposal.expiry_ns, "proposal expiry mismatch");
+        assert_eq!(position.premium_amount_usdc, proposal.premium_amount_usdc, "proposal premium mismatch");
+        let open_count = self
+            .positions
+            .values()
+            .filter(|position| {
+                position.writer == proposal.principal
+                    && !matches!(
+                        position.state,
+                        PositionState::Settled | PositionState::Cancelled | PositionState::Expired
+                    )
+            })
+            .count();
+        assert!(
+            open_count <= policy.max_open_positions as usize,
+            "open position limit changed"
         );
         self.proposals.get_mut(&proposal_id).unwrap().state = ProposalState::Approved;
     }
@@ -3008,6 +3063,64 @@ mod tests {
                 .state,
             ProposalState::PendingApproval
         );
+    }
+
+    #[test]
+    fn manual_approval_revalidates_policy_caps_and_principal_after_proposal() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            1_500,
+            2,
+            90,
+        );
+        context("agent.testnet");
+        c.create_agent_proposal(
+            "proposal-policy-recheck".into(),
+            OptionKind::Put,
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            10,
+            1_000,
+            80,
+            75,
+            "sha256:recheck".into(),
+        );
+
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            5,
+            100,
+            1_500,
+            2,
+            90,
+        );
+        let reduced_cap = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.approve_agent_proposal("proposal-policy-recheck".into())
+        }));
+        assert!(reduced_cap.is_err());
+
+        context("new-writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            1_500,
+            2,
+            90,
+        );
+        context("writer.testnet");
+        let changed_principal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.approve_agent_proposal("proposal-policy-recheck".into())
+        }));
+        assert!(changed_principal.is_err());
     }
 
     #[test]
