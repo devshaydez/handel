@@ -3146,7 +3146,10 @@ mod tests {
                 90,
             )
         }));
-        assert!(takeover.is_err(), "a different principal cannot replace an existing policy");
+        assert!(
+            takeover.is_err(),
+            "a different principal cannot replace an existing policy"
+        );
         context("writer.testnet");
         let changed_principal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.approve_agent_proposal("proposal-policy-recheck".into())
