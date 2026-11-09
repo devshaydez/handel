@@ -42,7 +42,7 @@ Record the full commit SHA, CI run ID/URL, artifact SHA-256, build toolchain ver
 
 Bash:
 
-    ./scripts/deploy.sh <options-account.testnet> --confirm-testnet-deployment
+    bash scripts/deploy.sh <options-account.testnet> --confirm-testnet-deployment
 
 PowerShell:
 
@@ -50,13 +50,13 @@ PowerShell:
 
 These commands deploy without calling the initializer. For a **brand-new account with no prior contract state only**, initialization is a separate explicit choice:
 
-    ./scripts/deploy.sh <options-account.testnet> --confirm-testnet-deployment --initialize
+    bash scripts/deploy.sh <options-account.testnet> --confirm-testnet-deployment --initialize
 
     ./scripts/deploy-testnet.ps1 -ContractAccount <options-account.testnet> -ConfirmTestnetDeployment -Initialize
 
 Never use the initializer on an account that may already contain contract state. The helper requires an existing .testnet account and a key available through the local NEAR CLI keychain. It does not create accounts or keys. It prints the artifact hash and targets Testnet explicitly. It does not deploy Escrow or mock-ft.
 
-Escrow Bash:\n\n    ./scripts/deploy-escrow-testnet.sh <escrow-account.testnet> --confirm-testnet-deployment\n\nEscrow PowerShell:\n\n    ./scripts/deploy-escrow-testnet.ps1 -ContractAccount <escrow-account.testnet> -ConfirmTestnetDeployment\n\nFor a **brand-new Escrow account only**, append `--initialize` or `-Initialize` to invoke `new`. The Escrow initializer sets its owner to the transaction predecessor. Do not initialize an account that may contain prior contract state.\n\nBefore running any command, independently verify the target account and exact candidate commit/artifact. A successful CLI command is not proof that the deployed contract has the expected state or that token custody/settlement works.
+Escrow Bash:\n\n    bash scripts/deploy-escrow-testnet.sh <escrow-account.testnet> --confirm-testnet-deployment\n\nEscrow PowerShell:\n\n    ./scripts/deploy-escrow-testnet.ps1 -ContractAccount <escrow-account.testnet> -ConfirmTestnetDeployment\n\nFor a **brand-new Escrow account only**, append `--initialize` or `-Initialize` to invoke `new`. The Escrow initializer sets its owner to the transaction predecessor. Do not initialize an account that may contain prior contract state.\n\nBefore running any command, independently verify the target account and exact candidate commit/artifact. A successful CLI command is not proof that the deployed contract has the expected state or that token custody/settlement works.
 
 ## 5. Escrow and OptionsContract authority configuration\n\nPerform this only after both contracts have been deployed and independently verified, using the intended Testnet account IDs. Use the owner account for each owner-only call and retain every transaction hash.\n\n1. The Escrow owner calls `propose_controller` on Escrow with the exact OptionsContract account ID.\n2. The OptionsContract owner calls `set_escrow_contract` on OptionsContract with the exact Escrow account ID.\n3. The OptionsContract owner calls `accept_escrow_controller` on OptionsContract. This makes the cross-contract call from OptionsContract itself so Escrow can authenticate the proposed controller. Verify Escrow's controller view afterwards.\n4. The OptionsContract owner enables each explicitly approved asset with `set_asset(asset_id, decimals, true)`, then binds its NEP-141 contract with `set_escrow_token_account(asset_id, token_account)`. Do not infer IDs or decimals from symbols; verify the exact Testnet token contract and metadata independently first.\n5. The OptionsContract owner configures `set_trusted_reconciler` only after the reconciler's authority, evidence source, operational ownership, and key policy have been reviewed. This is a trust-root assignment, not cryptographic proof verification.\n6. The Escrow owner proposes the payout reconciler with `propose_payout_reconciler`; the selected reconciler account must separately call `accept_payout_reconciler`. Verify the resulting reconciler view.\n\nDo not create positions or transfer tokens during configuration. Do not treat controller configuration as proof that collateral is reserved or that external settlement is verified.\n\n## 6. Post-deployment verification — mandatory
 
