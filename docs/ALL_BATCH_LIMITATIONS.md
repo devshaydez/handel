@@ -88,23 +88,47 @@ Batch 4 implementation is on `work/batch-4-ai-integration-adversarial`, stacked 
 
 ## Batch 5 — Phase 13: Testnet deployment and release readiness
 
-In progress on `work/batch-5-testnet-release-readiness`. This is a gated deployment phase, not an implication of passing CI. The branch hardens the OptionsContract deployment helpers (explicit Testnet confirmation, deterministic artifact selection, SHA-256 display, opt-in one-time initializer) and adds `docs/TESTNET_RELEASE_RUNBOOK.md`. No deployment has been performed.
+PR #6 was squash-merged as `a8f2cd3bca854a8774a9de71d2ed8ddcb2973f9a`. CI run #42676957790 passed both Rust/Sandbox and SDK jobs on exact head `81c41fe44db85dfca57928960f2a5a7757bf0bdf`.
 
-### Implemented / prepared in Batch 5
-- Safe-by-default Bash and PowerShell deployment helpers for OptionsContract only; neither chooses an arbitrary Wasm artifact.
-- Testnet-only explicit confirmation, deploy-only default, separately opt-in initializer, artifact hash display, and no account/key/token provisioning.
-- Deployment runbook covering required inputs, build identity, operator steps, independent post-deploy verification, evidence capture, and release gates.
+### Implemented / CI-validated
+- Safe-by-default Bash and PowerShell deployment helpers for OptionsContract.
+- Explicit Testnet confirmation, deterministic artifact selection, SHA-256 display, deploy-only default, and opt-in one-time initializer.
+- Testnet runbook with preflight, post-deployment verification, evidence capture, and release gates.
 
 ### Remaining release gates
-- Dedicated OptionsContract and Escrow Testnet accounts, Escrow deployment/configuration procedure, and verified account-key policy.
-- Real Testnet token registration and NEP-145 storage funding for escrow and payout recipients.
+- Dedicated OptionsContract and Escrow Testnet accounts and verified account-key policy.
+- Escrow deployment/configuration and authority handoff execution on Testnet.
+- Exact supported Testnet token IDs/decimals and NEP-145 registration/storage funding.
 - Supported-asset deposit and wallet-signed settlement, with independently inspected receipts, events, resulting contract state, and token balances.
 - End-to-end premium, exercise, expiry, payout retry, ambiguous-outcome reconciliation, and duplicate/replay tests on deployed contracts.
 - Independent verifier/RPC configuration and operational monitoring/alert delivery.
 - Migration/redeployment decision for existing persistent state, documented rollback and recovery plan.
 - Independent security review sign-off and explicit release approval.
 
-Batch 5 is not CI-validated until its integrated workflow passes. No Testnet deployment, token transaction, or release approval is claimed.
+No Testnet deployment, token transaction, or release approval is claimed.
+
+## Infrastructure readiness — Escrow deployment foundation
+
+Implementation is underway on `work/testnet-infrastructure-readiness`.
+
+### Implemented in this branch (pending CI)
+- Dedicated Bash and PowerShell Escrow deployment helpers.
+- Explicit `.testnet` account validation and Testnet confirmation required before invoking near-cli.
+- Deterministic Escrow artifact path: `target/near/handel_escrow/handel_escrow.wasm`; no arbitrary Wasm fallback.
+- Deploy-only default; one-time `new` initialization requires a separate explicit flag.
+- SHA-256 artifact identity and existing-account/keychain preflight messaging.
+- Mocked Bash regression tests for missing confirmation, non-Testnet account rejection, deploy-only behavior, and explicit initialization.
+- CI trigger and Bash safety checks extended for this infrastructure branch.
+- Runbook documents the two-step Escrow controller handoff, token-account mapping, and trusted reconciler/payout-reconciler setup sequence.
+
+### Still open
+- Run all CI checks against this branch and fix any failures.
+- Provision dedicated Testnet accounts and approve the account-key policy outside the repository.
+- Execute deployment only after explicit deployment approval and verified account/commit/artifact mapping.
+- Independently verify code hashes, initialization state, authority views, and transaction receipts.
+- Confirm exact Testnet token contracts, decimals, NEP-145 storage requirements and funding; no token transfers until verified.
+- Implement or configure independent settlement evidence production and verification; current reconciler remains a trust root.
+- Complete deployed synthetic-asset lifecycle tests and independent security review.
 
 ## Cross-cutting limitations and rules
 
