@@ -144,9 +144,9 @@ export class TidepoolClient {
     });
   }
 
-  private async assertTestAssets(...assetIds: string[]): Promise<void> {
+  private async assertTestAssets(...assetIds: string[]): Promise<Map<string, TidepoolToken>> {
     const tokens = await this.listTokens();
-    const supported = new Set(tokens.map((token) => token.assetId));
+    const supported = new Map<string, TidepoolToken>(tokens.map((token) => [token.assetId, token] as const));
     for (const assetId of assetIds) {
       nonEmpty(assetId, "assetId");
       if (isOndoUnderlying(assetId)) {
@@ -156,6 +156,7 @@ export class TidepoolClient {
         throw new TidepoolError("Asset is not present in Tidepool's live testnet token registry: " + assetId);
       }
     }
+    return supported;
   }
 
   async quote(request: TidepoolQuoteRequest): Promise<TidepoolQuote> {
@@ -174,7 +175,25 @@ export class TidepoolClient {
     if (!dry && request.allowTestnetDepositAddress !== true) {
       throw new TidepoolError("Creating a deposit address requires allowTestnetDepositAddress=true");
     }
-    await this.assertTestAssets(request.originAsset, request.destinationAsset);
+    const tokens = await this.assertTestAssets(request.originAsset, request.destinationAsset);
+    const originToken = tokens.get(request.originAsset)!;
+    const depositType = request.depositType ?? "INTENTS";
+    const swapType = request.swapType ?? "EXACT_INPUT";
+    const memoRequired = originToken.blockchain === "stellar" || originToken.blockchain === "xrp";
+    if (memoRequired && (depositType !== "ORIGIN_CHAIN" || request.depositMode !== "MEMO")) {
+      throw new TidepoolError("Stellar and XRP deposits require depositType=ORIGIN_CHAIN and depositMode=MEMO");
+    }
+    if (request.depositMode === "MEMO") {
+      if (depositType !== "ORIGIN_CHAIN") {
+        throw new TidepoolError("depositMode=MEMO is supported only with depositType=ORIGIN_CHAIN");
+      }
+      if (!["near", "stellar", "xrp"].includes(originToken.blockchain)) {
+        throw new TidepoolError("depositMode=MEMO is not supported for this origin blockchain");
+      }
+      if (swapType === "ANY_INPUT") {
+        throw new TidepoolError("depositMode=MEMO cannot be used with ANY_INPUT");
+      }
+    }
     const {
       allowTestnetDepositAddress: _explicitConsent,
       dry: _requestedDry,
@@ -185,9 +204,9 @@ export class TidepoolClient {
       body: JSON.stringify({
         ...body,
         dry,
-        swapType: request.swapType ?? "EXACT_INPUT",
+        swapType,
         slippageTolerance: request.slippageTolerance ?? 100,
-        depositType: request.depositType ?? "INTENTS",
+        depositType,
         refundType: request.refundType ?? "INTENTS",
         recipientType: request.recipientType ?? "INTENTS",
       }),

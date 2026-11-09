@@ -5,6 +5,7 @@ import { TidepoolClient, TidepoolError, assessTidepoolStatus } from "./tidepool.
 const tokenRows = [
   { assetId: "nep141:usdc.tidepool-sandbox.testnet", symbol: "USDC", decimals: 6, blockchain: "near" },
   { assetId: "nep141:wnear.tidepool-sandbox.testnet", symbol: "wNEAR", decimals: 24, blockchain: "near" },
+  { assetId: "nep141:xrp.tp-omft.testnet", symbol: "XRP", decimals: 6, blockchain: "xrp" },
 ];
 
 function fakeFetch(handler: (url: string, init?: RequestInit) => unknown) {
@@ -90,4 +91,20 @@ test("status and deposit submit encode the deposit address and tx hash", async (
 
 test("client rejects insecure non-local endpoint", () => {
   assert.throws(() => new TidepoolClient("http://example.com"), /HTTPS/);
+});
+
+test("MEMO quote mode enforces origin-chain, supported chains, and no ANY_INPUT", async () => {
+  const client = new TidepoolClient("https://www.usetidepool.tech", fakeFetch(() => tokenRows));
+  const base = {
+    originAsset: tokenRows[2]!.assetId, destinationAsset: tokenRows[0]!.assetId,
+    amount: "100", refundTo: "alice.testnet", recipient: "alice.testnet",
+    deadline: new Date(Date.now() + 60_000).toISOString(),
+  };
+  await assert.rejects(() => client.quote(base), /require depositType=ORIGIN_CHAIN/);
+  await assert.rejects(() => client.quote({
+    ...base, originAsset: tokenRows[1]!.assetId, depositType: "INTENTS", depositMode: "MEMO",
+  }), /only with depositType=ORIGIN_CHAIN/);
+  await assert.rejects(() => client.quote({
+    ...base, depositType: "ORIGIN_CHAIN", depositMode: "MEMO", swapType: "ANY_INPUT",
+  }), /cannot be used with ANY_INPUT/);
 });

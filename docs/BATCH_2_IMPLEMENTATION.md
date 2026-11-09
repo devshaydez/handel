@@ -7,7 +7,7 @@ This batch adds safe NEAR Testnet integration primitives. It does not authorize 
 ## Phase 4 — Testnet asset integration
 
 - Added `TidepoolClient` for Tidepool's 1Click-compatible API: live token discovery, health, dry quotes, deposit notification, and status polling.
-- The client resolves asset IDs from the live `/v0/tokens` registry rather than assuming ticker equivalence.
+- The client resolves asset IDs from the live `/v0/tokens` registry rather than assuming ticker equivalence. It enforces Tidepool's documented MEMO restrictions: Stellar/XRP require ORIGIN_CHAIN + MEMO; MEMO is limited to supported origin chains and cannot be combined with ANY_INPUT.
 - Quote requests default to `dry: true`. Creating a deposit address requires the explicit `allowTestnetDepositAddress: true` opt-in.
 - The adapter rejects Handel's configured Ondo identifiers. Tidepool is community-operated and its published testnet token registry does not list NVDAon, TSLAon, AAPLon, or SPYon.
 - The adapter never signs or submits wallet transfers. Testnet deposit addresses are custodial; never send real assets.
