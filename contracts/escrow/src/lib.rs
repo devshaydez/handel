@@ -1820,7 +1820,10 @@ mod tests {
         );
         let _collateral = c.on_payment_payout(0);
         assert!(c.get_position(0).payment_paid);
-        assert_eq!(c.get_position(0).state, EscrowState::CollateralPayoutPending);
+        assert_eq!(
+            c.get_position(0).state,
+            EscrowState::CollateralPayoutPending
+        );
 
         let collateral_callback = VMContextBuilder::new()
             .current_account_id(account("escrow.testnet"))
