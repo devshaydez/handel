@@ -7,6 +7,7 @@ on:
       - work/batch-4-ai-integration-adversarial
       - work/batch-5-testnet-release-readiness
       - work/testnet-infrastructure-readiness
+      - work/batch-9-execution-safety
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
