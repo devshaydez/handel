@@ -33,19 +33,19 @@ export MOCK_ROOT="$TMP"
 export MOCK_NEAR_LOG="$TMP/near.log"
 SCRIPT="$TMP/scripts/deploy-escrow-testnet.sh"
 
-if "$SCRIPT" escrow.testnet >/dev/null 2>&1; then
+if bash "$SCRIPT" escrow.testnet >/dev/null 2>&1; then
   echo "FAIL: missing confirmation was accepted" >&2
   exit 1
 fi
 [[ ! -e "$MOCK_NEAR_LOG" ]] || { echo "FAIL: near CLI ran without confirmation" >&2; exit 1; }
 
-if "$SCRIPT" escrow.near --confirm-testnet-deployment >/dev/null 2>&1; then
+if bash "$SCRIPT" escrow.near --confirm-testnet-deployment >/dev/null 2>&1; then
   echo "FAIL: non-Testnet account was accepted" >&2
   exit 1
 fi
 [[ ! -e "$MOCK_NEAR_LOG" ]] || { echo "FAIL: near CLI ran for non-Testnet account" >&2; exit 1; }
 
-"$SCRIPT" escrow.testnet --confirm-testnet-deployment >/dev/null
+bash "$SCRIPT" escrow.testnet --confirm-testnet-deployment >/dev/null
 grep -q '^contract deploy escrow.testnet use-file .*handel_escrow.wasm network-config testnet sign-with-keychain send$' "$MOCK_NEAR_LOG" || {
   echo "FAIL: default deployment did not use the deterministic Testnet deploy-only command" >&2
   exit 1
@@ -56,7 +56,7 @@ if grep -q 'with-init-call' "$MOCK_NEAR_LOG"; then
 fi
 
 : > "$MOCK_NEAR_LOG"
-"$SCRIPT" escrow.testnet --confirm-testnet-deployment --initialize >/dev/null
+bash "$SCRIPT" escrow.testnet --confirm-testnet-deployment --initialize >/dev/null
 grep -q 'with-init-call new json-args {} prepaid-gas 100 TGas attached-deposit 0 NEAR network-config testnet sign-with-keychain send' "$MOCK_NEAR_LOG" || {
   echo "FAIL: explicit initialization did not use the expected one-time initializer" >&2
   exit 1
