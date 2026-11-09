@@ -45,6 +45,18 @@ pub enum EscrowState {
     Expired,
 }
 
+#[near(serializers = [json])]
+pub struct StorageEconomics {
+    pub position_id: u64,
+    pub storage_byte_cost_yocto: U128,
+    pub estimated_record_bytes: U128,
+    pub estimated_required_yocto: U128,
+    pub attached_storage_reserve_yocto: U128,
+    pub estimated_reserve_surplus_yocto: U128,
+    pub estimate_only: bool,
+    pub refund_available: bool,
+}
+
 #[near(serializers = [json, borsh])]
 #[derive(Clone)]
 pub struct PremiumSidecar {
@@ -938,22 +950,22 @@ impl EscrowContract {
 
     /// Current NEAR storage economics for one record. Cost is computed at view time
     /// from the protocol's current storage byte price, never a hard-coded rate.
-    pub fn get_storage_economics(&self, position_id: u64) -> near_sdk::serde_json::Value {
+    pub fn get_storage_economics(&self, position_id: u64) -> StorageEconomics {
         let position = self.position(position_id);
         let byte_cost = env::storage_byte_cost().as_yoctonear();
         let estimated_record_bytes = near_sdk::serde_json::to_vec(&position)
             .expect("serialize position for storage estimate").len() as u128;
         let estimated_required = estimated_record_bytes.saturating_mul(byte_cost);
-        near_sdk::serde_json::json!({
-            "position_id": position_id,
-            "storage_byte_cost_yocto": byte_cost.to_string(),
-            "estimated_record_bytes": estimated_record_bytes.to_string(),
-            "estimated_required_yocto": estimated_required.to_string(),
-            "attached_storage_reserve_yocto": position.storage_deposit.to_string(),
-            "estimated_reserve_surplus_yocto": position.storage_deposit.saturating_sub(estimated_required).to_string(),
-            "estimate_only": true,
-            "refund_available": false
-        })
+        StorageEconomics {
+            position_id,
+            storage_byte_cost_yocto: U128(byte_cost),
+            estimated_record_bytes: U128(estimated_record_bytes),
+            estimated_required_yocto: U128(estimated_required),
+            attached_storage_reserve_yocto: U128(position.storage_deposit),
+            estimated_reserve_surplus_yocto: U128(position.storage_deposit.saturating_sub(estimated_required)),
+            estimate_only: true,
+            refund_available: false,
+        }
     }
 
     pub fn get_lifecycle_event(
@@ -2166,6 +2178,39 @@ mod tests {
         }));
         assert!(replay.is_err());
         assert!(c.get_position(0).payment_paid);
+    }
+
+    #[test]
+    fn escrow_admin_handoffs_require_acceptance_by_the_proposed_account() {
+        let owner_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("owner.testnet"))
+            .build();
+        testing_env!(owner_context);
+        let mut c = EscrowContract::new();
+        c.propose_ownership_transfer(account("new-owner.testnet"));
+        assert_eq!(c.get_owner(), account("owner.testnet"));
+        assert_eq!(c.get_pending_owner(), Some(account("new-owner.testnet")));
+
+        let attacker_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("attacker.testnet"))
+            .build();
+        testing_env!(attacker_context);
+        let denied = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.accept_ownership_transfer()
+        }));
+        assert!(denied.is_err());
+        assert_eq!(c.get_owner(), account("owner.testnet"));
+
+        let new_owner_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("new-owner.testnet"))
+            .build();
+        testing_env!(new_owner_context);
+        c.accept_ownership_transfer();
+        assert_eq!(c.get_owner(), account("new-owner.testnet"));
+        assert_eq!(c.get_pending_owner(), None);
     }
 
     #[test]
