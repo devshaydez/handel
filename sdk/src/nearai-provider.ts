@@ -229,6 +229,7 @@ export class NearAiProposalProvider {
       proposal,
       requestId: completion.id,
       verification: {
+        modelId: this.c.model,
         gatewayVerified: true,
         modelAttested: true,
         signatureKind: receipt.signatureKind,
