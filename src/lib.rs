@@ -10,6 +10,7 @@ const ESCROW_REGISTER_GAS: Gas = Gas::from_tgas(20);
 const ESCROW_CALLBACK_GAS: Gas = Gas::from_tgas(10);
 const ESCROW_STORAGE_DEPOSIT: NearToken = NearToken::from_near(1);
 const USDC_ASSET_ID_STORAGE_KEY: &[u8] = b"handel:options:usdc-asset-id:v1";
+const AGENT_EXECUTION_MODE_STORAGE_PREFIX: &[u8] = b"handel:agent-execution-mode:v1:";
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -129,6 +130,36 @@ pub struct OptionPosition {
     pub escrow_contract_id: Option<AccountId>,
     pub escrow_collateral_token: Option<AccountId>,
     pub escrow_payment_token: Option<AccountId>,
+}
+
+#[near(serializers = [json, borsh])]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AgentExecutionMode {
+    Education,
+    Advisory,
+    ManualApproval,
+    Delegated,
+}
+
+impl AgentExecutionMode {
+    fn storage_byte(self) -> u8 {
+        match self {
+            Self::Education => 0,
+            Self::Advisory => 1,
+            Self::ManualApproval => 2,
+            Self::Delegated => 3,
+        }
+    }
+
+    fn from_storage_byte(value: u8) -> Self {
+        match value {
+            0 => Self::Education,
+            1 => Self::Advisory,
+            2 => Self::ManualApproval,
+            3 => Self::Delegated,
+            _ => env::panic_str("invalid stored agent execution mode"),
+        }
+    }
 }
 
 #[near(serializers = [json, borsh])]
@@ -1108,7 +1139,7 @@ impl OptionsContract {
             "all allowed assets must be enabled"
         );
         self.agent_policies.insert(
-            agent_id,
+            agent_id.clone(),
             AgentPolicy {
                 principal,
                 allowed_assets,
@@ -1120,6 +1151,38 @@ impl OptionsContract {
                 enabled: true,
             },
         );
+        // Safe default: a newly granted agent must receive explicit delegated authority.
+        self.store_agent_execution_mode(&agent_id, AgentExecutionMode::ManualApproval);
+    }
+
+    /// Change the authority mode for an existing agent. Only its principal can do this.
+    pub fn set_agent_execution_mode(&mut self, agent_id: AccountId, mode: AgentExecutionMode) {
+        let principal = env::predecessor_account_id();
+        let policy = self
+            .agent_policies
+            .get(&agent_id)
+            .cloned()
+            .expect("agent policy missing");
+        assert_eq!(policy.principal, principal, "principal only");
+        self.store_agent_execution_mode(&agent_id, mode);
+    }
+
+    fn agent_execution_mode(&self, agent_id: &AccountId) -> AgentExecutionMode {
+        let mut key = AGENT_EXECUTION_MODE_STORAGE_PREFIX.to_vec();
+        key.extend_from_slice(agent_id.as_bytes());
+        env::storage_read(&key)
+            .map(|bytes| {
+                assert_eq!(bytes.len(), 1, "invalid stored agent execution mode");
+                AgentExecutionMode::from_storage_byte(bytes[0])
+            })
+            // Existing policies without a mode are treated as manual-approval only.
+            .unwrap_or(AgentExecutionMode::ManualApproval)
+    }
+
+    fn store_agent_execution_mode(&self, agent_id: &AccountId, mode: AgentExecutionMode) {
+        let mut key = AGENT_EXECUTION_MODE_STORAGE_PREFIX.to_vec();
+        key.extend_from_slice(agent_id.as_bytes());
+        env::storage_write(&key, &[mode.storage_byte()]);
     }
 
     pub fn revoke_agent(&mut self, agent_id: AccountId) {
@@ -1160,6 +1223,11 @@ impl OptionsContract {
             .get(&agent_id)
             .cloned()
             .expect("agent policy missing");
+        assert_eq!(
+            self.agent_execution_mode(&agent_id),
+            AgentExecutionMode::ManualApproval,
+            "agent is not in manual-approval mode"
+        );
         assert!(
             policy.enabled && env::block_timestamp() < policy.expires_at_ns,
             "agent policy inactive"
@@ -1294,8 +1362,13 @@ impl OptionsContract {
             .cloned()
             .expect("agent not authorized");
         assert!(policy.enabled, "agent revoked");
+        assert_eq!(
+            self.agent_execution_mode(&agent),
+            AgentExecutionMode::Delegated,
+            "agent is not delegated"
+        );
         assert!(
-            env::block_timestamp() <= policy.expires_at_ns,
+            env::block_timestamp() < policy.expires_at_ns,
             "agent policy expired"
         );
         assert!(
@@ -1316,7 +1389,10 @@ impl OptionsContract {
             .values()
             .filter(|p| {
                 p.writer == policy.principal
-                    && !matches!(p.state, PositionState::Settled | PositionState::Cancelled)
+                    && !matches!(
+                        p.state,
+                        PositionState::Settled | PositionState::Cancelled | PositionState::Expired
+                    )
             })
             .count();
         assert!(
@@ -1354,6 +1430,11 @@ impl OptionsContract {
             .cloned()
             .expect("agent not authorized");
         assert!(policy.enabled, "agent revoked");
+        assert_eq!(
+            self.agent_execution_mode(&agent),
+            AgentExecutionMode::Delegated,
+            "agent is not delegated"
+        );
         assert!(
             env::block_timestamp() < policy.expires_at_ns,
             "agent policy expired"
