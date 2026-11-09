@@ -94,8 +94,13 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .into_result()?;
 
     // The OptionsContract is the only account allowed to register escrow positions.
-    root.call(escrow.id(), "set_controller")
+    root.call(escrow.id(), "propose_controller")
         .args_json(json!({"controller": options.id()}))
+        .transact()
+        .await?
+        .into_result()?;
+    options.call(escrow.id(), "accept_controller")
+        .args_json(json!({}))
         .transact()
         .await?
         .into_result()?;

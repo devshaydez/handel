@@ -15,8 +15,13 @@ async fn benchmark_position_creation_gas_at_increasing_cardinalities() -> anyhow
         .transact()
         .await?
         .into_result()?;
-    root.call(escrow.id(), "set_controller")
+    root.call(escrow.id(), "propose_controller")
         .args_json(json!({"controller": root.id()}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(escrow.id(), "accept_controller")
+        .args_json(json!({}))
         .transact()
         .await?
         .into_result()?;

@@ -184,8 +184,13 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
         .transact()
         .await?
         .into_result()?;
-    root.call(escrow.id(), "set_controller")
+    root.call(escrow.id(), "propose_controller")
         .args_json(json!({"controller": controller.id()}))
+        .transact()
+        .await?
+        .into_result()?;
+    controller.call(escrow.id(), "accept_controller")
+        .args_json(json!({}))
         .transact()
         .await?
         .into_result()?;
@@ -363,8 +368,13 @@ async fn callback_receipt_failure_keeps_payout_pending_and_blocks_retry() -> any
         .transact()
         .await?
         .into_result()?;
-    root.call(escrow.id(), "set_controller")
+    root.call(escrow.id(), "propose_controller")
         .args_json(json!({"controller": controller.id()}))
+        .transact()
+        .await?
+        .into_result()?;
+    controller.call(escrow.id(), "accept_controller")
+        .args_json(json!({}))
         .transact()
         .await?
         .into_result()?;
@@ -477,8 +487,13 @@ async fn expiry_callback_receipt_failure_is_reconciled_without_duplicate_transfe
         .transact()
         .await?
         .into_result()?;
-    root.call(escrow.id(), "set_controller")
+    root.call(escrow.id(), "propose_controller")
         .args_json(json!({"controller": controller.id()}))
+        .transact()
+        .await?
+        .into_result()?;
+    controller.call(escrow.id(), "accept_controller")
+        .args_json(json!({}))
         .transact()
         .await?
         .into_result()?;
@@ -532,8 +547,13 @@ async fn expiry_callback_receipt_failure_is_reconciled_without_duplicate_transfe
     assert!(unsafe_retry.is_failure());
     assert_eq!(balance(&root, &stock, writer.id()).await?, before + 100);
 
-    root.call(escrow.id(), "set_payout_reconciler")
+    root.call(escrow.id(), "propose_payout_reconciler")
         .args_json(json!({"reconciler": root.id()}))
+        .transact()
+        .await?
+        .into_result()?;
+    root.call(escrow.id(), "accept_payout_reconciler")
+        .args_json(json!({}))
         .transact()
         .await?
         .into_result()?;

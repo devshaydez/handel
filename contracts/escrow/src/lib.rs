@@ -1395,8 +1395,10 @@ mod tests {
             .build();
         testing_env!(context.clone());
         let mut contract = EscrowContract::new();
-        contract.set_controller(account("options.testnet"));
+        contract.propose_controller(account("options.testnet"));
         context.predecessor_account_id = account("options.testnet");
+        testing_env!(context.clone());
+        contract.accept_controller();
         testing_env!(context);
         contract.create_position(
             0,
@@ -2119,7 +2121,14 @@ mod tests {
             .block_timestamp(2_000)
             .build();
         testing_env!(owner_context);
-        c.set_payout_reconciler(account("reconciler.testnet"));
+        c.propose_payout_reconciler(account("reconciler.testnet"));
+        let accept_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("reconciler.testnet"))
+            .block_timestamp(2_000)
+            .build();
+        testing_env!(accept_context);
+        c.accept_payout_reconciler();
 
         let reconciler_context = VMContextBuilder::new()
             .current_account_id(account("escrow.testnet"))
