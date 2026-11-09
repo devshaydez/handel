@@ -1772,6 +1772,107 @@ mod tests {
     }
 
     #[test]
+    fn failed_second_exercise_leg_retries_only_collateral_after_payment_is_confirmed() {
+        let mut c = setup(10);
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-stock.testnet",
+                "writer.testnet",
+                100,
+                "collateral",
+                20
+            ),
+            U128(0)
+        );
+        assert_eq!(
+            receive(
+                &mut c,
+                "synthetic-usdc.testnet",
+                "holder.testnet",
+                500,
+                "exercise_payment",
+                1_000
+            ),
+            U128(0)
+        );
+
+        let holder_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("holder.testnet"))
+            .block_timestamp(1_000 + EXERCISE_GRACE_NS + 1)
+            .build();
+        testing_env!(holder_context);
+        let _payment = c.settle_exercise(0);
+        assert_eq!(c.get_position(0).state, EscrowState::PaymentPayoutPending);
+
+        let payment_callback = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("escrow.testnet"))
+            .block_timestamp(1_000 + EXERCISE_GRACE_NS + 2)
+            .build();
+        testing_env!(
+            payment_callback,
+            near_sdk::test_vm_config(),
+            near_sdk::RuntimeFeesConfig::test(),
+            std::collections::HashMap::default(),
+            vec![near_sdk::PromiseResult::Successful(vec![])],
+        );
+        let _collateral = c.on_payment_payout(0);
+        assert!(c.get_position(0).payment_paid);
+        assert_eq!(c.get_position(0).state, EscrowState::CollateralPayoutPending);
+
+        let collateral_callback = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("escrow.testnet"))
+            .block_timestamp(1_000 + EXERCISE_GRACE_NS + 3)
+            .build();
+        testing_env!(
+            collateral_callback,
+            near_sdk::test_vm_config(),
+            near_sdk::RuntimeFeesConfig::test(),
+            std::collections::HashMap::default(),
+            vec![near_sdk::PromiseResult::Failed],
+        );
+        assert!(!c.on_collateral_payout(0));
+        let failed = c.get_position(0);
+        assert_eq!(failed.state, EscrowState::ReconciliationRequired);
+        assert_eq!(failed.failed_payout, Some(FailedPayout::ExerciseCollateral));
+        assert!(failed.payment_paid);
+        assert!(!failed.collateral_delivered_to_holder);
+
+        let retry_context = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("writer.testnet"))
+            .block_timestamp(1_000 + EXERCISE_GRACE_NS + 4)
+            .build();
+        testing_env!(retry_context);
+        let _retry = c.retry_failed_payout(0);
+        let retrying = c.get_position(0);
+        assert_eq!(retrying.state, EscrowState::CollateralPayoutPending);
+        assert!(retrying.payment_paid);
+        assert!(!retrying.collateral_delivered_to_holder);
+
+        let recovered_callback = VMContextBuilder::new()
+            .current_account_id(account("escrow.testnet"))
+            .predecessor_account_id(account("escrow.testnet"))
+            .block_timestamp(1_000 + EXERCISE_GRACE_NS + 5)
+            .build();
+        testing_env!(
+            recovered_callback,
+            near_sdk::test_vm_config(),
+            near_sdk::RuntimeFeesConfig::test(),
+            std::collections::HashMap::default(),
+            vec![near_sdk::PromiseResult::Successful(vec![])],
+        );
+        assert!(c.on_collateral_payout(0));
+        let settled = c.get_position(0);
+        assert_eq!(settled.state, EscrowState::Settled);
+        assert!(settled.payment_paid);
+        assert!(settled.collateral_delivered_to_holder);
+    }
+
+    #[test]
     fn payout_still_pending_cannot_be_retried_without_a_definitive_failure() {
         let mut c = setup(10);
         let mut position = c.position(0);
