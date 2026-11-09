@@ -23,18 +23,17 @@ This batch adds safe NEAR Testnet integration primitives. It does not authorize 
 
 ## Phase 6 — Transaction orchestration
 
-- Added a Node file-backed JSON snapshot store with mode-0600 temporary writes and atomic rename, plus a generic host-supplied snapshot-store interface.
-- Writes are serialized; failed persistence rolls back the in-memory transition.
 - Added a crash-safe wallet operation runner. It persists a `submitting` marker before network submission, records definitive FINAL outcomes, and quarantines submit timeouts or crash-recovered in-flight submissions as unknown without resubmitting.
+- For settlement-sensitive operations, callers can require a durable settlement evidence recorder. In that mode a FINAL transaction is not marked successful until one receipt contains the exact expected verifier event and the evidence is persisted. The runner recovers the narrow evidence-persisted/journal-not-yet-updated crash window without accepting a replay.
 - Wallet signing remains inside the connected wallet; Handel never handles private keys.
-- The file store is single-process only. A multi-instance deployment must provide a transactional database-backed `JsonSnapshotStore`; no database, credentials, or hosted worker are provisioned by this repository.
+- The file-backed JSON snapshot store uses mode-0600 temporary files and atomic rename, but is single-process only. A multi-instance deployment must provide a transactional database-backed `JsonSnapshotStore`; no database, credentials, or hosted worker are provisioned by this repository.
 - Unknown transaction outcomes remain unknown and cannot be retried. Retry requires a recorded definitive failure and a fresh operation ID.
 
 ## Validation and release boundary
 
-- Unit tests cover Tidepool token discovery, quote safety, unsupported Ondo assets, provider-status classification, MEMO routes, durable restart/recovery, pre-submit crash quarantine, ambiguous submission, wallet rejection, failed persistence, concurrent writes, receipt binding, finality, wrong receipt executor, malformed event logs, and replay protection.
+- Unit tests cover Tidepool token discovery, quote safety, unsupported Ondo assets, provider-status classification, MEMO routes, durable restart/recovery, pre-submit crash quarantine, ambiguous submission, wallet rejection, failed persistence, concurrent writes, receipt binding, finality, wrong receipt executor, malformed event logs, and the rule that a FINAL transaction without matching settlement evidence remains unknown.
 - No live Tidepool deposit, wallet-signed Testnet transaction, Testnet contract deployment, Ondo settlement, or production RPC quorum has been performed.
-- Batch 2 CI run #274 passed SDK build/tests and Rust format, optimized Wasm builds, and Sandbox integration tests on commit `7cb4828`. The new receipt-inspector changes require the next full CI run after the integrated batch is complete.
+- Batch 2 CI run #274 passed SDK build/tests and Rust format, optimized Wasm builds, and Sandbox integration tests on commit `7cb4828`. The integrated receipt-inspection and verified-orchestration additions require the next full CI run after the batch is complete.
 
 ## Remaining external release gates
 

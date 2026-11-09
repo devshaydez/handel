@@ -8,6 +8,10 @@ import {
   type OperationInput,
   type WorkflowOperation,
 } from "./orchestration.js";
+import type {
+  SettlementEvidence,
+  SettlementExpectation,
+} from "./settlement-verifier.js";
 
 export interface JsonSnapshotStore<T> {
   load(): Promise<T | null>;
@@ -90,6 +94,30 @@ export interface IntentSubmitter {
   submit(signedIntent: SignedNep413): Promise<{ transactionId: string }>;
 }
 
+export interface SettlementEvidenceRecorder {
+  list(): SettlementEvidence[];
+  verifyAndRecord(
+    expectation: SettlementExpectation,
+    transactionHash: string,
+    receiptId: string,
+  ): Promise<SettlementEvidence>;
+}
+
+export interface RequiredSettlementVerification {
+  expectation: SettlementExpectation;
+  evidence: SettlementEvidenceRecorder;
+}
+
+function sameExpectation(a: SettlementExpectation, b: SettlementExpectation): boolean {
+  return a.operationId === b.operationId &&
+    a.positionId === b.positionId &&
+    a.operationKind === b.operationKind &&
+    a.assetId === b.assetId &&
+    a.amount === b.amount &&
+    a.sender === b.sender &&
+    a.receiver === b.receiver;
+}
+
 /**
  * Submit a NEP-413 payload through the connected wallet and transport.
  * This does not interpret API acceptance as settlement; observe the resulting
@@ -116,6 +144,10 @@ export async function submitWalletIntent(
  * before network submission. If the process crashes or the submit call times
  * out before returning a transaction hash, the operation is quarantined as
  * unknown and is never automatically submitted again.
+ *
+ * When settlementVerification is supplied, a FINAL transaction alone is not
+ * sufficient for success: at least one receipt must contain the exact expected
+ * verifier event and that evidence must be durably accepted first.
  */
 export async function executeWalletOperation(
   journal: DurableOperationJournal,
@@ -125,6 +157,7 @@ export async function executeWalletOperation(
   input: OperationInput,
   payload: Nep413Payload,
   signerAccountId: string,
+  settlementVerification?: RequiredSettlementVerification,
 ): Promise<WorkflowOperation> {
   let operation = await journal.begin(input);
   if (operation.status === "succeeded" || operation.status === "failed_definitive" ||
@@ -159,6 +192,31 @@ export async function executeWalletOperation(
     outcome = { outcome: "unknown", transactionId: operation.transactionId };
   }
   if (outcome.outcome === "success" && outcome.transactionId === operation.transactionId) {
+    if (settlementVerification) {
+      // Recover the narrow crash window where evidence persisted but the journal
+      // success transition did not. This makes evidence acceptance idempotent
+      // across a process restart without weakening replay protection.
+      const prior = settlementVerification.evidence.list().find((item) =>
+        item.transactionHash === operation.transactionId &&
+        sameExpectation(item.expectation, settlementVerification.expectation)
+      );
+      if (prior) return journal.recordSuccess(input.operationId, operation.transactionId);
+
+      for (const receiptId of [...new Set(outcome.receiptIds)].filter(Boolean)) {
+        try {
+          await settlementVerification.evidence.verifyAndRecord(
+            settlementVerification.expectation,
+            operation.transactionId,
+            receiptId,
+          );
+          return journal.recordSuccess(input.operationId, operation.transactionId);
+        } catch {
+          // A transaction can contain many receipts; inspect each until the
+          // configured verifier event is found. No match means outcome unknown.
+        }
+      }
+      return journal.recordUnknown(input.operationId);
+    }
     return journal.recordSuccess(input.operationId, operation.transactionId);
   }
   if (outcome.outcome === "failure" && outcome.transactionId === operation.transactionId) {

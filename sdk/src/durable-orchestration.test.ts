@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DurableOperationJournal, executeWalletOperation, submitWalletIntent, type JsonSnapshotStore } from "./durable-orchestration.js";
 import type { WorkflowOperation } from "./orchestration.js";
+import type { SettlementEvidence, SettlementExpectation } from "./settlement-verifier.js";
 
 class MemoryStore implements JsonSnapshotStore<WorkflowOperation[]> {
   value: WorkflowOperation[] | null = null;
@@ -85,6 +86,67 @@ test("wallet operation persists submitting before submit and records FINAL succe
   assert.equal(submitted, 1);
   assert.equal(result.status, "succeeded");
   assert.equal(store.value?.[0]?.status, "succeeded");
+});
+
+test("verified settlement is not marked successful until an exact verifier receipt is durably accepted", async () => {
+  const store = new MemoryStore();
+  const journal = await DurableOperationJournal.open(store);
+  const expectation: SettlementExpectation = {
+    operationId: "op-run", positionId: "p-run", operationKind: "exercise_delivery",
+    assetId: "nep141:stock.testnet", amount: "1000",
+    sender: "writer.testnet", receiver: "holder.testnet",
+  };
+  const accepted: SettlementEvidence[] = [];
+  const attempts: string[] = [];
+  const evidence = {
+    list: () => [...accepted],
+    verifyAndRecord: async (wanted: SettlementExpectation, transactionHash: string, receiptId: string) => {
+      attempts.push(receiptId);
+      if (receiptId !== "verifier-receipt") throw new Error("no matching settlement event");
+      const item: SettlementEvidence = {
+        expectation: wanted, transactionHash, receiptId, blockHeight: 101,
+        blockHash: "block-101", eventIndex: 0, finalized: true, verifiedAt: 123,
+      };
+      accepted.push(item);
+      return item;
+    },
+  };
+  const result = await executeWalletOperation(
+    journal, wallet,
+    { submit: async () => ({ transactionId: "tx-run" }) },
+    { waitForFinalExecution: async () => ({
+      outcome: "success", transactionId: "tx-run", receiptIds: ["other-receipt", "verifier-receipt"],
+    }) },
+    operationInput, payload, "alice.testnet",
+    { expectation, evidence },
+  );
+  assert.equal(result.status, "succeeded");
+  assert.deepEqual(attempts, ["other-receipt", "verifier-receipt"]);
+  assert.equal(accepted.length, 1);
+});
+
+test("FINAL transaction without a matching settlement receipt remains unknown", async () => {
+  const store = new MemoryStore();
+  const journal = await DurableOperationJournal.open(store);
+  const expectation: SettlementExpectation = {
+    operationId: "op-run", positionId: "p-run", operationKind: "exercise_delivery",
+    assetId: "nep141:stock.testnet", amount: "1000",
+    sender: "writer.testnet", receiver: "holder.testnet",
+  };
+  const evidence = {
+    list: () => [],
+    verifyAndRecord: async () => { throw new Error("no matching verifier event"); },
+  };
+  const result = await executeWalletOperation(
+    journal, wallet,
+    { submit: async () => ({ transactionId: "tx-run" }) },
+    { waitForFinalExecution: async () => ({
+      outcome: "success", transactionId: "tx-run", receiptIds: ["r-1", "r-2"],
+    }) },
+    operationInput, payload, "alice.testnet",
+    { expectation, evidence },
+  );
+  assert.equal(result.status, "outcome_unknown");
 });
 
 test("ambiguous submit response is quarantined and never automatically resubmitted", async () => {
