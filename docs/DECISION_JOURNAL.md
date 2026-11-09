@@ -10,7 +10,7 @@ Each proposal record includes the exact action/terms, privacy-safe account refer
 
 ## Important integrity boundary
 
-The hash chain is tamper-evident, not independently immutable. A host with write access to the entire snapshot can rewrite all records and recompute the chain. Production deployment must back the store with access controls, backups, append-only/WORM retention or an external checkpoint/anchor, and operational monitoring. The journal must never store wallet keys, seed phrases, API credentials, raw auth headers, or unnecessary prompt contents.
+The hash chain is tamper-evident, not independently immutable. Its append queue protects concurrent writes only within one process; a shared multi-process deployment needs a transactional database/append-only event store or a single-writer service. The existing atomic `FileJsonSnapshotStore` is suitable for a single host process, not distributed writers. A host with write access to the entire snapshot can rewrite all records and recompute the chain. Production deployment must back the store with access controls, backups, append-only/WORM retention or an external checkpoint/anchor, and operational monitoring. The journal must never store wallet keys, seed phrases, API credentials, raw auth headers, or unnecessary prompt contents.
 
 The current runtime records a proposal as `proposed` and marks approval as `not-requested-at-proposal-stage`. It does not claim user approval, submission, fill, settlement, or successful execution. Those lifecycle transitions must be appended by the execution workflow when independently verified evidence becomes available.
 
