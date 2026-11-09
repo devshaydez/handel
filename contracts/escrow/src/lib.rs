@@ -172,8 +172,8 @@ impl EscrowContract {
     pub fn propose_controller(&mut self, controller: AccountId) {
         self.assert_owner();
         assert_ne!(controller, env::current_account_id(), "invalid controller");
-        let bytes = near_sdk::serde_json::to_vec(&controller)
-            .expect("serialize pending controller");
+        let bytes =
+            near_sdk::serde_json::to_vec(&controller).expect("serialize pending controller");
         env::storage_write(b"handel:escrow:pending-controller:v1", &bytes);
     }
 
