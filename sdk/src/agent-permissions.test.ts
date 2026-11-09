@@ -1,0 +1,12 @@
+import {describe,it} from "node:test"; import assert from "node:assert/strict";
+import {authorizeAgentExposure,validateAgentPermissionSnapshot,type AgentPermissionSnapshot} from "./agent-permissions.js";
+const snap=(mode:AgentPermissionSnapshot["mode"]="delegated"):AgentPermissionSnapshot=>({agentId:"agent.testnet",mode,observedAtNs:"100",blockHeight:42,policy:{principal:"alice.testnet",allowed_assets:["nep141:stock.testnet"],max_underlying_amount:"100",max_premium_usdc:"5000000",max_collateral_usdc:"10000000",max_open_positions:3,expires_at_ns:"1000",enabled:true}});
+const exposure={assetId:"nep141:stock.testnet",underlyingAmount:"10",premiumUsdc:"250000",collateralUsdc:"1000000",currentOpenPositions:1};
+describe("Batch 9 agent permissions",()=>{
+it("allows bounded delegated exposure without per-trade approval",()=>{const r=authorizeAgentExposure({snapshot:snap(),expectedPrincipal:"alice.testnet",exposure,nowNs:200n});assert.equal(r.allowed,true);assert.equal(r.requiresPrincipalApproval,false)});
+it("requires approval in manual mode",()=>{const r=authorizeAgentExposure({snapshot:snap("manual_approval"),expectedPrincipal:"alice.testnet",exposure,nowNs:200n});assert.equal(r.allowed,true);assert.equal(r.requiresPrincipalApproval,true)});
+it("fails closed after revocation",()=>{const s=snap();s.policy.enabled=false;const r=authorizeAgentExposure({snapshot:s,expectedPrincipal:"alice.testnet",exposure,nowNs:200n});assert.equal(r.allowed,false);assert.match(r.reason.join(" "),/revoked/)});
+it("rejects principal mismatch and expired policy",()=>{const e=validateAgentPermissionSnapshot(snap(),"mallory.testnet",1000n);assert.ok(e.some(x=>x.includes("principal")));assert.ok(e.some(x=>x.includes("expired")))});
+it("rejects unapproved asset and over-limit exposure",()=>{const r=authorizeAgentExposure({snapshot:snap(),expectedPrincipal:"alice.testnet",exposure:{...exposure,assetId:"nep141:evil.testnet",underlyingAmount:"101"},nowNs:200n});assert.equal(r.allowed,false);assert.ok(r.reason.some(x=>x.includes("asset")));assert.ok(r.reason.some(x=>x.includes("underlying amount")))});
+it("rejects open-position cap and malformed uint values",()=>{const r=authorizeAgentExposure({snapshot:snap(),expectedPrincipal:"alice.testnet",exposure:{...exposure,premiumUsdc:"1e9",currentOpenPositions:3},nowNs:200n});assert.equal(r.allowed,false);assert.ok(r.reason.some(x=>x.includes("maximum open-position")));assert.ok(r.reason.some(x=>x.includes("canonical unsigned")))});
+});
