@@ -1,1 +1,21 @@
-export interface MarketSnapshot{assetId:string;/** Integer micro-USDC per whole 18-decimal Ondo token. */spotPrice:string;quoteCurrency:"USDC";observedAt:string;source:string;sourceReference?:string;}export class MarketContextError extends Error{constructor(message:string,readonly code:string){super(message);this.name="MarketContextError";}}export function validateMarketSnapshot(s:MarketSnapshot,assetId:string,now=Date.now(),maxAgeMs=300000):MarketSnapshot{if(!s||s.assetId!==assetId)throw new MarketContextError("market asset mismatch","ASSET_MISMATCH");if(!/^\d+$/.test(s.spotPrice)||BigInt(s.spotPrice)<=0n)throw new MarketContextError("spot price must be positive integer units","INVALID_PRICE");if(s.quoteCurrency!=="USDC"||!s.source?.trim())throw new MarketContextError("USDC quote currency and source provenance required","INVALID_SOURCE");const t=Date.parse(s.observedAt);if(!Number.isFinite(t)||t>now+30000)throw new MarketContextError("invalid/future market timestamp","INVALID_TIMESTAMP");if(now-t>maxAgeMs)throw new MarketContextError("market data is stale","STALE_MARKET_DATA");return{...s};}
+export interface MarketSnapshot {
+  assetId: string;
+  /** Integer micro-USDC per whole 18-decimal Ondo token. */
+  spotPrice: string;
+  quoteCurrency: "USDC";
+  observedAt: string;
+  source: string;
+  sourceReference?: string;
+}
+export class MarketContextError extends Error {
+  constructor(message: string, readonly code: string) { super(message); this.name = "MarketContextError"; }
+}
+export function validateMarketSnapshot(s: MarketSnapshot, assetId: string, now = Date.now(), maxAgeMs = 300000): MarketSnapshot {
+  if (!s || s.assetId !== assetId) throw new MarketContextError("market asset mismatch", "ASSET_MISMATCH");
+  if (!/^\d+$/.test(s.spotPrice) || BigInt(s.spotPrice) <= 0n) throw new MarketContextError("spot price must be positive integer micro-USDC per whole token", "INVALID_PRICE");
+  if (s.quoteCurrency !== "USDC" || !s.source?.trim()) throw new MarketContextError("USDC quote currency and source provenance required", "INVALID_SOURCE");
+  const t = Date.parse(s.observedAt);
+  if (!Number.isFinite(t) || t > now + 30000) throw new MarketContextError("invalid/future market timestamp", "INVALID_TIMESTAMP");
+  if (now - t > maxAgeMs) throw new MarketContextError("market data is stale", "STALE_MARKET_DATA");
+  return { ...s };
+}
