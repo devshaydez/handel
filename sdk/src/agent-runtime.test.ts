@@ -24,7 +24,7 @@ const request = {
 };
 async function make(premium = "5000000", guard: () => Promise<{ allowed: boolean; outcome: "allow" | "block" | "review"; confidence: number; decisionId: string; signatureKind: "provider_tee" }> = async () => ({
   allowed: true, outcome: "allow" as const, confidence: 0.99, decisionId: "guard-1", signatureKind: "provider_tee" as const,
-)) {
+})) {
   const proposal = stubProposal({ underlyingAssetId: NVDAON_ASSET_ID, quantity: request.quantity, strike: request.strike, daysToExpiry: 1 });
   proposal.expiryNs = request.expiryNs;
   const journal = await DecisionJournal.open(new MemoryStore());
