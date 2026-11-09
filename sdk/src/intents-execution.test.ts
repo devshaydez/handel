@@ -1,7 +1,7 @@
 import {describe,it} from "node:test";import assert from "node:assert/strict";
-import {buildExecuteIntentsArgs,simulateSignedIntents,executeSimulatedIntents} from "./intents-execution.js";
+import {buildExecuteIntentsArgs,simulateSignedIntents,executeSimulatedIntents,TIDEPOOL_TESTNET_VERIFIER} from "./intents-execution.js";
 import type {SignedNep413} from "./types.js";
-const VERIFIER="verifier.tidepool-sandbox.testnet";
+const VERIFIER=TIDEPOOL_TESTNET_VERIFIER;
 const signed=(who:string):SignedNep413=>({standard:"nep413",payload:{recipient:VERIFIER,nonce:who==="alice.near"?"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",message:JSON.stringify({signer_id:who,deadline:"2026-11-09T22:00:00.000Z",intents:[{intent:"transfer",receiver_id:"other.near",tokens:{"nep141:usdc.near":"100"}}]})},public_key:"ed25519:key",signature:"ed25519:sig"});
 describe("paired NEAR Intents execution",()=>{
  it("requires two valid signatures targeting one verifier",()=>assert.equal(buildExecuteIntentsArgs([signed("alice.near"),signed("bob.near")],VERIFIER).signed.length,2));
