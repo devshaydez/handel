@@ -2150,8 +2150,6 @@ mod tests {
             .block_timestamp(2_001)
             .build();
         testing_env!(reconciler_context);
-        let configured = near_sdk::serde_json::to_vec(&account("reconciler.testnet")).unwrap();
-        env::storage_write(b"handel:escrow:v2:payout-reconciler", &configured);
         let result = c.reconcile_ambiguous_payout(
             0,
             "exercise_payment".into(),
