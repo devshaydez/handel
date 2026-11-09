@@ -1,0 +1,36 @@
+# Market data and deterministic pricing — Phase 16 gates
+
+**Status:** Phase 16 is not complete. No provider is currently approved as an authoritative NEAR execution/risk oracle for Handel's Ondo instruments.
+
+## Ondo API findings
+
+The current official Ondo API documentation exposes:
+- Current asset prices and real-time price streaming.
+- Historical OHLC data.
+- A Soft Attestation Quote endpoint.
+- Signed mint/redeem attestations.
+
+Important distinctions:
+1. Ondo explicitly labels current-price and OHLC price feeds as display-only and says they are not recommended as an oracle. They must not be used as authoritative execution, collateral, liquidation, or risk prices.
+2. The Soft Attestation Quote endpoint returns estimated pricing for UI display and quote validation. Its response is not eligible for on-chain submission and contains no signature or expiry/authentication fields. It is not a binding execution quote or an oracle.
+3. Signed mint/redeem attestations authorize those specific token mint/redeem operations; they are not a general-purpose options-pricing oracle.
+4. The documented Ondo chain identifiers for these APIs are Ethereum, BNB Chain, and Solana. The docs do not establish a NEAR-native price oracle or an Ondo API chain route for Handel's NEAR Intents execution path.
+
+Official references:
+- [Ondo API overview](https://docs.ondo.finance/api-reference/overview)
+- [Current prices and display-only warning](https://docs.ondo.finance/api-reference/assets/get-current-prices-for-all-supported-assets)
+- [Soft Attestation Quote semantics](https://docs.ondo.finance/api-reference/attestations/request-a-soft-attestation-quote)
+- [Signed mint/redeem attestation](https://docs.ondo.finance/api-reference/attestations/request-a-mint-or-redeem-attestation)
+
+## Required before Phase 16 can close
+
+- Identify and approve the actual NEAR Intents route and its supported chain/asset identifiers.
+- Obtain a source that is contractually and technically approved for authoritative spot/reference prices for that exact route, or wait for Ondo's documented oracle.
+- Verify timestamp, market session, stale-data behavior, outlier handling, decimal conversion, USDon/USDC conversion, and source signatures/provenance.
+- Build a deterministic option premium engine with explicit unit/decimal definitions, volatility source, risk-free rate, dividend assumptions, time-to-expiry, pricing model/version, rounding policy, and independent reference vectors.
+- Keep any Ondo display prices or soft quotes in a separate display/analytics channel; never silently promote them into execution/risk inputs.
+- Add tests proving stale, unsigned, wrong-chain, wrong-asset, or unsupported quote data cannot produce a tradable proposal.
+
+## Release rule
+
+Until these requirements are evidenced, the runtime must abstain from live trading when authoritative market inputs or deterministic pricing are unavailable. A market display adapter, a model-generated price, or a soft quote does not satisfy this gate.
