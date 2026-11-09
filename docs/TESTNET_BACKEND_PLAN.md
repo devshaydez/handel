@@ -13,7 +13,7 @@
 
 - Persistent position records, idempotent registration, pinned token/escrow accounts, premium sidecar, asynchronous premium payout/refund, authenticated sequenced lifecycle outbox, replay protection, and evidence-attested ambiguous payout reconciliation are implemented in PR #2.
 - Combined Sandbox coverage exercises Call/Put premium and exercise settlement, lifecycle synchronization, and replay of missing lifecycle events. Sandbox tokens are mocks, not live assets.
-- Registration retry and expiry mapping/release have unit coverage; combined cross-contract fault-injection and full expiry callback persistence remain unproven.
+- Registration callback failure/retry and expiry callback failure/reconciliation now have dedicated fault-injection Sandbox coverage. Batch 1 CI run #42543351501 passed both contract/Sandbox and SDK jobs.
 - Escrow exercise payout legs remain sequential and non-atomic. Ambiguous callbacks require the configured human evidence attestor; timeout alone is never grounds for retry.
 - OptionsContract legacy Borsh root migration is not implemented. Do not upgrade a legacy deployment until exact V1 layouts and a separately reviewed migration or audited redeployment process are established.
 
@@ -21,14 +21,14 @@
 
 - NEP-413 payload builders create unsigned payloads only. The user's wallet must sign; this SDK never handles private keys.
 - OperationJournal provides in-memory operation-ID idempotency, transaction/result correlation, explicit unknown-outcome handling, and retries only after definitive failure.
-- Batch 2 adds a host-supplied durable snapshot-store adapter, serialized journal writes with rollback on persistence failure, and wallet/RPC observer interfaces. These interfaces do not provide a hosted database, wallet implementation, RPC indexer, or automatic transaction submission.
+- Batch 2 adds a durable file snapshot store for Node backends, serialized journal writes with rollback on persistence failure, a wallet signing boundary, and a concrete NEAR Testnet JSON-RPC observer that waits for FINAL execution. A hosted database, wallet implementation, RPC quorum/indexer, and automatic transaction submission remain host responsibilities.
 - Batch 2 adds a Tidepool 1Click-compatible Testnet adapter for dynamic token discovery, dry quotes, explicit opt-in before deposit-address creation, deposit notification, and status polling. It rejects Handel's configured Ondo assets because Tidepool's published token registry does not list them.
 - Batch 2 adds normalized settlement-receipt validation and replay protection. A host-supplied ReceiptInspector must independently fetch and decode canonical NEAR verifier receipts; the SDK validation module is not itself a light client or cryptographic proof implementation.
 - LifecycleEventCursor enforces ordered sequence delivery, rejects gaps/conflicting replays, and treats exact event replays as idempotent. Persist its snapshot in the host application.
 
 ## Critical remaining blockers
 
-1. Combined failure-path Sandbox tests: registration callback receipt failure/recovery, expiry release with callback persistence, and ambiguous lifecycle delivery under fault injection.
+1. Remaining Sandbox work: broader adversarial coverage for ambiguous lifecycle delivery and partial settlement; Batch 1's registration and expiry callback fault-injection tests passed.
 2. Migration: exact legacy Borsh root layouts, versioned migration entrypoints or audited redeployment with explicit asset/position handling.
 3. Independent verification: SDK evidence-binding validation and replay protection are implemented, but a production ReceiptInspector/verifier service with independent RPC quorum, finality/reorg handling, key management, durable audit logs, and alerting remains.
 4. Real asset admission: Tidepool Testnet adapter and live token discovery are implemented. Tidepool publishes test USDC/USDT, wNEAR, wBTC, ETH, XAUT and bridged test assets; it does not list Handel's Ondo stock assets. Exact Ondo route support, custody, token mapping, decimals, NEP-145 deposits, and a supported collateral reservation mechanism remain unproven.

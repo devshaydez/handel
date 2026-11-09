@@ -22,11 +22,11 @@ This batch adds safe NEAR Testnet integration primitives. It does not authorize 
 
 ## Phase 6 — Transaction orchestration
 
-- Added a host-supplied durable snapshot store for operation journals.
+- Added a Node file-backed JSON snapshot store with mode-0600 temporary writes and atomic rename, plus a generic host-supplied snapshot-store interface.
 - Writes are serialized; a failed persistence operation rolls back the in-memory transition.
-- Added wallet NEP-413 signing and transaction-observer interfaces. The connected wallet signs; Handel never handles private keys.
+- Added wallet NEP-413 signing boundary and a concrete NEAR JSON-RPC observer that requests `wait_until: FINAL`; unknown RPC/network outcomes remain unknown. The connected wallet signs; Handel never handles private keys.
 - Unknown transaction outcomes remain unknown and cannot be retried. Retry requires a recorded definitive failure and a fresh operation ID.
-- Concrete wallet selector, RPC implementation, event indexer, worker process, monitoring, and recovery UI remain deployment work.
+- Wallet-selector integration, RPC quorum/indexer, verifier-event decoder, worker process, monitoring, and recovery UI remain deployment work.
 
 ## Validation and release boundary
 

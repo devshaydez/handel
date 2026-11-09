@@ -7,3 +7,5 @@ export * from "./orchestration.js";
 export * from "./tidepool.js";
 export * from "./settlement-verifier.js";
 export * from "./durable-orchestration.js";
+export * from "./file-store.js";
+export * from "./near-rpc.js";

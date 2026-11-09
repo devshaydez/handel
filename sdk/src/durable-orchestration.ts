@@ -73,7 +73,7 @@ export interface Nep413Wallet {
 
 /** Adapter contract for a NEAR RPC / indexer implementation supplied by the host. */
 export interface NearTransactionObserver {
-  waitForFinalExecution(transactionId: string): Promise<
+  waitForFinalExecution(transactionId: string, signerAccountId: string): Promise<
     | { outcome: "success"; transactionId: string; receiptIds: string[] }
     | { outcome: "failure"; transactionId: string; failureCode: string }
     | { outcome: "unknown"; transactionId: string }
