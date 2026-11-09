@@ -7,6 +7,7 @@ on:
       - work/batch-4-ai-integration-adversarial
       - work/batch-5-testnet-release-readiness
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
       - feat/handel-archive-core
@@ -67,6 +68,7 @@ jobs:
           cargo near build non-reproducible-wasm --no-abi --features fault-injection
           cp target/near/handel_options.wasm target/near/handel_options_fault_injection.wasm
           cargo near build non-reproducible-wasm --no-abi
+
       - name: Run contract and sandbox integration tests
         run: cargo test --workspace
 
