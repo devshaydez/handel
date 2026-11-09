@@ -11,7 +11,8 @@ NEAR AI Cloud provides an OpenAI-compatible inference gateway and attestation to
 - **Signed response verification**: verify the exact request/response bytes using the completion ID. A `provider_tee` receipt binds those bytes to the attested model signer; a `gateway` receipt proves only that the Gateway signed those bytes.
 - **Field-level E2EE for supported Chat fields**: `e2ee: true` encrypts supported request fields to the attested model key. This is separate from TLS.
 - **Oblivious HTTP (OHTTP)**: `ohttp: true` protects the HTTP exchange to the Gateway; it is independent of E2EE and currently requires Ed25519.
-- **Deployment policy hooks**: application code can reject a model deployment whose measurements or signer do not meet an approved policy.
+- **Deployment policy hooks**: application code can reject a model deployment whose measurements or signer do not meet an approved policy. The SDK does not enforce an approved-measurement allowlist by default.
+- **Attestation caching**: deployment verification is cached for one hour by default; the client can use a shorter TTL or `attestationCacheTimeToLiveMs: 0` when each request must trigger a fresh verification.
 - **Build/image provenance helpers**: the SDK exposes optional Sigstore/SLSA provenance verification for supported deployment images.
 
 These controls are available only where the selected route/model supports them. Incognito routes do not provide model-level TEE attestation or a model-generated `provider_tee` signature. Handel must not silently downgrade to Gateway-only verification.
@@ -54,7 +55,9 @@ No single AI model—including a TEE-hosted model—can bypass these determinist
 
 ## 4. NEAR System One / Jev as an additional guardrail
 
-NEAR AI's current SDK documents a System One decision interface for Jev decision models. Separately, the System One ecosystem exposes typed Choice, Score and Noul/probability decisions. These are useful for fast, bounded checks such as:
+NEAR AI's current Inference SDK exposes `client.systemone.create()` for Jev decision models. It verifies the required deployments using the client's attestation cache and policies before sending state. The result includes a `decisionId`; Handel must call `client.verifyResponse(result.decisionId)` and verify the receipt before using the answers. The NEAR Gateway path can use the same `NEARAI_API_KEY` and base URL as Chat inference.
+
+The System One route must use a separate Gateway client configured with `e2ee: false` and `ohttp: false`; the current SDK does not support E2EE/OHTTP for System One. Send only the minimum structured state needed for the decision, never wallet secrets or private keys. The TypeSafe SDK can also use the Gateway client's `fetch` adapter. Separately, the System One ecosystem exposes typed Choice, Score and Noul/probability decisions. These are useful for fast, bounded checks such as:
 
 - input: benign vs prompt injection vs jailbreak vs data exfiltration;
 - tool gate: allowed read-only action vs forbidden signing/transfer action;
@@ -62,26 +65,26 @@ NEAR AI's current SDK documents a System One decision interface for Jev decision
 - evidence check: whether each material claim is supported by the supplied market snapshot;
 - output: safe to show vs leaks secrets / unsupported claims / unsafe instructions.
 
-A structured choice restricts the output space, but it does not make the classification infallible. Use it to block or escalate suspicious actions, not as the sole authoriser. A probability is not a trade instruction. Verify the decision service's response receipt where supported and keep its credentials/billing separate from the NEAR AI Cloud inference key unless the chosen endpoint explicitly documents otherwise.
+A structured choice restricts the output space, but it does not make the classification infallible. Use it to block or escalate suspicious actions, not as the sole authoriser. A probability is not a trade instruction. Verify the decision receipt before using the answer. The NEAR Gateway `systemone.create()` route uses the same Gateway credential; a separate standalone TypeSafe endpoint may have its own credential and billing terms.
 
-Reference: [System One agent guardrails and verification pattern](https://www.systemone.dev/cookbook/agent-guardrails/).
+References: [NEAR AI SDK verification guide](https://github.com/nearai/inference-sdk/blob/main/js/docs/verification-guide.md), [System One agent guardrails pattern](https://www.systemone.dev/cookbook/agent-guardrails/).
 
 ## 5. Required Handel configuration
 
 For sensitive user, wallet and portfolio context, the target NEAR AI Cloud configuration is:
 
-- exact allowlisted model ID with model attestation support;
+- exact allowlisted model ID with model attestation support (reject Incognito/Gateway-only model routes);
 - Gateway and model deployment verification before every uncached session;
-- deployment policy pinned to reviewed model measurements/signer identity;
+- deployment policy pinned to reviewed model measurements/signer identity; the SDK's default policy does not pin an approved allowlist;
 - `provider_tee` response signature required before the model output is used;
-- E2EE enabled for supported Chat fields;
-- OHTTP enabled where supported and configured with Ed25519;
+- E2EE enabled for supported Chat fields (E2EE is supported for Chat, not System One);
+- OHTTP enabled for Chat where supported and configured with Ed25519; OHTTP protects the HTTP exchange to the Gateway but does not hide outer auth headers or the client's network address;
 - no Incognito/Gateway-only fallback;
 - bounded prompt size, output tokens, per-request cost, total budget and request count;
 - shared durable budget ledger before multi-instance production use;
 - no API keys in prompts, browser code, logs or repository files.
 
-The current Batch 8 provider code requires model attestation and a `provider_tee` receipt by default, but its factory currently constructs the client with `e2ee: false` and `ohttp: false`. Therefore application-level request encryption is **not yet enabled** in Handel. The budget ledger is also process-local. These must be addressed and tested before sensitive production traffic.
+The current Batch 8 provider code requires model attestation and a `provider_tee` receipt by default, but its factory currently constructs the Chat client with `e2ee: false` and `ohttp: false`, does not configure a deployment-measurement allowlist, and uses the SDK's default one-hour attestation cache. Therefore application-level request encryption and OHTTP are **not yet enabled** in Handel. The System One decision route is also not integrated. The budget ledger is process-local. These must be addressed and tested before sensitive production traffic. When System One is added, it must use a separate client with E2EE/OHTTP disabled as required by the current SDK.
 
 ## 6. Implementation ownership
 

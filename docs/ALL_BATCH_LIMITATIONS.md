@@ -172,7 +172,7 @@ Tracked in [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCA
 ### Phase 17 — bounded agent authority: implemented in branch; final integrated CI pending
 - Added on-chain Education, Advisory, ManualApproval and Delegated execution modes, stored separately from AgentPolicy to avoid changing its Borsh value layout. New policies default to ManualApproval; only the principal may change the mode.
 - Direct delegated Call/Put methods require explicit Delegated mode and enforce live/revocable policy, allowlist, caps, expiry and open-position limits. Expired positions are excluded from the count.
-- Manual proposal creation/approval requires ManualApproval mode and a live policy; revocation before approval blocks the pending proposal. Education/Advisory modes cannot trade.
+- Manual proposal creation/approval requires ManualApproval mode and a live policy; approval revalidates current principal, asset, caps, expiry, position terms and open-position count. Revocation, principal rotation, or reduced limits cannot grandfather an unsafe pending proposal. Education/Advisory modes cannot trade.
 - SDK preflight now rejects stale/future snapshots, invalid principal and Education/Advisory trading attempts. It remains a preflight; contract checks are authoritative.
 - Rust tests cover safe default, principal-only delegation, education/advisory denial, and revocation before manual proposal approval.
 - Added connected-wallet NEP-413 signing boundary: explicit approval, connected-principal match, verifier allowlist, signer/deadline/intent checks; no private-key handling.
