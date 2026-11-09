@@ -239,7 +239,7 @@ Release gates still open:
 
 - Never ask the user for a seed phrase, private key or raw API key in chat.
 - Never commit secrets or print them in logs/artifacts.
-- User's NEAR AI key should be a GitHub Actions secret named `NEARAI_API_KEY`; it has not yet been confirmed configured.
+- User confirmed adding `NEARAI_API_KEY` as a GitHub Actions repository secret. Do not ask them to paste it. Backend runtime configuration and live inference still need verification.
 - Do not sign or submit real-asset transactions without explicit user approval.
 - Do not deploy contracts, provision accounts, fund storage or move tokens without explicit user approval.
 - Do not merge PRs without explicit user approval.
@@ -295,10 +295,11 @@ See [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCATION_AN
 
 Work is underway on branch `work/batch-9-execution-safety`, stacked on Batch 8 branch `work/batch-8-ai-agent-intelligence`.
 
-- Phase 17: added delegated Put contract entry point with USDC collateral cap checks; added SDK permission snapshot/exposure preflight and tests.
+- Phase 17: implemented on-chain Education/Advisory/ManualApproval/Delegated modes (new policies default to ManualApproval), principal-only mode changes, direct Call/Put gating, live-policy approval checks, and SDK stale-snapshot/mode preflight. Tests added; final integrated CI still required.
 - Phase 18: added connected-wallet NEP-413 signing boundary plus paired Intents simulation/submission helpers. No private key handling. Verifier Mainnet-only; no Mainnet transaction or asset movement performed.
 - Phase 19: added NEP-141 escrow transfer_call builder. Existing Escrow ft_on_transfer validates exact sender/token/amount/position/leg. Sequential payout, trusted reconciler, missing Intents-ledger reservation and missing Ondo route remain open.
 - Batch 9 detail: [BATCH_9_EXECUTION_SAFETY.md](./BATCH_9_EXECUTION_SAFETY.md).
+- AI security architecture: [AI_GUARDRAILS_AND_TEE_ARCHITECTURE.md](./AI_GUARDRAILS_AND_TEE_ARCHITECTURE.md). NEAR TEE attestation is not a substitute for deterministic trade/risk/authority gates; E2EE/OHTTP and System One guardrails remain integration work.
 - Project-wide remaining gates: [ALL_BATCH_LIMITATIONS.md](./ALL_BATCH_LIMITATIONS.md).
 
 Batch 9 is not complete until all phases are implemented, the full branch passes one final integrated CI run, and the outstanding custody, verifier, wallet, and security-review gates are accurately recorded. No deployment, signing, funding, or asset movement is implied by SDK helpers or passing CI.
