@@ -71,7 +71,7 @@ export class HandelAgentRuntime {
     if (!guard.allowed || guard.outcome !== "allow") {
       throw new AgentRuntimeError("System One guardrail did not approve proposal: " + guard.outcome, "GUARDRAIL_REJECTED");
     }
-    const permissionSnapshotHash = createHash("sha256").update(JSON.stringify(p, Object.keys(p).sort())).digest("hex");
+    const permissionSnapshotHash = createHash("sha256").update(JSON.stringify(p) ?? "").digest("hex");
     let decision;
     try {
       decision = await this.decisions.record({
@@ -85,7 +85,7 @@ export class HandelAgentRuntime {
         optionTerms: { strike: proposal.strike, quantity: proposal.quantity, expiryNs: proposal.expiryNs, premium: proposal.premium },
         marketEvidence: {
           source: market.source, observedAt: market.observedAt,
-          snapshotHash: createHash("sha256").update(JSON.stringify(market, Object.keys(market).sort())).digest("hex"),
+          snapshotHash: createHash("sha256").update(JSON.stringify(market) ?? "").digest("hex"),
         },
         premiumEvidence: { source: q.source, calculatedAt: q.calculatedAt, methodology: q.methodology },
         guardrailEvidence: { decisionId: guard.decisionId, outcome: guard.outcome, confidence: guard.confidence, signatureKind: guard.signatureKind },
