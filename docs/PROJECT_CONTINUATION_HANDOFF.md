@@ -56,6 +56,18 @@ Default/working base branch recorded: `feat/handel-archive-core`.
 ### Current continuation handoff PR
 This document is being added on branch `docs/project-continuation-handoff-2026-11-09` as a standalone documentation change. It must not overwrite or merge PR #8 or #9.
 
+
+
+### Product refinement — assisted stock trading and beginner education (2026-11-09)
+
+The user clarified that Handel is intended to be an **AI-assisted stock-trading product**, with options trading on Ondo tokenized equities as its initial protocol/execution mechanism. It must also educate beginners. The user wants automatic execution to be available when an individual user explicitly opts in; users who do not opt in retain recommendation-and-approval control.
+
+The full durable requirements are in [`docs/PRODUCT_VISION_AND_AI_AUTONOMY.md`](./PRODUCT_VISION_AND_AI_AUTONOMY.md). Treat that document as a product requirement, not evidence that the features are already implemented.
+
+Important scope distinction: current Handel contracts/SDK are designed around fully collateralized European options. Direct spot-equity buy/sell execution is **not established** by the current architecture. Do not claim that Handel can already buy or sell the underlying stock directly. Decide and document whether spot trading is a later execution rail or outside the initial hackathon vertical slice. The first delivery should truthfully support the actual options actions and explain their relationship to bullish/bearish stock views.
+
+Autonomous execution is opt-in, bounded, auditable and revocable. It must not be implemented by giving the agent a user's full-access private key or seed phrase. The current NEP-413/full-access-key limitation remains unresolved and must be respected.
+
 ## 4. Remaining work grouped into three delivery batches
 
 - **Batch 8 — Intelligence (Phases 14–16):** (14) NEAR AI Cloud verified inference and budget guard; (15) bounded AI agent runtime/tools/audit; (16) market-data adapter and deterministic premium/risk engine.
