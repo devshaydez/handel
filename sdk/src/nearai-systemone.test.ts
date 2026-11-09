@@ -9,35 +9,52 @@ const config = {
   allowedComposeHashes: ["compose"],
   allowedOsImageHashes: ["os"],
 };
-function client(overrides: Partial<NearAiSystemOneClient> = {}): NearAiSystemOneClient {
+
+function client(choice = "allow", confidence = 0.95): NearAiSystemOneClient {
   return {
     verify: async () => ({
       gateway: { tcbStatus: "UpToDate" },
-      models: [{ tcbStatus: "UpToDate", signer: { signingAddress: "signer" }, deployment: { runtimeMeasurements: { composeHash: "compose", osImageHash: "os" } } }],
+      models: [{
+        tcbStatus: "UpToDate",
+        signer: { signingAddress: "signer" },
+        deployment: { runtimeMeasurements: { composeHash: "compose", osImageHash: "os" } },
+      }],
     }),
-    systemone: { create: async () => ({ decisionId: "decision-1", data: { answers: { guard: { type: "choice", choice: "allow", confidence: 0.95 } } } }) },
+    systemone: {
+      create: async () => ({
+        decisionId: "decision-1",
+        data: { answers: { guard: { type: "choice", choice, confidence } } },
+      }),
+    },
     verifyResponse: async () => ({ signatureKind: "provider_tee" }),
-    ...overrides,
-  } as NearAiSystemOneClient;
+  };
 }
-test("accepts only a verified, allowlisted high-confidence System One allow decision", async () => {
+
+test("accepts only a verified, allowlisted, high-confidence System One allow decision", async () => {
   const result = await new NearAiSystemOneGuard(config, client()).evaluate({ proposal: "test" });
   assert.equal(result.allowed, true);
   assert.equal(result.signatureKind, "provider_tee");
 });
-test("blocks block/review/low-confidence outcomes", async () => {
-  const block = new NearAiSystemOneGuard(config, client({ systemone: { create: async () => ({ decisionId: "d", data: { answers: { guard: { type: "choice", choice: "block", confidence: 0.99 } } }) } } }));
-  assert.equal((await block.evaluate({})).allowed, false);
-  const review = new NearAiSystemOneGuard(config, client({ systemone: { create: async () => ({ decisionId: "d", data: { answers: { guard: { type: "choice", choice: "review", confidence: 0.99 } } }) } } }));
-  assert.equal((await review.evaluate({})).allowed, false);
-  const uncertain = new NearAiSystemOneGuard(config, client({ systemone: { create: async () => ({ decisionId: "d", data: { answers: { guard: { type: "choice", choice: "allow", confidence: 0.4 } } }) } } }));
-  assert.equal((await uncertain.evaluate({})).allowed, false);
+
+test("blocks block, review, and low-confidence outcomes", async () => {
+  assert.equal((await new NearAiSystemOneGuard(config, client("block", 0.99)).evaluate({})).allowed, false);
+  assert.equal((await new NearAiSystemOneGuard(config, client("review", 0.99)).evaluate({})).allowed, false);
+  assert.equal((await new NearAiSystemOneGuard(config, client("allow", 0.4)).evaluate({})).allowed, false);
 });
-test("fails closed on missing model attestation, bad signer and receipt", async () => {
-  const noModel = new NearAiSystemOneGuard(config, client({ verify: async () => ({ gateway: { tcbStatus: "UpToDate" }, models: [] }) }));
-  await assert.rejects(() => noModel.evaluate({}), /TEE attestation/);
-  const badSigner = new NearAiSystemOneGuard(config, client({ verify: async () => ({ gateway: { tcbStatus: "UpToDate" }, models: [{ tcbStatus: "UpToDate", signer: { signingAddress: "other" } }] }) }));
-  await assert.rejects(() => badSigner.evaluate({}), /signer is not allowlisted/);
-  const badReceipt = new NearAiSystemOneGuard(config, client({ verifyResponse: async () => ({ signatureKind: "gateway" }) }));
-  await assert.rejects(() => badReceipt.evaluate({}), /not provider-TEE signed/);
+
+test("fails closed on missing model attestation, bad signer, and Gateway-only receipt", async () => {
+  const missing = client();
+  missing.verify = async () => ({ gateway: { tcbStatus: "UpToDate" }, models: [] });
+  await assert.rejects(() => new NearAiSystemOneGuard(config, missing).evaluate({}), /TEE attestation/);
+
+  const signer = client();
+  signer.verify = async () => ({
+    gateway: { tcbStatus: "UpToDate" },
+    models: [{ tcbStatus: "UpToDate", signer: { signingAddress: "other" } }],
+  });
+  await assert.rejects(() => new NearAiSystemOneGuard(config, signer).evaluate({}), /signer is not allowlisted/);
+
+  const receipt = client();
+  receipt.verifyResponse = async () => ({ signatureKind: "gateway" });
+  await assert.rejects(() => new NearAiSystemOneGuard(config, receipt).evaluate({}), /not provider-TEE signed/);
 });
