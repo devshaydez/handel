@@ -1434,8 +1434,10 @@ mod tests {
             .build();
         testing_env!(context.clone());
         let mut contract = EscrowContract::new();
-        contract.set_controller(account("options.testnet"));
+        contract.propose_controller(account("options.testnet"));
         context.predecessor_account_id = account("options.testnet");
+        testing_env!(context.clone());
+        contract.accept_controller();
         testing_env!(context);
         contract.create_position_v2(
             0,
