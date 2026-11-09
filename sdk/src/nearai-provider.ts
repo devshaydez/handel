@@ -101,6 +101,7 @@ export async function createOfficialNearAiClient(
   config: Pick<NearAiConfig, "apiKey" | "allowedGatewaySigners" | "allowedModelSigners" | "allowedComposeHashes" | "allowedOsImageHashes" | "attestationCacheTimeToLiveMs">,
   baseUrl = "https://cloud-api.near.ai/v1/",
 ): Promise<NearAiClient> {
+  if (new URL(baseUrl).protocol !== "https:" || !config.apiKey.trim()) throw new NearAiError("HTTPS endpoint and API key are required", "INVALID_CONFIG");
   const { allowedModelSigners, allowedComposeHashes, allowedOsImageHashes } = config;
   if (!config.allowedGatewaySigners.length || !allowedModelSigners.length || !allowedComposeHashes.length || !allowedOsImageHashes.length) {
     throw new NearAiError("explicit model signer, compose and OS measurement allowlists are required", "DEPLOYMENT_ALLOWLIST_REQUIRED");

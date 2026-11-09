@@ -143,7 +143,7 @@ export async function createOfficialNearAiSystemOneClient(
   config: NearAiSystemOneConfig,
   baseUrl = "https://cloud-api.near.ai/v1/",
 ): Promise<NearAiSystemOneClient> {
-  if (new URL(baseUrl).protocol !== "https:") throw new NearAiError("HTTPS is required for System One", "SYSTEMONE_CONFIG_INVALID");
+  if (new URL(baseUrl).protocol !== "https:" || !config.apiKey.trim()) throw new NearAiError("HTTPS endpoint and API key are required for System One", "SYSTEMONE_CONFIG_INVALID");
   if (!config.allowedGatewaySigners.length || !config.allowedModelSigners.length || !config.allowedComposeHashes.length || !config.allowedOsImageHashes.length) {
     throw new NearAiError("System One TEE allowlists are required", "SYSTEMONE_ALLOWLIST_REQUIRED");
   }
