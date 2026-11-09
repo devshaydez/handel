@@ -9,4 +9,5 @@ export * from "./settlement-verifier.js";
 export * from "./durable-orchestration.js";
 export * from "./file-store.js";
 export * from "./near-rpc.js";
+export * from "./near-rpc-receipt-inspector.js";
 export * from "./settlement-service.js";
