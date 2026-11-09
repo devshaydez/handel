@@ -3,6 +3,8 @@ export * from "./assets.js";
 export * from "./policy.js";
 export * from "./intents.js";
 export * from "./proposal.js";
+export * from "./ai-provider.js";
+export * from "./proposal-workflow.js";
 export * from "./orchestration.js";
 export * from "./tidepool.js";
 export * from "./settlement-verifier.js";
