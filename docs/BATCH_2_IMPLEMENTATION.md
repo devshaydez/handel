@@ -33,3 +33,11 @@ This batch adds safe NEAR Testnet integration primitives. It does not authorize 
 - Unit tests cover dynamic token discovery, quote safety, unsupported Ondo assets, provider-status classification, durable restart/recovery, failed persistence, concurrent writes, receipt binding, finality, and replay protection.
 - CI status is recorded in the Batch 2 pull request after the full run completes.
 - This is SDK/Testnet adapter implementation only. No Tidepool deposit, NEAR Testnet contract deployment, real Ondo transfer, or production verifier has been performed.
+
+## External integration references
+
+- Tidepool quickstart: https://www.usetidepool.tech/docs/quickstart
+- Tidepool API reference: https://www.usetidepool.tech/docs/api-reference
+- Tidepool live Testnet token registry: https://www.usetidepool.tech/v0/tokens
+- Tidepool trust model and verifier flow: https://www.usetidepool.tech/docs/concepts/how-it-works
+- NEAR JSON-RPC transaction `tx` finality semantics: https://docs.fastnear.com/rpc
