@@ -39,19 +39,19 @@ test("blocks un-attested models and Gateway-only responses", async () => {
 });
 test("rejects revoked, stale-policy and unapproved signer or measurements", async () => {
   const gateway = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "Revoked" }, models: [{ tcbStatus: "UpToDate" }] }) }));
-  await assert.rejects(() => gateway.propose({}), e => e.code === "GATEWAY_TCB_REJECTED");
+  await assert.rejects(() => gateway.propose({}), e => e instanceof NearAiError && e.code === "GATEWAY_TCB_REJECTED");
   const tcb = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "UpToDate" }, models: [{ tcbStatus: "OutOfDate" }] }) }));
-  await assert.rejects(() => tcb.propose({}), e => e.code === "MODEL_TCB_REJECTED");
+  await assert.rejects(() => tcb.propose({}), e => e instanceof NearAiError && e.code === "MODEL_TCB_REJECTED");
   const signer = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "UpToDate" }, models: [{ tcbStatus: "UpToDate", signer: { signingAddress: "unknown" } }] }) }));
-  await assert.rejects(() => signer.propose({}), e => e.code === "MODEL_SIGNER_REJECTED");
+  await assert.rejects(() => signer.propose({}), e => e instanceof NearAiError && e.code === "MODEL_SIGNER_REJECTED");
   const measurement = new NearAiProposalProvider(config, fake({ verify: async () => ({ gateway: { tcbStatus: "UpToDate" }, models: [{ tcbStatus: "UpToDate", signer: { signingAddress: "signer-1" }, deployment: { runtimeMeasurements: { composeHash: "bad", osImageHash: "os-1" } } }] }) }));
-  await assert.rejects(() => measurement.propose({}), e => e.code === "DEPLOYMENT_MEASUREMENT_REJECTED");
+  await assert.rejects(() => measurement.propose({}), e => e instanceof NearAiError && e.code === "DEPLOYMENT_MEASUREMENT_REJECTED");
 });
 test("fails closed on verification errors and signature failures", async () => {
   const a = new NearAiProposalProvider(config, fake({ verify: async () => { throw Error(); } }));
-  await assert.rejects(() => a.propose({}), e => e.code === "ATTESTATION_FAILED");
+  await assert.rejects(() => a.propose({}), e => e instanceof NearAiError && e.code === "ATTESTATION_FAILED");
   const b = new NearAiProposalProvider(config, fake({ verifyResponse: async () => { throw Error(); } }));
-  await assert.rejects(() => b.propose({}), e => e.code === "RESPONSE_UNVERIFIED");
+  await assert.rejects(() => b.propose({}), e => e instanceof NearAiError && e.code === "RESPONSE_UNVERIFIED");
 });
 test("budget reservations are conservative and never refunded", () => {
   const ledger = new NearAiBudgetLedger({ ...budget, maxRequests: 2, maxRequestCostMicros: 5000000 });
@@ -62,5 +62,5 @@ test("budget reservations are conservative and never refunded", () => {
 test("rejects unsafe endpoint and oversized prompt", async () => {
   assert.throws(() => new NearAiProposalProvider({ ...config, baseUrl: "http://bad" }, fake()), NearAiError);
   const provider = new NearAiProposalProvider({ ...config, budget: { ...budget, maxPromptBytes: 1 } }, fake());
-  await assert.rejects(() => provider.propose({ a: 1 }), e => e.code === "PROMPT_TOO_LARGE");
+  await assert.rejects(() => provider.propose({ a: 1 }), e => e instanceof NearAiError && e.code === "PROMPT_TOO_LARGE");
 });

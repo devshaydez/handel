@@ -116,7 +116,7 @@ export async function createOfficialNearAiClient(
         attestationCacheTimeToLiveMs: number;
         gatewayVerification: { policy: { acceptedTcbStatuses: string[] } };
         modelVerification: {
-          policy: { acceptedTcbStatuses: string[] };
+          policy: { acceptedTcbStatuses: string[]; gpuEvidence?: "if-present" | "required" };
           verifiers: { deployment: (deployment: { runtimeMeasurements: { composeHash?: string; osImageHash?: string } }) => void };
         };
       }) => NearAiClient;
