@@ -1658,7 +1658,7 @@ mod tests {
         context("owner.testnet");
         let mut c = OptionsContract::new();
         c.set_asset("nep141:stock.testnet".into(), 18, true);
-        c.set_asset(OptionsContract::usdc_asset_id(), 6, true);
+        c.set_asset(OptionsContract::usdc_asset_id_for_test(), 6, true);
         c
     }
 
@@ -1820,7 +1820,7 @@ mod tests {
         assert_eq!(requested.requested_amount, 9_876);
         assert_eq!(
             requested.requested_asset_id,
-            OptionsContract::usdc_asset_id()
+            OptionsContract::usdc_asset_id_for_test()
         );
     }
 
@@ -1924,7 +1924,7 @@ mod tests {
         );
         assert_eq!(
             c.get_operation("pay-x".into()).unwrap().requested_asset_id,
-            OptionsContract::usdc_asset_id()
+            OptionsContract::usdc_asset_id_for_test()
         );
         let delivery = evidence(
             "deliver-x",
@@ -2376,7 +2376,7 @@ mod tests {
             account("stock-token.testnet"),
         );
         c.set_escrow_token_account(
-            OptionsContract::usdc_asset_id(),
+            OptionsContract::usdc_asset_id_for_test(),
             account("usdc-token.testnet"),
         );
 
@@ -2587,7 +2587,7 @@ mod tests {
             account("stock-token.testnet"),
         );
         c.set_escrow_token_account(
-            OptionsContract::usdc_asset_id(),
+            OptionsContract::usdc_asset_id_for_test(),
             account("usdc-token.testnet"),
         );
         let id = create_call(&mut c);
