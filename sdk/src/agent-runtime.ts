@@ -47,7 +47,7 @@ export class HandelAgentRuntime {
     let marketVerification;
     try { marketVerification = await this.marketVerifier.verify(market); }
     catch { throw new AgentRuntimeError("market source verification unavailable", "MARKET_SOURCE_UNVERIFIED"); }
-    if (!marketVerification.approved || !marketVerification.method.trim() || !marketVerification.evidenceHash.trim()) {
+    if (!marketVerification.approved || !marketVerification.method.trim() || !/^[a-f0-9]{64}$/.test(marketVerification.evidenceHash)) {
       throw new AgentRuntimeError("market source is not approved for trading", "MARKET_SOURCE_UNVERIFIED");
     }
     const g = await this.provider.propose({
