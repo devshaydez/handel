@@ -355,3 +355,10 @@ The live smoke does **not** mean the Handel agent is a deployed/always-on servic
 - **Batch 15 — Settlement:** receipt inspection now binds the transaction hash and signer, rejects duplicate matching events, and provides a strict multi-RPC agreement inspector requiring distinct endpoint origins. This is RPC corroboration, not a light client or remote-chain proof. The actual verifier authority and custody model still require independent review.
 
 The newest code changes are on `work/batch-10-product-release` / PR #14. Read the latest workflow run for the exact head SHA before claiming the batch passes. Do not merge PR #14 or the stacked PRs without explicit user approval.
+
+
+### Batch 11 runtime wiring and market-evidence classification
+
+The SDK now has `createHandelNearAiStack(apiKey, budget)`, which builds the official Chat provider and separate System One guard, pins the currently observed TEE deployment measurements, and shares one hard-budget ledger. `createHandelAgentRuntime` wires that stack into the host-controlled proposal runtime. This is library-level assembly, not a deployed daemon. The caller still supplies budget policy, a trusted market verifier, a signed pricing-input verifier, and durable decision storage.
+
+Market evidence is now explicitly classified. A trading proposal can proceed past the market gate only with `executionEligible: true` and evidence type `execution_oracle` or `signed_execution_quote`. Display-only feeds, soft quotes and historical data are rejected. No production adapter currently meets this requirement, so the market gate remains closed for live trading.
