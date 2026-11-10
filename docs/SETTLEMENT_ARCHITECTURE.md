@@ -186,3 +186,8 @@ No mainnet deployment, real collateral, or user-facing claim of fully collateral
 - replay, duplicate, delayed receipt, callback-receipt failure, reorg, partial failure and pause/recovery tests;
 - persistent storage and gas review, including callback gas under realistic state growth, measured Sandbox gas at increasing position counts, and explicit per-position storage staking/refunds;
 - independent security review.
+
+
+## Independent RPC receipt inspection
+
+The SDK now provides `QuorumNearRpcReceiptInspector`, which requires at least two distinct RPC endpoint origins and rejects any disagreement in the finalized transaction, receipt, block identity or verifier event view. Configure endpoints operated by different providers; two hostnames under the same operator do not create meaningful independence. This reduces reliance on one RPC response but is not a light client, consensus proof, or proof of an external-chain event. It only corroborates the NEAR transaction/receipt evidence exposed by those RPCs. The verifier event and its trusted authority remain separate security assumptions.

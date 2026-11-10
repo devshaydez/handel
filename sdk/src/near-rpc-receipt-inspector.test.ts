@@ -39,11 +39,11 @@ function response(overrides: Record<string, unknown> = {}): any {
   };
 }
 
-function inspector(body: unknown) {
+function inspector(body: unknown, rpcUrl = "https://rpc.testnet.near.org") {
   return new NearRpcReceiptInspector({
     verifierAccountId: "verifier.testnet",
     transactionSignerAccountId: "alice.testnet",
-    rpcUrl: "https://rpc.testnet.near.org",
+    rpcUrl,
     fetcher: async (_input, init) => {
       const request = JSON.parse(String(init?.body)) as {
         method: string;
@@ -126,14 +126,20 @@ test("NEAR receipt inspector rejects non-HTTPS endpoints", () => {
 
 test("quorum inspector requires two independent matching receipt views", async () => {
   const matching = new QuorumNearRpcReceiptInspector([
-    { inspect: async () => await inspector(response()).inspect("tx-1", "receipt-1") },
-    { inspect: async () => await inspector(response()).inspect("tx-1", "receipt-1") },
+    inspector(response(), "https://rpc.testnet.fastnear.com"),
+    inspector(response(), "https://near-testnet.drpc.org"),
   ]);
   assert.equal((await matching.inspect("tx-1", "receipt-1")).blockHash, "block-100");
+  const forked = response();
+  forked.result.receipts_outcome[0].block_hash = "forked-block";
   const disagreeing = new QuorumNearRpcReceiptInspector([
-    { inspect: async () => await inspector(response()).inspect("tx-1", "receipt-1") },
-    { inspect: async () => ({ ...(await inspector(response()).inspect("tx-1", "receipt-1")), blockHash: "forked-block" }) },
+    inspector(response(), "https://rpc.testnet.fastnear.com"),
+    inspector(forked, "https://near-testnet.drpc.org"),
   ]);
   await assert.rejects(() => disagreeing.inspect("tx-1", "receipt-1"), /endpoints disagree/);
-  assert.throws(() => new QuorumNearRpcReceiptInspector([{ inspect: async () => await inspector(response()).inspect("tx-1", "receipt-1") }]), /at least two/);
+  assert.throws(() => new QuorumNearRpcReceiptInspector([inspector(response())]), /at least two/);
+  assert.throws(() => new QuorumNearRpcReceiptInspector([
+    inspector(response(), "https://rpc.testnet.fastnear.com"),
+    inspector(response(), "https://rpc.testnet.fastnear.com"),
+  ]), /distinct endpoint origins/);
 });

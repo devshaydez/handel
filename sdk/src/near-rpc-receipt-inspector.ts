@@ -32,7 +32,7 @@ export interface NearRpcReceiptInspectorOptions {
   verifierAccountId: string;
   /** Signer account ID required by the NEAR tx-status JSON-RPC method. */
   transactionSignerAccountId: string;
-  rpcUrl?: string;
+  rpcUrl: string;
   fetcher?: (input: string | URL, init?: RequestInit) => Promise<Response>;
 }
 
@@ -57,13 +57,15 @@ function statusOf(status: RpcStatus | undefined): "success" | "failure" | "unkno
 export class NearRpcReceiptInspector implements ReceiptInspector {
   private readonly verifierAccountId: string;
   private readonly transactionSignerAccountId: string;
+  readonly endpointId: string;
   private readonly rpcUrl: string;
   private readonly fetcher: (input: string | URL, init?: RequestInit) => Promise<Response>;
 
   constructor(options: NearRpcReceiptInspectorOptions) {
     this.verifierAccountId = options.verifierAccountId;
     this.transactionSignerAccountId = options.transactionSignerAccountId;
-    this.rpcUrl = options.rpcUrl ?? "https://rpc.testnet.near.org";
+    this.rpcUrl = options.rpcUrl;
+    this.endpointId = new URL(this.rpcUrl).origin;
     this.fetcher = options.fetcher ?? fetch;
     if (!this.verifierAccountId.trim() || !this.transactionSignerAccountId.trim()) {
       throw new Error("verifierAccountId and transactionSignerAccountId are required");
@@ -214,9 +216,13 @@ function canonical(value: unknown): string {
  * on one RPC operator but is not a cryptographic light client or remote-chain proof.
  */
 export class QuorumNearRpcReceiptInspector implements ReceiptInspector {
-  constructor(private readonly inspectors: readonly ReceiptInspector[]) {
+  constructor(private readonly inspectors: readonly NearRpcReceiptInspector[]) {
     if (inspectors.length < 2) {
       throw new Error("at least two independently operated NEAR RPC inspectors are required");
+    }
+    const endpoints = inspectors.map(inspector => inspector.endpointId);
+    if (new Set(endpoints).size !== endpoints.length) {
+      throw new Error("RPC quorum requires distinct endpoint origins");
     }
   }
 
