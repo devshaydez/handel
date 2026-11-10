@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { NearRpcReceiptInspector } from "./near-rpc-receipt-inspector.js";
+import { NearRpcReceiptInspector, QuorumNearRpcReceiptInspector } from "./near-rpc-receipt-inspector.js";
 
 const event = {
   operationId: "op-1",
@@ -74,6 +74,15 @@ test("NEAR receipt inspector binds a settlement event to a finalized verifier re
   });
 });
 
+test("NEAR receipt inspector rejects missing transaction identity and signer mismatch", async () => {
+  const noHash = response();
+  delete noHash.result.transaction.hash;
+  await assert.rejects(() => inspector(noHash).inspect("tx-1", "receipt-1"), /hash or signer/);
+  const wrongSigner = response();
+  wrongSigner.result.transaction.signer_id = "mallory.testnet";
+  await assert.rejects(() => inspector(wrongSigner).inspect("tx-1", "receipt-1"), /hash or signer/);
+});
+
 test("NEAR receipt inspector rejects a receipt executed by another account", async () => {
   const body = response();
   body.result.receipts_outcome[0].outcome.executor_id = "attacker.testnet";
@@ -113,4 +122,18 @@ test("NEAR receipt inspector rejects non-HTTPS endpoints", () => {
     transactionSignerAccountId: "alice.testnet",
     rpcUrl: "http://remote.example",
   }), /must use HTTPS/);
+});
+
+test("quorum inspector requires two independent matching receipt views", async () => {
+  const matching = new QuorumNearRpcReceiptInspector([
+    { inspect: async () => await inspector(response()).inspect("tx-1", "receipt-1") },
+    { inspect: async () => await inspector(response()).inspect("tx-1", "receipt-1") },
+  ]);
+  assert.equal((await matching.inspect("tx-1", "receipt-1")).blockHash, "block-100");
+  const disagreeing = new QuorumNearRpcReceiptInspector([
+    { inspect: async () => await inspector(response()).inspect("tx-1", "receipt-1") },
+    { inspect: async () => ({ ...(await inspector(response()).inspect("tx-1", "receipt-1")), blockHash: "forked-block" }) },
+  ]);
+  await assert.rejects(() => disagreeing.inspect("tx-1", "receipt-1"), /endpoints disagree/);
+  assert.throws(() => new QuorumNearRpcReceiptInspector([{ inspect: async () => receipt }]), /at least two/);
 });

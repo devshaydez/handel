@@ -114,8 +114,9 @@ export class NearRpcReceiptInspector implements ReceiptInspector {
       );
     }
     const result = body.result;
-    if (result.transaction?.hash && result.transaction.hash !== transactionHash) {
-      throw new SettlementVerificationError("NEAR RPC returned a different transaction");
+    if (!result.transaction || result.transaction.hash !== transactionHash ||
+        result.transaction.signer_id !== this.transactionSignerAccountId) {
+      throw new SettlementVerificationError("NEAR RPC transaction hash or signer does not match the requested transaction");
     }
     const finalized = result.final_execution_status === "FINAL";
     const receiptMatches = (result.receipts_outcome ?? []).filter((item) => item.id === receiptId);
@@ -197,5 +198,34 @@ export class NearRpcReceiptInspector implements ReceiptInspector {
       canonical: finalized,
       events,
     };
+  }
+}
+
+function canonical(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+  const object = value as Record<string, unknown>;
+  return "{" + Object.keys(object).sort().map(key => JSON.stringify(key) + ":" + canonical(object[key])).join(",") + "}";
+}
+
+/**
+ * Strict multi-provider RPC agreement. Every configured endpoint must return
+ * the same finalized transaction/receipt/event view. This reduces dependence
+ * on one RPC operator but is not a cryptographic light client or remote-chain proof.
+ */
+export class QuorumNearRpcReceiptInspector implements ReceiptInspector {
+  constructor(private readonly inspectors: readonly ReceiptInspector[]) {
+    if (inspectors.length < 2) {
+      throw new Error("at least two independently operated NEAR RPC inspectors are required");
+    }
+  }
+
+  async inspect(transactionHash: string, receiptId: string): Promise<ReceiptInspection> {
+    const results = await Promise.all(this.inspectors.map(inspector => inspector.inspect(transactionHash, receiptId)));
+    const reference = canonical(results[0]);
+    if (results.some(result => canonical(result) !== reference)) {
+      throw new SettlementVerificationError("independent NEAR RPC endpoints disagree on transaction or receipt evidence");
+    }
+    return results[0]!;
   }
 }
