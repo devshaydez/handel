@@ -22,7 +22,7 @@ const request = {
   type: "Call" as const, assetId: NVDAON_ASSET_ID, quantity: "1000000000000000000",
   strike: "100000000", expiryNs: (BigInt(now + 86400000) * 1000000n).toString(), objective: "covered call",
 };
-async function make(premium = "5000000", guard: () => Promise<{ allowed: boolean; outcome: "allow" | "block" | "review"; confidence: number; decisionId: string; signatureKind: "provider_tee" }> = async () => ({
+async function make(premium = "5000000", guard: () => Promise<{ allowed: boolean; outcome: "allow" | "block" | "review"; confidence: number; decisionId: string; signatureKind: "provider_tee" | "gateway" }> = async () => ({
   allowed: true, outcome: "allow" as const, confidence: 0.99, decisionId: "guard-1", signatureKind: "provider_tee" as const,
 })) {
   const proposal = stubProposal({ underlyingAssetId: NVDAON_ASSET_ID, quantity: request.quantity, strike: request.strike, daysToExpiry: 1 });
@@ -48,6 +48,14 @@ test("host replaces model premium and durably records a market-verified, guardra
   assert.equal(result.marketVerification.evidenceHash, "market-proof");
   assert.equal(journal.list().length, 1);
   assert.equal(journal.list()[0].executionState, "proposed");
+});
+test("records an explicitly Gateway-signed System One screen without upgrading it to model TEE", async () => {
+  const { runtime, journal } = await make("5000000", async () => ({
+    allowed: true, outcome: "allow", confidence: 0.99, decisionId: "gateway-guard", signatureKind: "gateway",
+  }));
+  const result = await runtime.propose(request, permission, market);
+  assert.equal(result.guardrail.signatureKind, "gateway");
+  assert.equal(journal.list()[0]?.guardrailEvidence.signatureKind, "gateway");
 });
 test("blocks revoked and disallowed agents", async () => {
   const { runtime } = await make();

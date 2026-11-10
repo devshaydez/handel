@@ -62,7 +62,7 @@ function validateInput(input: DecisionRecordInput): void {
     throw new Error("Decision record is missing market or premium provenance");
   }
   if (!input.guardrailEvidence.decisionId || input.guardrailEvidence.outcome !== "allow" ||
-      input.guardrailEvidence.signatureKind !== "provider_tee" ||
+      !["provider_tee", "gateway"].includes(input.guardrailEvidence.signatureKind) ||
       !Number.isFinite(input.guardrailEvidence.confidence) || input.guardrailEvidence.confidence < 0 ||
       input.guardrailEvidence.confidence > 1) throw new Error("Decision record has unverified guardrail evidence");
   if (!Array.isArray(input.risks) || !Array.isArray(input.alternativesEvaluated) ||

@@ -29,7 +29,7 @@ export class AgentRuntimeError extends Error {
   constructor(message: string, readonly code: string) { super(message); this.name = "AgentRuntimeError"; }
 }
 
-/** Trading proposals fail closed unless market evidence, TEE guardrails, and durable decisions are verified. */
+/** Trading proposals fail closed unless market evidence, signed System One guardrails, and durable decisions are verified. */
 export class HandelAgentRuntime {
   constructor(
     private provider: ProposalProvider,

@@ -37,9 +37,13 @@ test("detects altered records and broken chain on reopen", async () => {
   store.value![0].rationale = "tampered";
   await assert.rejects(() => DecisionJournal.open(store), /integrity verification failed/);
 });
-test("rejects unverified guardrail records and duplicate IDs", async () => {
+test("accepts verified provider-TEE or Gateway receipts and rejects unknown signature kinds", async () => {
   const journal = await DecisionJournal.open(new MemoryStore());
-  await assert.rejects(() => journal.record({ ...input, guardrailEvidence: { ...input.guardrailEvidence, signatureKind: "gateway" } }));
-  await journal.record(input);
-  await assert.rejects(() => journal.record(input), /Duplicate decision ID/);
+  await journal.record({ ...input, guardrailEvidence: { ...input.guardrailEvidence, signatureKind: "gateway" } });
+  await assert.rejects(() => journal.record({
+    ...input, decisionId: "decision-unknown",
+    guardrailEvidence: { ...input.guardrailEvidence, signatureKind: "unsigned" },
+  }), /unverified guardrail evidence/);
+  await journal.record({ ...input, decisionId: "decision-tee" });
+  await assert.rejects(() => journal.record({ ...input, decisionId: "decision-tee" }), /Duplicate decision ID/);
 });
