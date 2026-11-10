@@ -13,7 +13,7 @@ export interface DecisionRecordInput {
   assetId: string;
   optionTerms: { strike: string; quantity: string; expiryNs: string; premium: string };
   marketEvidence: { source: string; observedAt: string; verificationMethod: string; evidenceHash: string; snapshotHash: string; evidenceType: "execution_oracle" | "signed_execution_quote"; executionEligible: true };
-  premiumEvidence: { source: string; calculatedAt: string; methodology: string; evidenceHash: string; verificationMethod: string };
+  premiumEvidence: { source: string; calculatedAt: string; methodology: string; evidenceHash: string; verificationMethod: string; evidenceType: "signed_source" };
   guardrailEvidence: { decisionId: string; outcome: string; confidence: number; signatureKind: string };
   rationale: string;
   risks: string[];
@@ -62,7 +62,7 @@ function validateInput(input: DecisionRecordInput): void {
       !["execution_oracle", "signed_execution_quote"].includes(input.marketEvidence.evidenceType) ||
       !/^[a-f0-9]{64}$/.test(input.marketEvidence.evidenceHash) || !/^[a-f0-9]{64}$/.test(input.marketEvidence.snapshotHash) ||
       !input.premiumEvidence.source || !input.premiumEvidence.calculatedAt || !input.premiumEvidence.methodology ||
-      !/^[a-f0-9]{64}$/.test(input.premiumEvidence.evidenceHash) || !input.premiumEvidence.verificationMethod) {
+      !/^[a-f0-9]{64}$/.test(input.premiumEvidence.evidenceHash) || input.premiumEvidence.evidenceType !== "signed_source" || !input.premiumEvidence.verificationMethod) {
     throw new Error("Decision record is missing market or premium provenance");
   }
   if (!input.guardrailEvidence.decisionId || input.guardrailEvidence.outcome !== "allow" ||

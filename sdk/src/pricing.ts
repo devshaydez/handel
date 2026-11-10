@@ -17,7 +17,7 @@ export interface PricingMarketSnapshot extends MarketSnapshot {
   dividendYieldObservedAt: string;
 }
 export interface PricingInputEvidenceVerifier {
-  verify(snapshot: PricingMarketSnapshot): Promise<{ approved: boolean; method: string; evidenceHash: string }>;
+  verify(snapshot: PricingMarketSnapshot): Promise<{ approved: boolean; evidenceType: "signed_source" | "display_only" | "historical"; method: string; evidenceHash: string }>;
 }
 const YEAR_SECONDS = 365.25 * 24 * 60 * 60;
 const MAX_SAFE_MINOR_UNITS = BigInt(Number.MAX_SAFE_INTEGER);
@@ -59,10 +59,10 @@ export class BlackScholesPremiumEngine implements PremiumEngine {
     market: MarketSnapshot;
   }): Promise<PremiumQuote> {
     const market = input.market as PricingMarketSnapshot;
-    let evidence: { approved: boolean; method: string; evidenceHash: string };
+    let evidence: { approved: boolean; evidenceType: "signed_source" | "display_only" | "historical"; method: string; evidenceHash: string };
     try { evidence = await this.evidenceVerifier.verify(market); }
     catch { throw new Error("pricing input evidence verification is unavailable"); }
-    if (!evidence.approved || !evidence.method.trim() || !/^[a-f0-9]{64}$/.test(evidence.evidenceHash)) {
+    if (!evidence.approved || evidence.evidenceType !== "signed_source" || !evidence.method.trim() || !/^[a-f0-9]{64}$/.test(evidence.evidenceHash)) {
       throw new Error("pricing inputs are not approved by the evidence verifier");
     }
     if (!/^\d+$/.test(input.quantity) || !/^\d+$/.test(input.strike) ||
@@ -130,6 +130,7 @@ export class BlackScholesPremiumEngine implements PremiumEngine {
       methodology: `European Black-Scholes ${input.type}; spot micro-USDC/token; strike total micro-USDC; quantity ${ONDO_DECIMALS} decimals; output ${USDC_DECIMALS}-decimal USDC; sigma=${sigma}; r=${rate}; q=${dividend}; round-up to 1 micro-USDC`,
       evidenceHash: evidence.evidenceHash,
       verificationMethod: evidence.method,
+      evidenceType: "signed_source",
     };
   }
 }

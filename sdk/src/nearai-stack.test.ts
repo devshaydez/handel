@@ -39,7 +39,7 @@ test("assembles official Chat and System One clients with pinned evidence and on
   assert.equal(stack.proposalProvider.budgetSnapshot().requestsReserved, 1);
   assert.equal(stack.systemOneGuard.budgetSnapshot().requestsReserved, 1);
   const runtime = createHandelAgentRuntime(stack, {
-    pricing: { quote: async () => ({ premium: "1", source: "fixture", calculatedAt: new Date().toISOString(), methodology: "fixture", evidenceHash: "a".repeat(64), verificationMethod: "fixture" }) },
+    pricing: { quote: async () => ({ premium: "1", source: "fixture", calculatedAt: new Date().toISOString(), methodology: "fixture", evidenceHash: "a".repeat(64), verificationMethod: "fixture", evidenceType: "signed_source" }) },
     decisions: { record: async input => ({ ...input, previousHash: "GENESIS", recordHash: "a".repeat(64) }), list: () => [] },
     marketVerifier: { verify: async () => ({ approved: false, executionEligible: false, evidenceType: "display_only", method: "fixture", evidenceHash: "b".repeat(64) }) },
   });

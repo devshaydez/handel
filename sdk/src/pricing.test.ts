@@ -15,7 +15,7 @@ const market: PricingMarketSnapshot = {
 };
 const expiry = (BigInt(now) * 1_000_000n + 31_557_600_000_000_000n).toString();
 const verifier = {
-  verify: async () => ({ approved: true, method: "fixture-signed-evidence", evidenceHash: "a".repeat(64) }),
+  verify: async () => ({ approved: true, evidenceType: "signed_source" as const, method: "fixture-signed-evidence", evidenceHash: "a".repeat(64) }),
 };
 const engine = new BlackScholesPremiumEngine(verifier, () => now);
 
@@ -30,7 +30,7 @@ test("prices European calls and puts deterministically in total USDC minor units
 
 test("rejects unapproved pricing evidence", async () => {
   const denied = new BlackScholesPremiumEngine({
-    verify: async () => ({ approved: false, method: "display-only", evidenceHash: "a".repeat(64) }),
+    verify: async () => ({ approved: true, evidenceType: "display_only" as const, method: "display-only", evidenceHash: "a".repeat(64) }),
   }, () => now);
   await assert.rejects(() => denied.quote({ type: "Call", assetId: NVDAON_ASSET_ID, quantity: "1000000000000000000", strike: "100000000", expiryNs: expiry, market }), /not approved/);
 });

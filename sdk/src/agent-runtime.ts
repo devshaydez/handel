@@ -9,7 +9,7 @@ export interface ProposalProvider {
 }
 export interface PremiumQuote {
   premium: string; source: string; calculatedAt: string; methodology: string;
-  evidenceHash: string; verificationMethod: string;
+  evidenceHash: string; verificationMethod: string; evidenceType: "signed_source";
 }
 export interface PremiumEngine {
   quote(x: { type: OptionType; assetId: string; quantity: string; strike: string; expiryNs: string; market: MarketSnapshot }): Promise<PremiumQuote> | PremiumQuote;
@@ -76,7 +76,7 @@ export class HandelAgentRuntime {
     });
     const calculatedAt = Date.parse(q.calculatedAt);
     if (!/^\d+$/.test(q.premium) || BigInt(q.premium) <= 0n || !q.source.trim() || !q.methodology.trim() ||
-        !/^[a-f0-9]{64}$/.test(q.evidenceHash) || !q.verificationMethod.trim() ||
+        !/^[a-f0-9]{64}$/.test(q.evidenceHash) || q.evidenceType !== "signed_source" || !q.verificationMethod.trim() ||
         !Number.isFinite(calculatedAt) || calculatedAt > Date.now() + 30_000 || Date.now() - calculatedAt > 60_000) {
       throw new AgentRuntimeError("invalid deterministic premium quote", "INVALID_PREMIUM_QUOTE");
     }

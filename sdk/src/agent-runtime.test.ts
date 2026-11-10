@@ -31,7 +31,7 @@ async function make(premium = "5000000", guard: () => Promise<{ allowed: boolean
   return {
     runtime: new HandelAgentRuntime(
       { propose: async () => ({ proposal, requestId: "r", verification: { modelId: "test-model" } }) },
-      { quote: () => ({ premium, source: "fixture-engine", calculatedAt: new Date().toISOString(), methodology: "fixture", evidenceHash: "a".repeat(64), verificationMethod: "fixture-signed-evidence" }) },
+      { quote: () => ({ premium, source: "fixture-engine", calculatedAt: new Date().toISOString(), methodology: "fixture", evidenceHash: "a".repeat(64), verificationMethod: "fixture-signed-evidence", evidenceType: "signed_source" }) },
       { evaluate: guard },
       journal,
       { verify: async () => ({ approved: true, executionEligible: true, evidenceType: "execution_oracle" as const, method: "fixture-signature-check", evidenceHash: "b".repeat(64) }) },
