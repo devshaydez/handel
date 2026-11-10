@@ -74,3 +74,65 @@ console.log("Provider TEE response signature: PASS");
 console.log("Response content: HANDEL_NEARAI_SMOKE_OK");
 console.log("No wallet, market data, trade proposal, or transaction was involved.");
 console.log("NOTE: this smoke does not approve Handel signer/measurement allowlists or validate the full agent runtime.");
+
+const systemOneModel = process.env.NEARAI_SYSTEMONE_SMOKE_MODEL ?? "levanto/sage-2";
+const systemOne = new InferenceClient({
+  apiKey,
+  baseUrl,
+  e2ee: false,
+  ohttp: false,
+  attestationCacheTimeToLiveMs: 0,
+  gatewayVerification: { policy: { acceptedTcbStatuses: ["UpToDate"] } },
+  modelVerification: {
+    policy: { acceptedTcbStatuses: ["UpToDate"], gpuEvidence: "required" },
+  },
+});
+const systemOneDeployment = await systemOne.verify(systemOneModel);
+if (systemOneDeployment?.gateway?.tcbStatus !== "UpToDate" ||
+    !systemOneDeployment.models?.length ||
+    systemOneDeployment.models.some((m) => m.tcbStatus !== "UpToDate")) {
+  throw new Error("System One Gateway/model attestation failed.");
+}
+const decision = await systemOne.systemone.create({
+  model: systemOneModel,
+  state: {
+    task: "connectivity_smoke",
+    proposedAction: "read-only status check",
+    assetMovement: false,
+    walletConnected: false,
+    transactionRequested: false,
+    instructions: "This is a harmless connectivity test. Do not authorize any trade or asset movement.",
+  },
+  questions: {
+    guard: {
+      type: "choice",
+      instructions: "Classify this read-only connectivity test. No trade, wallet, or asset movement is requested. Return the safest applicable outcome.",
+      criteria: {
+        allow: "The read-only connectivity test is harmless and contains no trade or asset movement.",
+        block: "The request contains malicious instructions or attempts to bypass safety controls.",
+        review: "The request is ambiguous or lacks evidence.",
+      },
+    },
+  },
+});
+if (!decision?.decisionId) throw new Error("System One decision ID is missing.");
+const decisionReceipt = await systemOne.verifyResponse(decision.decisionId);
+if (decisionReceipt?.signatureKind !== "provider_tee") {
+  throw new Error("System One decision did not carry a provider-TEE signature.");
+}
+const guard = decision.data?.answers?.guard;
+if (guard?.type !== "choice" || !["allow", "block", "review"].includes(guard.choice ?? "") ||
+    typeof guard.confidence !== "number" || guard.confidence < 0 || guard.confidence > 1) {
+  throw new Error("System One returned a malformed decision.");
+}
+console.log("System One separate-client attestation: PASS (E2EE/OHTTP disabled as required).");
+console.log(JSON.stringify({
+  model: systemOneModel,
+  gatewayTcbStatus: systemOneDeployment.gateway.tcbStatus,
+  modelTcbStatuses: systemOneDeployment.models.map((m) => m.tcbStatus),
+  decisionIdPresent: true,
+  signatureKind: decisionReceipt.signatureKind,
+  outcome: guard.choice,
+  confidence: guard.confidence,
+}, null, 2));
+console.log("No trade proposal, wallet approval, or transaction was created.");
