@@ -319,3 +319,6 @@ The user explicitly chose to build the frontend manually. Batch 10 must not crea
 - CI workflow is being extended to run for Batch 10 pushes and a stacked PR targeting Batch 9.
 - No frontend source or live wallet/contract integration has been created. The new port is a typed integration contract; host adapters and the manually authored frontend remain future work.
 - No deployment, wallet signing, funding, or asset movement was performed.
+
+- Batch 10 follow-up commit `7ff955d1a8ed77ac416c2ed9a7c8ae28c9f8c9b9` adds typed raw token balances to portfolio snapshots, validates amount/decimals/provenance metadata, and documents that `OperationView` is lifecycle activity rather than exchange fill history. It also records the Rust-backed distinction that agent proposal creation is agent-signed while approval/rejection are principal-signed.
+- Batch 10 follow-up commit `b2891bb177edf35de558cd43eeb71126caa4e11a` rechecks Wallet Selector account presence after the signing prompt and binds the returned public key to the account key when Wallet Selector exposes it. This narrows account-switch races; it does not replace a browser-level test with the actual selected wallet implementation.

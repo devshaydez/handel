@@ -5,15 +5,15 @@
 
 ## Phase 20 — stable frontend-facing SDK contract
 
-Added sdk/src/frontend-contract.ts. It defines position, operation, proposal, policy and portfolio DTOs; host adapter methods for reads; wallet-backed actions for offer creation, policy changes, mode changes, revocation, proposal creation/approval/rejection, exercise and expiry release; and finality states for success, failure and unknown.
+Added sdk/src/frontend-contract.ts. It defines position, operation, proposal, policy, raw token balance and portfolio DTOs; host adapter methods for reads; wallet-backed actions for offer creation, policy changes, mode changes, revocation, proposal creation/approval/rejection, exercise and expiry release; and finality states for success, failure and unknown.
 
-All u64/u128 values remain canonical decimal strings. The SDK validates NEAR account IDs, integer bounds, positive amounts, allowlists and adapter signer identity. A transaction hash is explicitly a submitted transaction, not proof of final execution. Settlement evidence remains a separate field from contract lifecycle state.
+All u64/u128 values remain canonical decimal strings. NEP-141 balances are represented as raw smallest-unit strings with explicit decimals, observation time, block height and source; exact values beyond JavaScript safe-integer precision are preserved. The SDK validates NEAR account IDs, integer bounds, positive amounts, allowlists and adapter signer identity. A transaction hash is explicitly a submitted transaction, not proof of final execution. Settlement evidence remains a separate field from contract lifecycle state.
 
 The adapter is a contract, not a deployed service or completed RPC/indexer integration. The frontend must supply connected-wallet and trusted read adapters. Paginated indexer data must set complete=false until all pages are fetched. Display source and block height.
 
 ## Phase 21 — adversarial integration tests
 
-Added offline tests for account-bound portfolio reads, cross-account response rejection, u128/u64 boundaries, unsafe JS numbers, zero amounts, duplicate allowlists, signer mismatch, submitted-versus-final separation and transaction-bound finality.
+Added offline tests for account-bound portfolio reads and malformed balance rejection, cross-account response rejection, u128/u64 boundaries, unsafe JS numbers, zero amounts, duplicate allowlists, signer mismatch, submitted-versus-final separation and transaction-bound finality.
 
 These tests do not replace browser wallet round-trip, deployed Testnet contract testing, independent verifier receipt checks or live Ondo route verification.
 

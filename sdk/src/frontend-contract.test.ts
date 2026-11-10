@@ -69,7 +69,7 @@ test("proposal reads are bound to requested proposal IDs", async () => {
 
 test("portfolio rejects malformed or unsafe token balances", async () => {
  const malformed = new HandelFrontendClient(port({ getPortfolio: async accountId => ({
-  accountId, balances: [{ assetId: "nep141:token.testnet", amount: "9007199254740993", decimals: 6,
+  accountId, balances: [{ assetId: "nep141:token.testnet", amount: 9007199254740993 as never, decimals: 6,
    observedAt: "2026-11-10T10:00:00.000Z", blockHeight: 10, source: "ft_balance_of" }],
   positions: [], operations: [], source: "rpc", observedAt: "2026-11-10T10:00:00.000Z", blockHeight: 10, complete: true
  }) }));
@@ -82,4 +82,14 @@ test("manual proposal creation must be submitted by the authorized agent account
   assetId: "nep141:stock.testnet", underlyingAmount: "1", strikeAmountUsdc: "100",
   expiryNs: "200", premiumAmountUsdc: "1", rationaleHash: "sha256:reason"
  }), /invalid submission receipt/);
+});
+
+test("portfolio preserves valid balances above JavaScript safe-integer precision", async () => {
+ const exact = "340282366920938463463374607431768211455";
+ const c = new HandelFrontendClient(port({ getPortfolio: async accountId => ({
+  accountId, balances: [{ assetId: "nep141:token.testnet", amount: exact, decimals: 255,
+   observedAt: "2026-11-10T10:00:00.000Z", blockHeight: 10, source: "ft_balance_of" }],
+  positions: [], operations: [], source: "rpc", observedAt: "2026-11-10T10:00:00.000Z", blockHeight: 10, complete: true
+ }) }));
+ assert.equal((await c.portfolio("alice.testnet")).balances[0].amount, exact);
 });

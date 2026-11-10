@@ -145,7 +145,7 @@ export class HandelFrontendClient {
         !Array.isArray(s.balances) || !Array.isArray(s.positions) || !Array.isArray(s.operations) ||
         s.balances.some(b => !b || typeof b.assetId !== "string" || !b.assetId.trim() ||
           typeof b.amount !== "string" || !UINT.test(b.amount) || b.amount.length > 39 || BigInt(b.amount) > MAX_U128 ||
-          !Number.isSafeInteger(b.decimals) || b.decimals < 0 || b.decimals > 38 ||
+          !Number.isSafeInteger(b.decimals) || b.decimals < 0 || b.decimals > 255 ||
           !Number.isFinite(Date.parse(b.observedAt)) || !Number.isSafeInteger(b.blockHeight) || b.blockHeight < 0 ||
           !["ft_balance_of", "indexer"].includes(b.source)))
       throw new HandelFrontendContractError("portfolio adapter returned an invalid or mismatched snapshot", "INVALID_PORTFOLIO");
