@@ -20,12 +20,13 @@ The SDK does not store private keys or sign NEP-413 messages. NEP-413 signing co
 ## Phase 18 — NEAR Intents execution
 
 Implemented SDK boundary:
-- Connected-wallet NEP-413 signing helper requires explicit approval, connected-principal match, verifier allowlist, signer/deadline/intent checks and does not receive a private key.
+- Connected-wallet NEP-413 signing helper requires explicit approval, connected-principal match, verifier allowlist, canonical 32-byte nonce, signer/deadline/intent checks and does not receive a private key.
+- Added a Wallet Selector API adapter: it maps the NEP-413 payload to Wallet Selector's `{ message, recipient, nonce }` call, decodes the nonce to 32 bytes, re-reads active accounts immediately before signing, validates returned signatures, and rejects redirect-only `void` results until the wallet callback is completed.
 - Paired signed-intent builder validates both signatures and requires distinct 32-byte nonces.
 - Read-only `simulate_intents` call runs at finality. The returned simulation is bound to the SHA-256 of the exact signed pair and verifier; submission rejects a different payload or verifier.
 - `execute_intents` submission requires explicit approval and the connected wallet callback.
 
-Still blocked: production wallet-selector integration; exact current Verifier ABI/signature conformance; canonical Verifier event/receipt parsing; exact Ondo/USDC IDs and routes; and real-asset execution proof. Testnet target is Tidepool's `verifier.tidepool-sandbox.testnet`, which Tidepool documents as the unmodified upstream Defuse v0.4.5 verifier. This is a community-operated Testnet deployment, not a NEAR-operated production environment. No Mainnet signature, transaction or asset movement was attempted. Tidepool test assets remain segregated and cannot be represented as Ondo stock collateral.
+Still blocked: browser-app wiring and live wallet-selector/verifier end-to-end conformance; exact current Verifier ABI/signature conformance; canonical Verifier event/receipt parsing; exact Ondo/USDC IDs and routes; and real-asset execution proof. Testnet target is Tidepool's `verifier.tidepool-sandbox.testnet`, which Tidepool documents as the unmodified upstream Defuse v0.4.5 verifier. This is a community-operated Testnet deployment, not a NEAR-operated production environment. No Mainnet signature, transaction or asset movement was attempted. Tidepool test assets remain segregated and cannot be represented as Ondo stock collateral.
 
 ## Phase 19 — custody and settlement
 
@@ -56,7 +57,8 @@ Still blocked: deployed token custody evidence; exact Ondo/USDC route support; i
 - The SDK preflight is advisory only; the contract remains authoritative.
 
 ### Phase 18 — integration boundary added; live route still open
-- Added connected-wallet NEP-413 signing helper with explicit approval, principal matching, verifier allowlist, signer_id/deadline/intent validation. It never receives a private key.
+- Added connected-wallet NEP-413 signing helper with explicit approval, principal matching, verifier allowlist, canonical 32-byte nonce, signer_id/deadline/intent validation. It never receives a private key.
+- Added a Wallet Selector API adapter that maps `{ message, recipient, nonce }`, rechecks the active account immediately before signing, validates the returned signature, and fails closed for redirect-only `void` results. Offline tests cover mapping, nonce decoding, account changes, and redirect behavior.
 - Added paired signed-intent argument validation, read-only simulate_intents RPC call, and an explicit-approval wallet callback for execute_intents.
 - Tidepool provides a Testnet verifier at `verifier.tidepool-sandbox.testnet`, documented as the unmodified Defuse v0.4.5 contract; its `/v0/health` endpoint checks the deployed code hash. This supports synthetic Testnet integration, not production parity. No Mainnet signature, transaction, or asset movement was attempted. Exact Ondo token support and an enforceable reservation inside the Verifier ledger are not established.
 - Simulation is not a proof of external token transfer completion; external withdrawal/deposit callbacks require separate finality and reconciliation.
@@ -69,7 +71,7 @@ Still blocked: deployed token custody evidence; exact Ondo/USDC route support; i
 
 ## Remaining acceptance gates
 1. **Integrated CI passed** on earlier code commit `95278bf7b2b13425b928c0e6bdec982a2c63b8f6` (run [#42708258643](https://github.com/devshaydez/handel/actions/runs/42708258643)); the explicit-verifier change is undergoing its own integrated CI run. Rust formatting, optimized Wasm builds, contract/sandbox tests, TypeScript build/unit tests/offline demo, and dual-RPC Testnet asset verification are required.
-2. Integrate a production wallet-selector implementation and verify NEP-413 payloads/signatures against Tidepool's Testnet verifier ABI, then separately verify Mainnet ABI compatibility.
+2. Wire the Wallet Selector adapter into the Batch 10 browser frontend and run a real connected-wallet signing round-trip against Tidepool's Testnet verifier; then separately verify Mainnet ABI compatibility.
 3. Add canonical Verifier event/receipt parsing and independently reconcile the final transaction plus resulting balances.
 4. Prove the exact underlying and USDC asset IDs, decimals, and deposit/withdraw routes.
 5. Design and audit per-position reservation for Intents-ledger balances; an ordinary account balance is not locked collateral.
