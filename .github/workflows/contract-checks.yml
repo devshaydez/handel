@@ -158,6 +158,12 @@ jobs:
         working-directory: sdk
         run: npm install --no-save --no-package-lock @nearai/inference-sdk@0.3.0
 
+      - name: Confirm installed SDK package resolution
+        working-directory: sdk
+        run: |
+          npm ls @nearai/inference-sdk
+          node -e 'console.log(require.resolve("@nearai/inference-sdk/node"))'
+
       - name: Verify live TEE inference and response signature
         working-directory: sdk
         run: node scripts/verify-nearai-live-inference.mjs
