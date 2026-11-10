@@ -19,7 +19,7 @@ export interface MarketEvidenceVerifier {
 export interface ProposalGuardrail {
   evaluate(state: unknown): Promise<{
     allowed: boolean; outcome: "allow" | "block" | "review"; confidence: number;
-    decisionId: string; signatureKind: "provider_tee";
+    decisionId: string; signatureKind: "provider_tee" | "gateway";
   }>;
 }
 export interface AgentRequest {

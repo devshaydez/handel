@@ -6,7 +6,7 @@ import { NearAiBudgetLedger } from "./nearai-provider.js";
 const budget = { budgetMicros: 10_000_000, maxRequestCostMicros: 100_000, maxRequests: 100, maxCompletionTokens: 512, maxPromptBytes: 12000 };
 const config = {
   apiKey: "test", model: "jev/handel-guard",
-  allowedGatewaySigners: ["gateway"], allowedModelSigners: ["signer"],
+  signaturePolicy: "provider_tee", allowedGatewaySigners: ["gateway"], allowedModelSigners: ["signer"],
   allowedComposeHashes: ["compose"], allowedOsImageHashes: ["os"],
 };
 function client(choice = "allow", confidence = 0.95): NearAiSystemOneClient {
@@ -64,6 +64,27 @@ test("fails closed on missing model attestation, bad Gateway/model signer, and G
   const receipt = client();
   receipt.verifyResponse = async () => ({ signatureKind: "gateway" });
   await assert.rejects(() => guard(receipt).evaluate({}), /not provider-TEE signed/);
+});
+test("supports explicit Gateway-signed Jev decisions without pretending the model itself is TEE-attested", async () => {
+  const gatewayClient = client();
+  gatewayClient.verify = async () => ({
+    gateway: { tcbStatus: "UpToDate", signer: { signingAddress: "gateway" } },
+    models: [],
+  });
+  gatewayClient.verifyResponse = async () => ({ signatureKind: "gateway" });
+  const result = await guard(gatewayClient, new NearAiBudgetLedger(budget), {
+    signaturePolicy: "gateway",
+    allowedModelSigners: undefined,
+    allowedComposeHashes: undefined,
+    allowedOsImageHashes: undefined,
+  }).evaluate({ proposal: "screen only" });
+  assert.equal(result.allowed, true);
+  assert.equal(result.signatureKind, "gateway");
+});
+test("Gateway-only receipt is rejected unless Gateway policy is explicitly selected", async () => {
+  const gatewayReceipt = client();
+  gatewayReceipt.verifyResponse = async () => ({ signatureKind: "gateway" });
+  await assert.rejects(() => guard(gatewayReceipt).evaluate({}), /signature does not match configured policy/);
 });
 test("enforces state-size and shared Chat/System One budget caps", async () => {
   await assert.rejects(() => guard(client(), new NearAiBudgetLedger(budget), { maxStateBytes: 1 }).evaluate({ tooLarge: true }), /byte cap/);
