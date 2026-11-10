@@ -54,8 +54,9 @@ export class HandelAgentRuntime {
     let marketVerification;
     try { marketVerification = await this.marketVerifier.verify(market); }
     catch { throw new AgentRuntimeError("market source verification unavailable", "MARKET_SOURCE_UNVERIFIED"); }
+    const evidenceType = marketVerification.evidenceType;
     if (!marketVerification.approved || !marketVerification.executionEligible ||
-        !["execution_oracle", "signed_execution_quote"].includes(marketVerification.evidenceType) ||
+        (evidenceType !== "execution_oracle" && evidenceType !== "signed_execution_quote") ||
         !marketVerification.method.trim() || !/^[a-f0-9]{64}$/.test(marketVerification.evidenceHash)) {
       throw new AgentRuntimeError("market source is not approved for trading", "MARKET_SOURCE_UNVERIFIED");
     }
@@ -108,7 +109,7 @@ export class HandelAgentRuntime {
         marketEvidence: {
           source: market.source, observedAt: market.observedAt,
           verificationMethod: marketVerification.method, evidenceHash: marketVerification.evidenceHash,
-          evidenceType: marketVerification.evidenceType, executionEligible: marketVerification.executionEligible,
+          evidenceType, executionEligible: true,
           snapshotHash: createHash("sha256").update(JSON.stringify(market) ?? "").digest("hex"),
         },
         premiumEvidence: { source: q.source, calculatedAt: q.calculatedAt, methodology: q.methodology, evidenceHash: q.evidenceHash, verificationMethod: q.verificationMethod },
