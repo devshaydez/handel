@@ -154,16 +154,10 @@ jobs:
       - name: Authenticate and inspect official model catalogue (no inference)
         run: node scripts/verify-nearai-credentials.mjs
 
-      - name: Install official NEAR AI inference SDK
-        working-directory: sdk
-        run: npm install --no-save --no-package-lock @nearai/inference-sdk@0.3.0
+      - name: Install isolated NEAR AI smoke dependencies
+        working-directory: sdk/ai-smoke
+        run: npm install --no-audit --no-fund
 
-      - name: Confirm installed SDK package resolution
-        working-directory: sdk
-        run: |
-          npm ls @nearai/inference-sdk
-          node -e 'console.log(require.resolve("@nearai/inference-sdk/node"))'
-
-      - name: Verify live TEE inference and response signature
-        working-directory: sdk
-        run: node scripts/verify-nearai-live-inference.mjs
+      - name: Verify live Chat and System One TEE paths
+        working-directory: sdk/ai-smoke
+        run: node verify-nearai-live-inference.mjs
