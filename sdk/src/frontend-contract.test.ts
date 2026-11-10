@@ -47,3 +47,22 @@ test("finality response is bound to requested transaction", async () => {
  const c = new HandelFrontendClient(port({ getFinality: async () => ({ status: "final_success", transactionHash: "other", receiptIds: [] }) }));
  await assert.rejects(() => c.finality("tx-1", "alice.testnet"), /invalid result/);
 });
+
+test("position and operation reads are bound to requested IDs", async () => {
+ const badPosition = new HandelFrontendClient(port({ getPosition: async () => ({ id: "2" } as never) }));
+ await assert.rejects(() => badPosition.position("1"), /different position/);
+ const badOperation = new HandelFrontendClient(port({ getOperation: async () => ({ id: "op-other" } as never) }));
+ await assert.rejects(() => badOperation.operation("op-1"), /different operation/);
+});
+test("agent policy reads cannot cross principals", async () => {
+ const c = new HandelFrontendClient(port({ getAgentPolicy: async () => ({
+  principal: "mallory.testnet", allowedAssets: [], maxUnderlyingAmount: "1",
+  maxPremiumUsdc: "1", maxCollateralUsdc: "1", maxOpenPositions: 1,
+  expiresAtNs: "100", enabled: true, executionMode: "ManualApproval",
+ }) }));
+ await assert.rejects(() => c.agentPolicy("alice.testnet", "agent.testnet"), /different principal/);
+});
+test("proposal reads are bound to requested proposal IDs", async () => {
+ const c = new HandelFrontendClient(port({ getAgentProposal: async () => ({ proposalId: "proposal-other" } as never) }));
+ await assert.rejects(() => c.agentProposal("proposal-1"), /different proposal/);
+});
