@@ -1,4 +1,5 @@
 name: Handel backend checks
+# Batch 9 integrated validation: Rust contracts, SDK tests, and read-only Testnet checks.
 
 on:
   push:
@@ -7,6 +8,7 @@ on:
       - work/batch-4-ai-integration-adversarial
       - work/batch-5-testnet-release-readiness
       - work/testnet-infrastructure-readiness
+      - work/batch-9-execution-safety
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
@@ -14,7 +16,6 @@ on:
       - feat/handel-archive-core
       - work/testnet-backend-hardening
       - work/batch-4-ai-integration-adversarial
-      - work/batch-8-ai-agent-intelligence
   workflow_dispatch:
 
 permissions:
@@ -87,10 +88,16 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24.22.1
+          node-version: 22
 
       - name: Verify Tidepool assets through two independent Testnet RPCs
         run: node scripts/verify-testnet-assets.mjs
+
+      - name: Verify Tidepool Testnet verifier code hash and health
+        run: node scripts/verify-tidepool-verifier.mjs
+
+      - name: Request a live Tidepool dry quote (no deposit address or transaction)
+        run: node scripts/verify-tidepool-dry-quote.mjs
 
   sdk:
     name: TypeScript SDK build and offline demo

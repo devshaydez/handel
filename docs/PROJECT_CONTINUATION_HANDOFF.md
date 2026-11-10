@@ -239,7 +239,7 @@ Release gates still open:
 
 - Never ask the user for a seed phrase, private key or raw API key in chat.
 - Never commit secrets or print them in logs/artifacts.
-- User's NEAR AI key should be a GitHub Actions secret named `NEARAI_API_KEY`; it has not yet been confirmed configured.
+- User confirmed adding `NEARAI_API_KEY` as a GitHub Actions repository secret. Do not ask them to paste it. Backend runtime configuration and live inference still need verification.
 - Do not sign or submit real-asset transactions without explicit user approval.
 - Do not deploy contracts, provision accounts, fund storage or move tokens without explicit user approval.
 - Do not merge PRs without explicit user approval.
@@ -289,3 +289,17 @@ Never use one status label as a substitute for another.
 ## New durable product requirement — AI education and decision accountability
 
 See [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md). This requirement applies across Batches 8–10: one agent combines contextual education with permissioned trading; every consequential action and no-trade decision must have a traceable, evidence-grounded explanation and durable decision record. Education never grants trading authority. This is a product requirement, not evidence of implementation. Do not omit it from future handoffs, implementation plans, acceptance tests, or release reviews.
+
+
+## Batch 9 progress — Execution & Safety (Phases 17–19)
+
+Work is underway on branch `work/batch-9-execution-safety`, stacked on Batch 8 branch `work/batch-8-ai-agent-intelligence`.
+
+- Phase 17: implemented on-chain Education/Advisory/ManualApproval/Delegated modes (new policies default to ManualApproval), principal-only mode changes, direct Call/Put gating, live-policy approval checks, approval-time revalidation against changed principal/caps/assets/expiry/position terms/open-position count, and SDK stale-snapshot/mode preflight. Tests added; integrated CI passed on code commit `95278bf7b2b13425b928c0e6bdec982a2c63b8f6` (run [#42708258643](https://github.com/devshaydez/handel/actions/runs/42708258643)).
+- Phase 18: added connected-wallet NEP-413 signing boundary, distinct-nonce paired intent validation, read-only finality simulation, and SHA-256 binding of the exact signed pair/verifier to the simulation before explicit-approval wallet submission. No private key handling. Verifier Mainnet-only; no Mainnet transaction or asset movement performed.
+- Phase 19: added NEP-141 escrow transfer_call builder and regression coverage for partial exercise payout recovery (confirmed payment leg is never repeated when collateral payout fails). Existing Escrow ft_on_transfer validates exact sender/token/amount/position/leg. Payout remains sequential; trusted reconciler, independent finality proof, exact Ondo route and Intents-ledger reservation remain open.
+- Batch 9 detail: [BATCH_9_EXECUTION_SAFETY.md](./BATCH_9_EXECUTION_SAFETY.md).
+- AI security architecture: [AI_GUARDRAILS_AND_TEE_ARCHITECTURE.md](./AI_GUARDRAILS_AND_TEE_ARCHITECTURE.md). NEAR TEE attestation is not a substitute for deterministic trade/risk/authority gates; E2EE/OHTTP and System One guardrails remain integration work.
+- Project-wide remaining gates: [ALL_BATCH_LIMITATIONS.md](./ALL_BATCH_LIMITATIONS.md).
+
+Batch 9 is not complete until all phases are implemented, the full branch passes one final integrated CI run, and the outstanding custody, verifier, wallet, and security-review gates are accurately recorded. No deployment, signing, funding, or asset movement is implied by SDK helpers or passing CI.
