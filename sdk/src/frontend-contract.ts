@@ -99,6 +99,34 @@ function submitted(result: SubmittedTransaction, principal: string): SubmittedTr
 /** Small typed boundary intended to be consumed by a custom frontend. */
 export class HandelFrontendClient {
   constructor(private readonly port: HandelFrontendPort) {}
+  async position(positionId: string): Promise<PositionView | null> {
+    uint(positionId, "positionId", MAX_U64);
+    const value = await this.port.getPosition(positionId);
+    if (value !== null && value.id !== positionId)
+      throw new HandelFrontendContractError("position adapter returned a different position", "POSITION_MISMATCH");
+    return value === null ? null : structuredClone(value);
+  }
+  async operation(operationId: string): Promise<OperationView | null> {
+    if (!operationId?.trim()) throw new HandelFrontendContractError("operationId is required", "INVALID_OPERATION_ID");
+    const value = await this.port.getOperation(operationId);
+    if (value !== null && value.id !== operationId)
+      throw new HandelFrontendContractError("operation adapter returned a different operation", "OPERATION_MISMATCH");
+    return value === null ? null : structuredClone(value);
+  }
+  async agentPolicy(principal: string, agentId: string): Promise<AgentPolicyView | null> {
+    account(principal, "principal"); account(agentId, "agentId");
+    const value = await this.port.getAgentPolicy(principal, agentId);
+    if (value !== null && value.principal !== principal)
+      throw new HandelFrontendContractError("agent policy belongs to a different principal", "PRINCIPAL_MISMATCH");
+    return value === null ? null : structuredClone(value);
+  }
+  async agentProposal(proposalId: string): Promise<AgentProposalView | null> {
+    if (!proposalId?.trim()) throw new HandelFrontendContractError("proposalId is required", "INVALID_PROPOSAL_ID");
+    const value = await this.port.getAgentProposal(proposalId);
+    if (value !== null && value.proposalId !== proposalId)
+      throw new HandelFrontendContractError("proposal adapter returned a different proposal", "PROPOSAL_MISMATCH");
+    return value === null ? null : structuredClone(value);
+  }
   async portfolio(accountId: string): Promise<PortfolioSnapshot> {
     account(accountId, "accountId");
     const s = await this.port.getPortfolio(accountId);
