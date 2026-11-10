@@ -9,7 +9,7 @@ export type PositionState = "PendingCollateral" | "PendingCollateralReconciliati
 export type OperationKind = "LockCollateral" | "PayPremium" | "ExercisePayment" | "ExerciseDelivery" | "ExpiryRelease";
 export type OperationState = "Pending" | "Succeeded" | "Failed" | "ReconciliationRequired";
 export type ProposalState = "PendingApproval" | "Approved" | "Rejected";
-export type AgentExecutionMode = "Education" | "Advisory" | "ManualApproval" | "Delegated";
+export type ContractAgentExecutionMode = "Education" | "Advisory" | "ManualApproval" | "Delegated";
 export type SettlementEvidenceStatus = "verified" | "not_verified" | "unknown";
 
 export interface PositionView {
@@ -28,7 +28,7 @@ export interface OperationView {
 export interface AgentPolicyView {
   principal: string; allowedAssets: string[]; maxUnderlyingAmount: string;
   maxPremiumUsdc: string; maxCollateralUsdc: string; maxOpenPositions: number;
-  expiresAtNs: string; enabled: boolean; executionMode: AgentExecutionMode;
+  expiresAtNs: string; enabled: boolean; executionMode: ContractAgentExecutionMode;
 }
 export interface AgentProposalView {
   proposalId: string; positionId: string; principal: string; agentId: string;
@@ -65,7 +65,7 @@ export interface HandelFrontendPort {
   getAgentProposal(proposalId: string): Promise<AgentProposalView | null>;
   createOffer(input: CreateOfferInput): Promise<SubmittedTransaction>;
   setAgentPolicy(input: AgentPolicyUpdate): Promise<SubmittedTransaction>;
-  setAgentExecutionMode(input: { principal: string; agentId: string; mode: AgentExecutionMode }): Promise<SubmittedTransaction>;
+  setContractAgentExecutionMode(input: { principal: string; agentId: string; mode: ContractAgentExecutionMode }): Promise<SubmittedTransaction>;
   revokeAgent(input: { principal: string; agentId: string }): Promise<SubmittedTransaction>;
   createAgentProposal(input: ProposalRequest): Promise<SubmittedTransaction>;
   approveAgentProposal(input: { principal: string; proposalId: string }): Promise<SubmittedTransaction>;
@@ -131,11 +131,11 @@ export class HandelFrontendClient {
       throw new HandelFrontendContractError("maxOpenPositions must be between 1 and 1000", "INVALID_POSITION_CAP");
     return submitted(await this.port.setAgentPolicy({ ...i, allowedAssets: [...i.allowedAssets] }), i.principal);
   }
-  async setAgentMode(principal: string, agentId: string, mode: AgentExecutionMode): Promise<SubmittedTransaction> {
+  async setAgentMode(principal: string, agentId: string, mode: ContractAgentExecutionMode): Promise<SubmittedTransaction> {
     account(principal, "principal"); account(agentId, "agentId");
     if (!["Education", "Advisory", "ManualApproval", "Delegated"].includes(mode))
       throw new HandelFrontendContractError("invalid agent execution mode", "INVALID_EXECUTION_MODE");
-    return submitted(await this.port.setAgentExecutionMode({ principal, agentId, mode }), principal);
+    return submitted(await this.port.setContractAgentExecutionMode({ principal, agentId, mode }), principal);
   }
   async revokeAgent(principal: string, agentId: string): Promise<SubmittedTransaction> {
     account(principal, "principal"); account(agentId, "agentId");
