@@ -63,7 +63,7 @@ test("fails closed on missing model attestation, bad Gateway/model signer, and G
 
   const receipt = client();
   receipt.verifyResponse = async () => ({ signatureKind: "gateway" });
-  await assert.rejects(() => guard(receipt).evaluate({}), /not provider-TEE signed/);
+  await assert.rejects(() => guard(receipt).evaluate({}), /signature does not match configured policy/);
 });
 test("supports explicit Gateway-signed Jev decisions without pretending the model itself is TEE-attested", async () => {
   const gatewayClient = client();
