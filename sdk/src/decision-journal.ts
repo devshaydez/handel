@@ -57,7 +57,8 @@ function validateInput(input: DecisionRecordInput): void {
   if (input.schemaVersion !== 1 || !Number.isFinite(Date.parse(input.createdAt))) throw new Error("Invalid decision schema or timestamp");
   if (!/^\d+$/.test(input.optionTerms.strike) || !/^\d+$/.test(input.optionTerms.quantity) ||
       !/^\d+$/.test(input.optionTerms.expiryNs) || !/^\d+$/.test(input.optionTerms.premium)) throw new Error("Invalid option terms in decision record");
-  if (!input.marketEvidence.source || !input.marketEvidence.observedAt || !input.marketEvidence.verificationMethod || !input.marketEvidence.evidenceHash || !input.marketEvidence.snapshotHash ||
+  if (!input.marketEvidence.source || !input.marketEvidence.observedAt || !input.marketEvidence.verificationMethod ||
+      !/^[a-f0-9]{64}$/.test(input.marketEvidence.evidenceHash) || !/^[a-f0-9]{64}$/.test(input.marketEvidence.snapshotHash) ||
       !input.premiumEvidence.source || !input.premiumEvidence.calculatedAt || !input.premiumEvidence.methodology ||
       !/^[a-f0-9]{64}$/.test(input.premiumEvidence.evidenceHash) || !input.premiumEvidence.verificationMethod) {
     throw new Error("Decision record is missing market or premium provenance");

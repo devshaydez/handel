@@ -64,7 +64,10 @@ export class HandelAgentRuntime {
       type: r.type, assetId: r.assetId, quantity: r.quantity, strike: r.strike,
       expiryNs: r.expiryNs, market,
     });
-    if (!/^\d+$/.test(q.premium) || BigInt(q.premium) <= 0n || !q.source.trim() || !q.methodology.trim()) {
+    const calculatedAt = Date.parse(q.calculatedAt);
+    if (!/^\d+$/.test(q.premium) || BigInt(q.premium) <= 0n || !q.source.trim() || !q.methodology.trim() ||
+        !/^[a-f0-9]{64}$/.test(q.evidenceHash) || !q.verificationMethod.trim() ||
+        !Number.isFinite(calculatedAt) || calculatedAt > Date.now() + 30_000 || Date.now() - calculatedAt > 60_000) {
       throw new AgentRuntimeError("invalid deterministic premium quote", "INVALID_PREMIUM_QUOTE");
     }
     const proposal = { ...c, premium: q.premium, dataFreshness: market.observedAt };

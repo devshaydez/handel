@@ -34,7 +34,7 @@ async function make(premium = "5000000", guard: () => Promise<{ allowed: boolean
       { quote: () => ({ premium, source: "fixture-engine", calculatedAt: new Date().toISOString(), methodology: "fixture", evidenceHash: "a".repeat(64), verificationMethod: "fixture-signed-evidence" }) },
       { evaluate: guard },
       journal,
-      { verify: async () => ({ approved: true, method: "fixture-signature-check", evidenceHash: "market-proof" }) },
+      { verify: async () => ({ approved: true, method: "fixture-signature-check", evidenceHash: "b".repeat(64) }) },
     ),
     journal,
   };
@@ -45,7 +45,7 @@ test("host replaces model premium and durably records a market-verified, guardra
   assert.equal(result.proposal.premium, "5000000");
   assert.equal(result.policy.ok, true);
   assert.equal(result.guardrail.decisionId, "guard-1");
-  assert.equal(result.marketVerification.evidenceHash, "market-proof");
+  assert.equal(result.marketVerification.evidenceHash, "b".repeat(64));
   assert.equal(journal.list().length, 1);
   assert.equal(journal.list()[0].executionState, "proposed");
 });
