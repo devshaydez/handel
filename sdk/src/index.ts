@@ -24,3 +24,4 @@ export * from "./escrow-custody.js";
 export * from "./intents-execution.js";
 
 export * from "./frontend-contract.js";
+export * from "./nearai-stack.js";
