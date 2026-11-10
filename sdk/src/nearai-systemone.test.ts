@@ -6,7 +6,7 @@ import { NearAiBudgetLedger } from "./nearai-provider.js";
 const budget = { budgetMicros: 10_000_000, maxRequestCostMicros: 100_000, maxRequests: 100, maxCompletionTokens: 512, maxPromptBytes: 12000 };
 const config = {
   apiKey: "test", model: "jev/handel-guard",
-  signaturePolicy: "provider_tee", allowedGatewaySigners: ["gateway"], allowedModelSigners: ["signer"],
+  signaturePolicy: "provider_tee" as const, allowedGatewaySigners: ["gateway"], allowedModelSigners: ["signer"],
   allowedComposeHashes: ["compose"], allowedOsImageHashes: ["os"],
 };
 function client(choice = "allow", confidence = 0.95): NearAiSystemOneClient {
