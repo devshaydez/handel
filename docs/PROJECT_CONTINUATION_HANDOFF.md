@@ -325,3 +325,23 @@ The user explicitly chose to build the frontend manually. Batch 10 must not crea
 
 - Batch 10 follow-up commit `6fefc45cd346a8de5c28b6b2f96e8db05b707aa7` binds agent-policy reads to both principal and agent ID and rejects portfolio responses whose completeness flag is not a boolean.
 - Batch 10 follow-up commit `265ed57c800bef99d96267598be4bbaecb606e54` rejects zero-valued agent proposal terms before invoking the connected agent wallet.
+
+
+## 2026-11-10 — Batch 11 AI verification correction
+
+The live NEAR AI workflow now verifies two deliberately separate paths:
+
+- Chat proposal inference: `deepseek-ai/DeepSeek-V4.1-Flash-1017`, with E2EE and OHTTP enabled, Ed25519, zero attestation cache TTL, UpToDate Gateway/model TEE evidence, and a `provider_tee` response signature. The live smoke returned the expected sentinel response. This validates the provider connection and cryptographic response path only; it does not validate a trading proposal, market data, wallet, or execution.
+- System One screening: `levanto/sage-2`, with E2EE/OHTTP disabled as required. The live smoke verified an UpToDate Gateway and a Gateway-signed decision. The model returned no model-attestation reports; therefore the evidence is **Gateway TEE + Gateway receipt**, not proof that the System One model itself executed in a TEE. The runtime now requires an explicit `signaturePolicy` of `gateway` or `provider_tee`; there is no automatic downgrade. Gateway mode is suitable only as a non-authoritative screening signal alongside deterministic policy checks. If a deployment requires model-level TEE for System One, configure `provider_tee` with model signer and measurement allowlists and fail closed when unsupported.
+
+The SDK tests now cover both explicit policies, missing model attestations, signer allowlists, and signature-policy mismatch. The first CI attempt exposed a test assertion that still expected the old error text; it was corrected. The follow-up TypeScript job passed. Full Rust, live AI, and final CI status must be read from the newest workflow run for the branch, not inferred from an earlier run.
+
+The live smoke does **not** mean the Handel agent is a deployed/always-on service. `HandelAgentRuntime` remains an orchestration component requiring a trusted market-evidence adapter, validated premium inputs, durable decision storage, and a separately authorized execution service. No Testnet trade or real-asset settlement has been executed.
+
+## Remaining release blockers after Batch 11
+
+1. No approved authoritative spot/volatility oracle for the exact Ondo instruments; Ondo display feeds and soft quotes must not be promoted to execution/risk prices.
+2. No proven live Handel collateral reservation/custody path for the exact Ondo assets through NEAR Intents.
+3. No live end-to-end Testnet option lifecycle using a Handel-deployed contract and wallet, including final transaction/receipt inspection.
+4. Settlement verification still depends on a configured trusted verifier/reconciler and one RPC endpoint; independent proof/quorum and production recovery remain outstanding.
+5. No always-on backend agent service has been deployed. The user is building the frontend manually; do not modify frontend files.

@@ -9,7 +9,6 @@ on:
       - work/batch-5-testnet-release-readiness
       - work/testnet-infrastructure-readiness
       - work/batch-9-execution-safety
-      - work/batch-10-product-release
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
