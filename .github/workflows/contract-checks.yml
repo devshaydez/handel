@@ -93,6 +93,9 @@ jobs:
       - name: Verify Tidepool assets through two independent Testnet RPCs
         run: node scripts/verify-testnet-assets.mjs
 
+      - name: Verify Tidepool Testnet verifier code hash and health
+        run: node scripts/verify-tidepool-verifier.mjs
+
       - name: Request a live Tidepool dry quote (no deposit address or transaction)
         run: node scripts/verify-tidepool-dry-quote.mjs
 
