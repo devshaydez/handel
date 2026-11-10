@@ -132,7 +132,7 @@ export class DecisionJournal implements DecisionRecorder {
       `Decision ${record.decisionId}: ${record.action} proposal for ${record.assetId}.`,
       `Rationale: ${record.rationale}`,
       `Market evidence: ${record.marketEvidence.source} observed at ${record.marketEvidence.observedAt}.`,
-      `Premium: ${record.optionTerms.premium} (calculated by ${record.premiumEvidence.source}: ${record.premiumEvidence.methodology}; verified via ${record.premiumEvidence.verificationMethod}, evidence ${record.premiumEvidence.evidenceHash}).`,
+      `Premium: ${record.optionTerms.premium} (calculated by ${record.premiumEvidence.source}: ${record.premiumEvidence.methodology}; verified via ${record.premiumEvidence.verificationMethod} (${record.premiumEvidence.evidenceType}), evidence ${record.premiumEvidence.evidenceHash}).`,
       `Risks: ${record.risks.join("; ") || "No risks were supplied in the proposal."}`,
       `Policy: ${record.policy.ok ? "passed" : "rejected"}.`,
       `Guardrail: ${record.guardrailEvidence.outcome} with confidence ${record.guardrailEvidence.confidence}; verified as ${record.guardrailEvidence.signatureKind}.`,

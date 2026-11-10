@@ -112,7 +112,7 @@ export class HandelAgentRuntime {
           evidenceType, executionEligible: true,
           snapshotHash: createHash("sha256").update(JSON.stringify(market) ?? "").digest("hex"),
         },
-        premiumEvidence: { source: q.source, calculatedAt: q.calculatedAt, methodology: q.methodology, evidenceHash: q.evidenceHash, verificationMethod: q.verificationMethod },
+        premiumEvidence: { source: q.source, calculatedAt: q.calculatedAt, methodology: q.methodology, evidenceHash: q.evidenceHash, verificationMethod: q.verificationMethod, evidenceType: q.evidenceType },
         guardrailEvidence: { decisionId: guard.decisionId, outcome: guard.outcome, confidence: guard.confidence, signatureKind: guard.signatureKind },
         rationale: proposal.rationale, risks: proposal.risks,
         alternativesEvaluated: [], uncertainty: ["No separately calibrated uncertainty estimate was supplied."],
