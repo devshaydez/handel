@@ -135,5 +135,5 @@ test("quorum inspector requires two independent matching receipt views", async (
     { inspect: async () => ({ ...(await inspector(response()).inspect("tx-1", "receipt-1")), blockHash: "forked-block" }) },
   ]);
   await assert.rejects(() => disagreeing.inspect("tx-1", "receipt-1"), /endpoints disagree/);
-  assert.throws(() => new QuorumNearRpcReceiptInspector([{ inspect: async () => receipt }]), /at least two/);
+  assert.throws(() => new QuorumNearRpcReceiptInspector([{ inspect: async () => await inspector(response()).inspect("tx-1", "receipt-1") }]), /at least two/);
 });
