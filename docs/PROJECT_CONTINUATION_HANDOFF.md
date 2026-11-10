@@ -303,3 +303,19 @@ Work is underway on branch `work/batch-9-execution-safety`, stacked on Batch 8 b
 - Project-wide remaining gates: [ALL_BATCH_LIMITATIONS.md](./ALL_BATCH_LIMITATIONS.md).
 
 Batch 9 is not complete until all phases are implemented, the full branch passes one final integrated CI run, and the outstanding custody, verifier, wallet, and security-review gates are accurately recorded. No deployment, signing, funding, or asset movement is implied by SDK helpers or passing CI.
+
+
+## Batch 10 continuation — 2026-11-10
+
+The user explicitly chose to build the frontend manually. Batch 10 must not create frontend pages, CSS, UI framework setup, or visual design. Work on the SDK/backend integration contract, adversarial tests, documentation, and reproducible release evidence only.
+
+- Batch 9 exact head `115ffd10e47f98d6548a8192c612f9d1bfc3958e` passed integrated CI run #42729697264 (Rust, SDK, read-only Testnet asset/verifier/dry-quote jobs).
+- Batch 9 PR #12 remains open; do not merge without explicit user approval.
+- Batch 10 branch: `work/batch-10-product-release`, initially based on the verified Batch 9 head.
+- Batch 10 first commit: `313b69ad94a943c8e3951ea8b27013ae7f842313`.
+- Added `sdk/src/frontend-contract.ts` and its tests. It defines typed portfolio/position/operation/agent/proposal DTOs, wallet-backed host adapter interfaces, exact string handling for u64/u128, and distinct submitted/finality/unknown states.
+- Added `docs/BATCH_10_PRODUCT_RELEASE.md` and `docs/MANUAL_FRONTEND_INTEGRATION.md`.
+- Exported the new contract from `sdk/src/index.ts`.
+- CI workflow is being extended to run for Batch 10 pushes and a stacked PR targeting Batch 9.
+- No frontend source or live wallet/contract integration has been created. The new port is a typed integration contract; host adapters and the manually authored frontend remain future work.
+- No deployment, wallet signing, funding, or asset movement was performed.
