@@ -11,7 +11,6 @@ const ORIGIN = "nep141:usdc.tidepool-sandbox.testnet";
 const DESTINATION = "nep141:wnear.tidepool-sandbox.testnet";
 const AMOUNT = "1000000"; // 1 USDC at 6 decimals
 const TEST_ACCOUNT = "handel-smoke.testnet";
-const timeout = AbortSignal.timeout(20_000);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
