@@ -20,6 +20,11 @@ on:
       - work/batch-9-execution-safety
   workflow_dispatch:
 
+# Keep only the newest PR run active; superseded commits are not useful release evidence.
+concurrency:
+  group: handel-backend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
