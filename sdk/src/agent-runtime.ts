@@ -14,8 +14,15 @@ export interface PremiumQuote {
 export interface PremiumEngine {
   quote(x: { type: OptionType; assetId: string; quantity: string; strike: string; expiryNs: string; market: MarketSnapshot }): Promise<PremiumQuote> | PremiumQuote;
 }
+export type MarketEvidenceType = "execution_oracle" | "signed_execution_quote" | "display_only" | "soft_quote" | "historical";
 export interface MarketEvidenceVerifier {
-  verify(snapshot: MarketSnapshot): Promise<{ approved: boolean; method: string; evidenceHash: string }>;
+  verify(snapshot: MarketSnapshot): Promise<{
+    approved: boolean;
+    executionEligible: boolean;
+    evidenceType: MarketEvidenceType;
+    method: string;
+    evidenceHash: string;
+  }>;
 }
 export interface ProposalGuardrail {
   evaluate(state: unknown): Promise<{
@@ -47,7 +54,9 @@ export class HandelAgentRuntime {
     let marketVerification;
     try { marketVerification = await this.marketVerifier.verify(market); }
     catch { throw new AgentRuntimeError("market source verification unavailable", "MARKET_SOURCE_UNVERIFIED"); }
-    if (!marketVerification.approved || !marketVerification.method.trim() || !/^[a-f0-9]{64}$/.test(marketVerification.evidenceHash)) {
+    if (!marketVerification.approved || !marketVerification.executionEligible ||
+        !["execution_oracle", "signed_execution_quote"].includes(marketVerification.evidenceType) ||
+        !marketVerification.method.trim() || !/^[a-f0-9]{64}$/.test(marketVerification.evidenceHash)) {
       throw new AgentRuntimeError("market source is not approved for trading", "MARKET_SOURCE_UNVERIFIED");
     }
     const g = await this.provider.propose({
@@ -99,6 +108,7 @@ export class HandelAgentRuntime {
         marketEvidence: {
           source: market.source, observedAt: market.observedAt,
           verificationMethod: marketVerification.method, evidenceHash: marketVerification.evidenceHash,
+          evidenceType: marketVerification.evidenceType, executionEligible: marketVerification.executionEligible,
           snapshotHash: createHash("sha256").update(JSON.stringify(market) ?? "").digest("hex"),
         },
         premiumEvidence: { source: q.source, calculatedAt: q.calculatedAt, methodology: q.methodology, evidenceHash: q.evidenceHash, verificationMethod: q.verificationMethod },

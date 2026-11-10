@@ -34,7 +34,7 @@ async function make(premium = "5000000", guard: () => Promise<{ allowed: boolean
       { quote: () => ({ premium, source: "fixture-engine", calculatedAt: new Date().toISOString(), methodology: "fixture", evidenceHash: "a".repeat(64), verificationMethod: "fixture-signed-evidence" }) },
       { evaluate: guard },
       journal,
-      { verify: async () => ({ approved: true, method: "fixture-signature-check", evidenceHash: "b".repeat(64) }) },
+      { verify: async () => ({ approved: true, executionEligible: true, evidenceType: "execution_oracle" as const, method: "fixture-signature-check", evidenceHash: "b".repeat(64) }) },
     ),
     journal,
   };
@@ -46,6 +46,7 @@ test("host replaces model premium and durably records a market-verified, guardra
   assert.equal(result.policy.ok, true);
   assert.equal(result.guardrail.decisionId, "guard-1");
   assert.equal(result.marketVerification.evidenceHash, "b".repeat(64));
+  assert.equal(result.marketVerification.executionEligible, true);
   assert.equal(journal.list().length, 1);
   assert.equal(journal.list()[0].executionState, "proposed");
 });
@@ -76,7 +77,7 @@ test("fails closed when market evidence is unapproved or its verifier is unavail
   const base = { propose: async () => ({ proposal, requestId: "r" }) };
   const pricing = { quote: () => ({ premium: "5000000", source: "fixture-engine", calculatedAt: new Date().toISOString(), methodology: "fixture", evidenceHash: "a".repeat(64), verificationMethod: "fixture-signed-evidence" }) };
   const guardrail = { evaluate: async () => ({ allowed: true, outcome: "allow" as const, confidence: 0.99, decisionId: "g", signatureKind: "provider_tee" as const }) };
-  const denied = new HandelAgentRuntime(base, pricing, guardrail, journal, { verify: async () => ({ approved: false, method: "display-only", evidenceHash: "x" }) });
+  const denied = new HandelAgentRuntime(base, pricing, guardrail, journal, { verify: async () => ({ approved: true, executionEligible: false, evidenceType: "display_only" as const, method: "display-only", evidenceHash: "b".repeat(64) }) });
   await assert.rejects(() => denied.propose(request, permission, market), e => e instanceof Error && "code" in e && e.code === "MARKET_SOURCE_UNVERIFIED");
   const unavailable = new HandelAgentRuntime(base, pricing, guardrail, journal, { verify: async () => { throw new Error("offline"); } });
   await assert.rejects(() => unavailable.propose(request, permission, market), e => e instanceof Error && "code" in e && e.code === "MARKET_SOURCE_UNVERIFIED");

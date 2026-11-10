@@ -12,7 +12,7 @@ export interface DecisionRecordInput {
   action: string;
   assetId: string;
   optionTerms: { strike: string; quantity: string; expiryNs: string; premium: string };
-  marketEvidence: { source: string; observedAt: string; verificationMethod: string; evidenceHash: string; snapshotHash: string };
+  marketEvidence: { source: string; observedAt: string; verificationMethod: string; evidenceHash: string; snapshotHash: string; evidenceType: "execution_oracle" | "signed_execution_quote"; executionEligible: true };
   premiumEvidence: { source: string; calculatedAt: string; methodology: string; evidenceHash: string; verificationMethod: string };
   guardrailEvidence: { decisionId: string; outcome: string; confidence: number; signatureKind: string };
   rationale: string;
@@ -58,6 +58,8 @@ function validateInput(input: DecisionRecordInput): void {
   if (!/^\d+$/.test(input.optionTerms.strike) || !/^\d+$/.test(input.optionTerms.quantity) ||
       !/^\d+$/.test(input.optionTerms.expiryNs) || !/^\d+$/.test(input.optionTerms.premium)) throw new Error("Invalid option terms in decision record");
   if (!input.marketEvidence.source || !input.marketEvidence.observedAt || !input.marketEvidence.verificationMethod ||
+      input.marketEvidence.executionEligible !== true ||
+      !["execution_oracle", "signed_execution_quote"].includes(input.marketEvidence.evidenceType) ||
       !/^[a-f0-9]{64}$/.test(input.marketEvidence.evidenceHash) || !/^[a-f0-9]{64}$/.test(input.marketEvidence.snapshotHash) ||
       !input.premiumEvidence.source || !input.premiumEvidence.calculatedAt || !input.premiumEvidence.methodology ||
       !/^[a-f0-9]{64}$/.test(input.premiumEvidence.evidenceHash) || !input.premiumEvidence.verificationMethod) {
