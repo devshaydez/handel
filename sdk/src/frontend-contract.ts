@@ -190,6 +190,8 @@ export class HandelFrontendClient {
     if (!i.assetId?.trim() || !i.rationaleHash?.trim()) throw new HandelFrontendContractError("assetId and rationaleHash are required", "INVALID_PROPOSAL");
     uint(i.underlyingAmount, "underlyingAmount", MAX_U128); uint(i.strikeAmountUsdc, "strikeAmountUsdc", MAX_U128);
     uint(i.expiryNs, "expiryNs", MAX_U64); uint(i.premiumAmountUsdc, "premiumAmountUsdc", MAX_U128);
+    if ([i.underlyingAmount, i.strikeAmountUsdc, i.premiumAmountUsdc].some(v => BigInt(v) === 0n))
+      throw new HandelFrontendContractError("proposal amounts must be positive", "ZERO_AMOUNT");
     return submitted(await this.port.createAgentProposal({ ...i }), i.agentId);
   }
   async approveProposal(principal: string, proposalId: string): Promise<SubmittedTransaction> {

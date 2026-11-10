@@ -109,3 +109,16 @@ test("portfolio completeness must be an explicit boolean", async () => {
  }) }));
  await assert.rejects(() => c.portfolio("alice.testnet"), /invalid or mismatched snapshot/);
 });
+
+test("zero-valued agent proposal terms are rejected before the agent wallet call", async () => {
+ let calls = 0;
+ const c = new HandelFrontendClient(port({ createAgentProposal: async () => {
+  calls++; return { ...tx, signerAccountId: "agent.testnet" };
+ } }));
+ await assert.rejects(() => c.createProposal({
+  principal: "alice.testnet", agentId: "agent.testnet", holder: "bob.testnet", kind: "Put",
+  assetId: "nep141:stock.testnet", underlyingAmount: "0", strikeAmountUsdc: "100",
+  expiryNs: "200", premiumAmountUsdc: "1", rationaleHash: "sha256:reason"
+ }), /proposal amounts must be positive/);
+ assert.equal(calls, 0);
+});
