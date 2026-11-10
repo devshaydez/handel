@@ -49,9 +49,19 @@ const redact = (value) => {
   }
   return value;
 };
-const safe = JSON.stringify(redact(catalogue), null, 2);
-console.log("NEAR AI credential preflight: PASS (HTTP authentication accepted).");
-console.log("No inference was sent. No model was approved or allowlisted by this check.");
-console.log("Catalogue snapshot (bounded; inspect model IDs, capability and privacy tier before pinning):");
-console.log(safe.slice(0, 24000));
-if (safe.length > 24000) console.log("[catalogue output truncated]");
+const models = Array.isArray(catalogue.models) ? catalogue.models : [];
+const summary = models.map((m) => ({
+  modelId: m?.modelId ?? null,
+  displayName: m?.metadata?.modelDisplayName ?? null,
+  verifiable: m?.metadata?.verifiable ?? null,
+  attestationSupported: m?.attestationSupported ?? null,
+  providerType: m?.providerType ?? null,
+  ready: m?.isReady ?? null,
+  inputModalities: m?.architecture?.inputModalities ?? [],
+  outputModalities: m?.architecture?.outputModalities ?? [],
+  supportedFeatures: m?.supportedFeatures ?? m?.architecture?.supportedFeatures ?? [],
+  task: m?.task ?? m?.metadata?.task ?? null,
+}));
+console.log(`NEAR AI model catalogue authenticated: ${models.length} entries.`);
+console.log("Only non-secret model identity/capability fields are emitted:");
+console.log(JSON.stringify(summary, null, 2));
