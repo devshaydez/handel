@@ -65,7 +65,7 @@ export interface HandelFrontendPort {
   getAgentProposal(proposalId: string): Promise<AgentProposalView | null>;
   createOffer(input: CreateOfferInput): Promise<SubmittedTransaction>;
   setAgentPolicy(input: AgentPolicyUpdate): Promise<SubmittedTransaction>;
-  setContractAgentExecutionMode(input: { principal: string; agentId: string; mode: ContractAgentExecutionMode }): Promise<SubmittedTransaction>;
+  setAgentExecutionMode(input: { principal: string; agentId: string; mode: ContractAgentExecutionMode }): Promise<SubmittedTransaction>;
   revokeAgent(input: { principal: string; agentId: string }): Promise<SubmittedTransaction>;
   createAgentProposal(input: ProposalRequest): Promise<SubmittedTransaction>;
   approveAgentProposal(input: { principal: string; proposalId: string }): Promise<SubmittedTransaction>;
@@ -135,7 +135,7 @@ export class HandelFrontendClient {
     account(principal, "principal"); account(agentId, "agentId");
     if (!["Education", "Advisory", "ManualApproval", "Delegated"].includes(mode))
       throw new HandelFrontendContractError("invalid agent execution mode", "INVALID_EXECUTION_MODE");
-    return submitted(await this.port.setContractAgentExecutionMode({ principal, agentId, mode }), principal);
+    return submitted(await this.port.setAgentExecutionMode({ principal, agentId, mode }), principal);
   }
   async revokeAgent(principal: string, agentId: string): Promise<SubmittedTransaction> {
     account(principal, "principal"); account(agentId, "agentId");
