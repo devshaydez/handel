@@ -135,3 +135,8 @@ For each deployment/test, record:
 | Before/after balances | |
 | Independent reviewer | |
 | Open discrepancies | |
+
+
+### Read-only quote smoke-test rate limits
+
+The Tidepool dry-quote smoke test retries transient upstream failures. Tidepool may wrap an upstream HTTP 429 as HTTP 500 with a message containing `429`. After bounded retries, that specific rate-limit condition is reported as `INCONCLUSIVE` (not `PASS`): CI remains usable, but the run does not claim a live quote was verified. Other HTTP errors and malformed quote responses remain hard failures. Asset-registry and verifier checks are reported independently.

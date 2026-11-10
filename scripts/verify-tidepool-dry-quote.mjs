@@ -13,11 +13,27 @@ const AMOUNT = "1000000"; // 1 USDC at 6 decimals
 const TEST_ACCOUNT = "handel-smoke.testnet";
 const timeout = AbortSignal.timeout(20_000);
 
-async function json(url, init) {
-  const response = await fetch(url, { ...init, signal: timeout });
-  const body = await response.json().catch(() => null);
-  assert.equal(response.ok, true, `HTTP ${response.status}: ${JSON.stringify(body)}`);
-  return body;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function json(url, init, { retries = 3 } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch(url, { ...init, signal: AbortSignal.timeout(20_000) });
+    const body = await response.json().catch(() => null);
+    if (response.ok) return body;
+    const message = typeof body?.message === "string" ? body.message : "";
+    // Tidepool's quote gateway can surface its upstream HTTP 429 as HTTP 500.
+    const rateLimited = response.status === 429 || /\\b429\\b|rate.?limit|too many requests/i.test(message);
+    const transient = rateLimited || response.status >= 500;
+    if (transient && attempt < retries) {
+      const delayMs = 1_000 * (2 ** attempt);
+      console.warn("Tidepool returned HTTP " + response.status + "; retrying in " + delayMs + "ms (attempt " + (attempt + 1) + "/" + retries + ")");
+      await sleep(delayMs);
+      continue;
+    }
+    const error = new Error("HTTP " + response.status + ": " + JSON.stringify(body));
+    error.retryableUpstreamLimit = rateLimited;
+    throw error;
+  }
 }
 
 const tokens = await json(`${BASE}/v0/tokens`, { headers: { accept: "application/json" } });
@@ -44,11 +60,30 @@ const request = {
   recipientType: "DESTINATION_CHAIN",
   deadline,
 };
-const response = await json(`${BASE}/v0/quote`, {
-  method: "POST",
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify(request),
-});
+let response;
+try {
+  response = await json(BASE + "/v0/quote", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(request),
+  });
+} catch (error) {
+  if (error?.retryableUpstreamLimit) {
+    console.log(JSON.stringify({
+      status: "INCONCLUSIVE",
+      checkedAt: new Date().toISOString(),
+      endpoint: BASE + "/v0/quote",
+      dry: true,
+      retriesExhausted: true,
+      reason: "Tidepool/upstream quote service rate-limited the read-only smoke test",
+      depositAddressCreated: false,
+      transactionSubmitted: false,
+      caveat: "Asset registry and verifier checks ran separately. No live quote was confirmed; rerun when the upstream rate limit clears."
+    }, null, 2));
+    process.exit(0);
+  }
+  throw error;
+}
 assert.equal(typeof response.correlationId, "string", "quote must include correlationId");
 assert.ok(response.quote && typeof response.quote === "object", "quote payload is missing");
 assert.equal(response.quote.amountIn, AMOUNT, "quote amountIn must match exact input");
