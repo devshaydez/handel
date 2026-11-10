@@ -128,3 +128,28 @@ jobs:
 
       - name: Run offline lifecycle demo
         run: npm run lifecycle
+
+  nearai-credential-preflight:
+    name: NEAR AI credential and model-catalogue preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NEARAI_API_KEY: ${{ secrets.NEARAI_API_KEY }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.22.1
+
+      - name: Require repository credential
+        run: |
+          if [ -z "${NEARAI_API_KEY:-}" ]; then
+            echo "::error::NEARAI_API_KEY repository secret is unavailable to this workflow."
+            exit 1
+          fi
+
+      - name: Authenticate and inspect official model catalogue (no inference)
+        run: node scripts/verify-nearai-credentials.mjs
