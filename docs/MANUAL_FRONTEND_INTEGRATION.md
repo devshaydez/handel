@@ -60,6 +60,8 @@ Refresh on-chain policy immediately before a trade-sensitive action. Local SDK p
 - Open options are represented by `PositionView`; lifecycle/order activity is represented by `OperationView`. There is no separate order-book or generic broker order-history entity in the current contract, so do not label these operations as exchange fills.
 - Settlement evidence is `verified` only when the adapter has independently checked the required finalized verifier evidence. A contract state or an indexer label alone is insufficient.
 
+Agent policy reads are bound to both the requested principal and agent ID. Portfolio `complete` must be an explicit boolean; false means pagination or source coverage is incomplete.
+
 Common `HandelFrontendContractError.code` values:
 | Code | Meaning |
 |---|---|

@@ -26,7 +26,7 @@ export interface OperationView {
   expectedReceiver: string; externalReference: string | null;
 }
 export interface AgentPolicyView {
-  principal: string; allowedAssets: string[]; maxUnderlyingAmount: string;
+  principal: string; agentId: string; allowedAssets: string[]; maxUnderlyingAmount: string;
   maxPremiumUsdc: string; maxCollateralUsdc: string; maxOpenPositions: number;
   expiresAtNs: string; enabled: boolean; executionMode: ContractAgentExecutionMode;
 }
@@ -126,8 +126,8 @@ export class HandelFrontendClient {
   async agentPolicy(principal: string, agentId: string): Promise<AgentPolicyView | null> {
     account(principal, "principal"); account(agentId, "agentId");
     const value = await this.port.getAgentPolicy(principal, agentId);
-    if (value !== null && value.principal !== principal)
-      throw new HandelFrontendContractError("agent policy belongs to a different principal", "PRINCIPAL_MISMATCH");
+    if (value !== null && (value.principal !== principal || value.agentId !== agentId))
+      throw new HandelFrontendContractError("agent policy belongs to a different principal or agent", "PRINCIPAL_MISMATCH");
     return value === null ? null : structuredClone(value);
   }
   async agentProposal(proposalId: string): Promise<AgentProposalView | null> {
@@ -142,7 +142,7 @@ export class HandelFrontendClient {
     const s = await this.port.getPortfolio(accountId);
     if (s.accountId !== accountId || !Number.isSafeInteger(s.blockHeight) || s.blockHeight < 0 ||
         !Number.isFinite(Date.parse(s.observedAt)) || !["rpc", "indexer", "combined"].includes(s.source) ||
-        !Array.isArray(s.balances) || !Array.isArray(s.positions) || !Array.isArray(s.operations) ||
+        typeof s.complete !== "boolean" || !Array.isArray(s.balances) || !Array.isArray(s.positions) || !Array.isArray(s.operations) ||
         s.balances.some(b => !b || typeof b.assetId !== "string" || !b.assetId.trim() ||
           typeof b.amount !== "string" || !UINT.test(b.amount) || b.amount.length > 39 || BigInt(b.amount) > MAX_U128 ||
           !Number.isSafeInteger(b.decimals) || b.decimals < 0 || b.decimals > 255 ||

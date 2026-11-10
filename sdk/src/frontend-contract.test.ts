@@ -56,7 +56,7 @@ test("position and operation reads are bound to requested IDs", async () => {
 });
 test("agent policy reads cannot cross principals", async () => {
  const c = new HandelFrontendClient(port({ getAgentPolicy: async () => ({
-  principal: "mallory.testnet", allowedAssets: [], maxUnderlyingAmount: "1",
+  principal: "mallory.testnet", agentId: "agent.testnet", allowedAssets: [], maxUnderlyingAmount: "1",
   maxPremiumUsdc: "1", maxCollateralUsdc: "1", maxOpenPositions: 1,
   expiresAtNs: "100", enabled: true, executionMode: "ManualApproval",
  }) }));
@@ -92,4 +92,20 @@ test("portfolio preserves valid balances above JavaScript safe-integer precision
   positions: [], operations: [], source: "rpc", observedAt: "2026-11-10T10:00:00.000Z", blockHeight: 10, complete: true
  }) }));
  assert.equal((await c.portfolio("alice.testnet")).balances[0].amount, exact);
+});
+
+test("agent policy reads are bound to the requested agent as well as principal", async () => {
+ const c = new HandelFrontendClient(port({ getAgentPolicy: async () => ({
+  principal: "alice.testnet", agentId: "other-agent.testnet", allowedAssets: [],
+  maxUnderlyingAmount: "1", maxPremiumUsdc: "1", maxCollateralUsdc: "1",
+  maxOpenPositions: 1, expiresAtNs: "100", enabled: true, executionMode: "ManualApproval",
+ }) }));
+ await assert.rejects(() => c.agentPolicy("alice.testnet", "agent.testnet"), /different principal or agent/);
+});
+test("portfolio completeness must be an explicit boolean", async () => {
+ const c = new HandelFrontendClient(port({ getPortfolio: async accountId => ({
+  accountId, balances: [], positions: [], operations: [], source: "rpc",
+  observedAt: "2026-11-10T10:00:00.000Z", blockHeight: 10, complete: "yes" as never
+ }) }));
+ await assert.rejects(() => c.portfolio("alice.testnet"), /invalid or mismatched snapshot/);
 });
