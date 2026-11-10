@@ -67,7 +67,7 @@ export class HandelAgentRuntime {
       throw new AgentRuntimeError("invalid deterministic premium quote", "INVALID_PREMIUM_QUOTE");
     }
     const proposal = { ...c, premium: q.premium, dataFreshness: market.observedAt };
-    const policy = validateProposal(proposal, p);
+    const policy = validateProposal(proposal, p, { requireAgent: true, requireFreshMarketData: true });
     if (!policy.ok) throw new AgentRuntimeError(policy.errors.join("; "), "POLICY_REJECTED");
     let guard;
     try {
