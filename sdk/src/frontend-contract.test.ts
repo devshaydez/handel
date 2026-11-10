@@ -4,7 +4,7 @@ import { HandelFrontendClient, HandelFrontendContractError, type HandelFrontendP
 const tx: SubmittedTransaction = { transactionHash: "abc123", signerAccountId: "alice.testnet", submittedAt: "2026-11-10T10:00:00.000Z", status: "submitted" };
 function port(overrides: Partial<HandelFrontendPort> = {}): HandelFrontendPort {
  const base: HandelFrontendPort = {
-  getPortfolio: async accountId => ({ accountId, positions: [], operations: [], source: "rpc", observedAt: "2026-11-10T10:00:00.000Z", blockHeight: 10, complete: true }),
+  getPortfolio: async accountId => ({ accountId, balances: [], positions: [], operations: [], source: "rpc", observedAt: "2026-11-10T10:00:00.000Z", blockHeight: 10, complete: true }),
   getPosition: async () => null, getOperation: async () => null, getAgentPolicy: async () => null, getAgentProposal: async () => null,
   createOffer: async () => tx, setAgentPolicy: async () => tx, setAgentExecutionMode: async () => tx, revokeAgent: async () => tx,
   createAgentProposal: async () => ({ ...tx, signerAccountId: "agent.testnet" }), approveAgentProposal: async () => tx,
@@ -20,7 +20,7 @@ test("portfolio is account-bound and defensively cloned", async () => {
  await assert.rejects(() => c.portfolio("bad account"), HandelFrontendContractError);
 });
 test("portfolio rejects cross-account adapter responses", async () => {
- const c = new HandelFrontendClient(port({ getPortfolio: async () => ({ accountId: "mallory.testnet", positions: [], operations: [], source: "rpc", observedAt: "2026-11-10T10:00:00.000Z", blockHeight: 10, complete: true }) }));
+ const c = new HandelFrontendClient(port({ getPortfolio: async () => ({ accountId: "mallory.testnet", balances: [], positions: [], operations: [], source: "rpc", observedAt: "2026-11-10T10:00:00.000Z", blockHeight: 10, complete: true }) }));
  await assert.rejects(() => c.portfolio("alice.testnet"), /mismatched snapshot/);
 });
 test("u128/u64 boundary values remain exact decimal strings", async () => {
@@ -65,4 +65,21 @@ test("agent policy reads cannot cross principals", async () => {
 test("proposal reads are bound to requested proposal IDs", async () => {
  const c = new HandelFrontendClient(port({ getAgentProposal: async () => ({ proposalId: "proposal-other" } as never) }));
  await assert.rejects(() => c.agentProposal("proposal-1"), /different proposal/);
+});
+
+test("portfolio rejects malformed or unsafe token balances", async () => {
+ const malformed = new HandelFrontendClient(port({ getPortfolio: async accountId => ({
+  accountId, balances: [{ assetId: "nep141:token.testnet", amount: "9007199254740993", decimals: 6,
+   observedAt: "2026-11-10T10:00:00.000Z", blockHeight: 10, source: "ft_balance_of" }],
+  positions: [], operations: [], source: "rpc", observedAt: "2026-11-10T10:00:00.000Z", blockHeight: 10, complete: true
+ }) }));
+ await assert.rejects(() => malformed.portfolio("alice.testnet"), /invalid or mismatched snapshot/);
+});
+test("manual proposal creation must be submitted by the authorized agent account", async () => {
+ const c = new HandelFrontendClient(port({ createAgentProposal: async () => ({ ...tx, signerAccountId: "alice.testnet" }) }));
+ await assert.rejects(() => c.createProposal({
+  principal: "alice.testnet", agentId: "agent.testnet", holder: "bob.testnet", kind: "Call",
+  assetId: "nep141:stock.testnet", underlyingAmount: "1", strikeAmountUsdc: "100",
+  expiryNs: "200", premiumAmountUsdc: "1", rationaleHash: "sha256:reason"
+ }), /invalid submission receipt/);
 });

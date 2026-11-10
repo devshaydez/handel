@@ -35,8 +35,18 @@ export interface AgentProposalView {
   kind: OptionType; assetId: string; underlyingAmount: string; strikeAmountUsdc: string;
   expiryNs: string; premiumAmountUsdc: string; rationaleHash: string; state: ProposalState;
 }
+export interface AssetBalanceView {
+  assetId: string;
+  /** Raw smallest-unit balance. Never convert to JavaScript number. */
+  amount: string;
+  /** Token metadata supplied by the same trusted asset registry as assetId. */
+  decimals: number;
+  observedAt: string;
+  blockHeight: number;
+  source: "ft_balance_of" | "indexer";
+}
 export interface PortfolioSnapshot {
-  accountId: string; positions: PositionView[]; operations: OperationView[];
+  accountId: string; balances: AssetBalanceView[]; positions: PositionView[]; operations: OperationView[];
   source: "rpc" | "indexer" | "combined"; observedAt: string; blockHeight: number; complete: boolean;
 }
 export interface SubmittedTransaction {
@@ -132,7 +142,12 @@ export class HandelFrontendClient {
     const s = await this.port.getPortfolio(accountId);
     if (s.accountId !== accountId || !Number.isSafeInteger(s.blockHeight) || s.blockHeight < 0 ||
         !Number.isFinite(Date.parse(s.observedAt)) || !["rpc", "indexer", "combined"].includes(s.source) ||
-        !Array.isArray(s.positions) || !Array.isArray(s.operations))
+        !Array.isArray(s.balances) || !Array.isArray(s.positions) || !Array.isArray(s.operations) ||
+        s.balances.some(b => !b || typeof b.assetId !== "string" || !b.assetId.trim() ||
+          typeof b.amount !== "string" || !UINT.test(b.amount) || b.amount.length > 39 || BigInt(b.amount) > MAX_U128 ||
+          !Number.isSafeInteger(b.decimals) || b.decimals < 0 || b.decimals > 38 ||
+          !Number.isFinite(Date.parse(b.observedAt)) || !Number.isSafeInteger(b.blockHeight) || b.blockHeight < 0 ||
+          !["ft_balance_of", "indexer"].includes(b.source)))
       throw new HandelFrontendContractError("portfolio adapter returned an invalid or mismatched snapshot", "INVALID_PORTFOLIO");
     return structuredClone(s);
   }

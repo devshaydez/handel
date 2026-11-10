@@ -18,7 +18,7 @@ const portfolio = await handel.portfolio(connectedWallet.accountId);
 - Account IDs are NEAR account IDs.
 - Position IDs, timestamps, token amounts, u64 and u128 values are decimal strings.
 - Never parse amounts into number; use BigInt for integer arithmetic and a decimal-aware formatter for display.
-- Portfolio responses include source, observedAt, blockHeight and complete. Do not display a partial indexer result as a complete portfolio.
+- Portfolio responses include raw token balances, source, observedAt, blockHeight and complete. Each balance includes asset ID, raw integer amount, decimals, observation time, block height and source. Resolve decimals from a trusted asset registry; do not infer them from a symbol. Do not display a partial indexer result as a complete portfolio.
 - Contract lifecycle state and settlement evidence are separate. A state label alone is not independent proof of external token movement.
 
 ## Wallet and transaction UX
@@ -30,7 +30,7 @@ A method returning SubmittedTransaction means only that the wallet/RPC adapter r
 - final_failure: show the definitive failure code.
 - unknown: preserve pending/unknown and do not automatically resubmit.
 
-For redirect wallets, complete the Wallet Selector callback before continuing with an operation that requires signature bytes.
+For redirect wallets, complete the Wallet Selector callback before continuing with an operation that requires signature bytes. `createAgentProposal` is submitted by the configured agent account (the Rust contract reads `predecessor_account_id` as the agent); approval and rejection are separate principal-signed transactions.
 
 ## Agent modes
 
@@ -53,3 +53,21 @@ Refresh on-chain policy immediately before a trade-sensitive action. Local SDK p
 6. Supply settlement event with mismatched amount, asset, sender, receiver or position; never show verified.
 7. Confirm displayed quantities preserve exact integer precision.
 8. Verify logs and analytics exclude signatures, access tokens, API keys and private data.
+
+## Current data coverage and error handling
+
+- Balances are adapter-sourced raw NEP-141 balances, not a claim that the OptionsContract itself stores wallet balances. Bind each balance to the exact asset ID, decimals, observation time and block height returned by the adapter.
+- Open options are represented by `PositionView`; lifecycle/order activity is represented by `OperationView`. There is no separate order-book or generic broker order-history entity in the current contract, so do not label these operations as exchange fills.
+- Settlement evidence is `verified` only when the adapter has independently checked the required finalized verifier evidence. A contract state or an indexer label alone is insufficient.
+
+Common `HandelFrontendContractError.code` values:
+| Code | Meaning |
+|---|---|
+| `INVALID_ACCOUNT`, `INVALID_INTEGER`, `ZERO_AMOUNT` | Invalid caller input; no wallet call should occur |
+| `INVALID_ALLOWLIST`, `INVALID_POSITION_CAP`, `INVALID_EXECUTION_MODE` | Invalid agent policy configuration |
+| `INVALID_SUBMISSION` | Adapter returned an invalid transaction submission or wrong signer |
+| `POSITION_MISMATCH`, `OPERATION_MISMATCH`, `PROPOSAL_MISMATCH`, `PRINCIPAL_MISMATCH` | Read adapter returned data not bound to the requested identifier/account |
+| `INVALID_PORTFOLIO` | Snapshot metadata or one or more balances are invalid |
+| `INVALID_FINALITY` | Finality response is malformed or refers to another transaction |
+
+Other wallet, RPC and contract errors may be propagated by the adapter. Treat timeouts as unknown until transaction finality is queried; never auto-resubmit a write solely because the client timed out.
