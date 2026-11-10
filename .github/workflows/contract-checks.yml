@@ -16,6 +16,7 @@ on:
       - feat/handel-archive-core
       - work/testnet-backend-hardening
       - work/batch-4-ai-integration-adversarial
+      - work/batch-8-ai-agent-intelligence
   workflow_dispatch:
 
 permissions:
