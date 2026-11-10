@@ -1,0 +1,119 @@
+name: Handel backend checks
+
+on:
+  push:
+    branches:
+      - work/testnet-backend-hardening
+      - work/batch-4-ai-integration-adversarial
+      - work/batch-5-testnet-release-readiness
+      - work/testnet-infrastructure-readiness
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - main
+      - feat/handel-archive-core
+      - work/testnet-backend-hardening
+      - work/batch-4-ai-integration-adversarial
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Rust format, unit tests, and Wasm build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate Bash deployment helper syntax
+        run: |
+          bash -n scripts/deploy.sh
+          bash -n scripts/deploy-escrow-testnet.sh
+          bash scripts/test-deploy-safety.sh
+          bash scripts/test-escrow-deploy-safety.sh
+
+      - name: Install system dependencies for cargo-near
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes pkg-config libudev-dev
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Install cargo-near
+        run: cargo install --locked cargo-near --version 0.22.0
+
+      - name: Build optimized NEAR contract Wasm
+        run: |
+          cargo near build non-reproducible-wasm --no-abi
+          (cd contracts/escrow && cargo near build non-reproducible-wasm --no-abi)
+          (cd contracts/mock-ft && cargo near build non-reproducible-wasm --no-abi)
+          ls -lh target/near/*.wasm target/near/*/*.wasm
+
+      - name: Build isolated callback-failure test Wasm
+        run: |
+          (cd contracts/escrow && cargo near build non-reproducible-wasm --no-abi --features fault-injection)
+          cp target/near/handel_escrow/handel_escrow.wasm target/near/handel_escrow_fault_injection_payment.wasm
+          (cd contracts/escrow && cargo near build non-reproducible-wasm --no-abi --features "fault-injection expiry-fast-forward")
+          cp target/near/handel_escrow/handel_escrow.wasm target/near/handel_escrow_fault_injection.wasm
+          (cd contracts/escrow && cargo near build non-reproducible-wasm --no-abi)
+          cargo near build non-reproducible-wasm --no-abi --features fault-injection
+          cp target/near/handel_options.wasm target/near/handel_options_fault_injection.wasm
+          cargo near build non-reproducible-wasm --no-abi
+
+      - name: Run contract and sandbox integration tests
+        run: cargo test --workspace
+
+  testnet-assets:
+    name: Live Testnet asset verification (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify Tidepool assets through two independent Testnet RPCs
+        run: node scripts/verify-testnet-assets.mjs
+
+  sdk:
+    name: TypeScript SDK build and offline demo
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install SDK dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build SDK
+        run: npm run build
+
+      - name: Run SDK unit tests
+        run: npm test
+
+      - name: Run offline lifecycle demo
+        run: npm run lifecycle
