@@ -62,3 +62,12 @@ A production runtime still needs a trusted market-data implementation and pricin
 ## Safe operating rule
 
 Until the missing market-data, custody and settlement gates are closed, Handel must remain in proposal/advisory or synthetic Testnet mode. Do not enable automatic live execution based only on a model response or successful smoke test.
+
+
+## Handel runtime assembly
+
+`sdk/src/nearai-stack.ts` now provides `createHandelNearAiStack(apiKey, budget)`. It constructs the Chat proposal provider and the separate System One guard, applies the TEE signer/measurement pins captured from live workflow #42790111229, and shares one `NearAiBudgetLedger` across both clients. The factory also exposes `createHandelAgentRuntime(stack, { pricing, decisions, marketVerifier })` so the host can wire the two AI paths into the controlled proposal runtime.
+
+The Chat allowlist pins the observed Gateway signer, model signer, compose measurement and OS image measurement. A provider redeployment that changes the measurement will fail closed until the allowlist is reviewed and updated. System One is explicitly configured as `signaturePolicy: "gateway"` because its live model response carried a Gateway signature and no model TEE report. This is a screening signal, not model-level TEE proof.
+
+The factory requires a caller-supplied `NearAiBudget`; it does not invent model pricing or set a misleading dollar budget. The repository secret alone is sufficient for API authentication, but a backend host must still provide a conservative budget configuration and the trusted market/pricing evidence adapters before constructing a tradable runtime. No always-on worker or hosted backend has been deployed by this change.
