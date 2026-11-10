@@ -10,7 +10,15 @@ import { InferenceClient } from "@nearai/inference-sdk/node";
 const apiKey = process.env.NEARAI_API_KEY;
 const model = process.env.NEARAI_SMOKE_MODEL ?? "deepseek-ai/DeepSeek-V4.1-Flash-1017";
 const baseUrl = process.env.NEARAI_BASE_URL ?? "https://cloud-api.near.ai/v1";
+const pinned = {
+  model: "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+  gatewaySigner: "40599fb284f43953bb356b09080fd803c960fc10285ad90eca462ca711ad4acb",
+  modelSigner: "236f5a6b91dd47dc3b7b36e43d4eb531a042ffb8f8fbf3a1555b78cef4fdda4c",
+  composeHash: "448683dd83e50727b9c5f6cdc84bd9d93fcf2c888001a85b1ba32f76b3612e3e",
+  osImageHash: "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
+};
 if (!apiKey?.trim()) throw new Error("NEARAI_API_KEY is unavailable.");
+if (model !== pinned.model) throw new Error("NEARAI_SMOKE_MODEL differs from the pinned Handel model; review the allowlist before changing it.");
 if (!baseUrl.startsWith("https://")) throw new Error("NEAR AI endpoint must use HTTPS.");
 
 const client = new InferenceClient({
@@ -33,10 +41,18 @@ if (deployment?.gateway?.tcbStatus !== "UpToDate") {
 if (!deployment.models?.length || deployment.models.some((m) => m.tcbStatus !== "UpToDate")) {
   throw new Error("Model deployment is missing or not UpToDate.");
 }
+if (deployment.gateway.signer?.signingAddress !== pinned.gatewaySigner) {
+  throw new Error("Gateway signer differs from the reviewed Handel TEE allowlist.");
+}
 for (const m of deployment.models) {
-  if (!m.signer?.signingAddress || !m.deployment?.runtimeMeasurements?.composeHash ||
-      !m.deployment?.runtimeMeasurements?.osImageHash) {
+  const measurements = m.deployment?.runtimeMeasurements;
+  if (!m.signer?.signingAddress || !measurements?.composeHash || !measurements?.osImageHash) {
     throw new Error("TEE deployment evidence is incomplete.");
+  }
+  if (m.signer.signingAddress !== pinned.modelSigner ||
+      measurements.composeHash !== pinned.composeHash ||
+      measurements.osImageHash !== pinned.osImageHash) {
+    throw new Error("Model signer or deployment measurement differs from the reviewed Handel TEE allowlist.");
   }
 }
 console.log("NEAR AI Gateway/model attestation: PASS");
@@ -73,9 +89,11 @@ console.log("Live E2EE/OHTTP inference: PASS");
 console.log("Provider TEE response signature: PASS");
 console.log("Response content: HANDEL_NEARAI_SMOKE_OK");
 console.log("No wallet, market data, trade proposal, or transaction was involved.");
-console.log("NOTE: this smoke does not approve Handel signer/measurement allowlists or validate the full agent runtime.");
+console.log("Pinned Handel Chat signer/measurement allowlist: PASS.");
+console.log("NOTE: this smoke does not validate the full agent runtime, market data, wallet, or execution.");
 
 const systemOneModel = process.env.NEARAI_SYSTEMONE_SMOKE_MODEL ?? "levanto/sage-2";
+if (systemOneModel !== "levanto/sage-2") throw new Error("System One model differs from the reviewed Handel model; update its explicit signature policy and allowlist first.");
 // System One Jev decisions use the documented Gateway client path. The default
 // Gateway policy verifies the Gateway TEE; it does not require model TEE evidence.
 // Set NEARAI_SYSTEMONE_EXPECT_SIGNATURE_KIND=provider_tee only when the chosen
@@ -99,8 +117,9 @@ const systemOneOptions = {
 };
 const systemOne = new InferenceClient(systemOneOptions);
 const systemOneDeployment = await systemOne.verify(systemOneModel);
-if (systemOneDeployment?.gateway?.tcbStatus !== "UpToDate") {
-  throw new Error("System One Gateway attestation failed.");
+if (systemOneDeployment?.gateway?.tcbStatus !== "UpToDate" ||
+    systemOneDeployment.gateway.signer?.signingAddress !== pinned.gatewaySigner) {
+  throw new Error("System One Gateway attestation or reviewed signer allowlist failed.");
 }
 if (expectedSystemOneSignature === "provider_tee" &&
     (!systemOneDeployment.models?.length ||
