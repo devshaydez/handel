@@ -10,9 +10,13 @@ const market: PricingMarketSnapshot = {
   observedAt: new Date(now).toISOString(), source: "approved-fixture",
   annualizedVolatility: "0.2", riskFreeRate: "0.03", dividendYield: "0",
   volatilitySource: "approved-vol-fixture", volatilityObservedAt: new Date(now).toISOString(),
+  riskFreeRateSource: "approved-rate-fixture", riskFreeRateObservedAt: new Date(now).toISOString(),
+  dividendYieldSource: "approved-dividend-fixture", dividendYieldObservedAt: new Date(now).toISOString(),
 };
 const expiry = (BigInt(now) * 1_000_000n + 31_557_600_000_000_000n).toString();
-const engine = new BlackScholesPremiumEngine(() => now);
+const engine = new BlackScholesPremiumEngine({
+  verify: async () => ({ approved: true, method: "fixture-signed-evidence", evidenceHash: "a".repeat(64) }),
+}, () => now);
 
 test("prices European calls and puts deterministically in total USDC minor units", () => {
   const call = engine.quote({ type: "Call", assetId: NVDAON_ASSET_ID, quantity: "1000000000000000000", strike: "100000000", expiryNs: expiry, market });

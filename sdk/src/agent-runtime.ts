@@ -9,6 +9,7 @@ export interface ProposalProvider {
 }
 export interface PremiumQuote {
   premium: string; source: string; calculatedAt: string; methodology: string;
+  evidenceHash: string; verificationMethod: string;
 }
 export interface PremiumEngine {
   quote(x: { type: OptionType; assetId: string; quantity: string; strike: string; expiryNs: string; market: MarketSnapshot }): Promise<PremiumQuote> | PremiumQuote;
@@ -97,7 +98,7 @@ export class HandelAgentRuntime {
           verificationMethod: marketVerification.method, evidenceHash: marketVerification.evidenceHash,
           snapshotHash: createHash("sha256").update(JSON.stringify(market) ?? "").digest("hex"),
         },
-        premiumEvidence: { source: q.source, calculatedAt: q.calculatedAt, methodology: q.methodology },
+        premiumEvidence: { source: q.source, calculatedAt: q.calculatedAt, methodology: q.methodology, evidenceHash: q.evidenceHash, verificationMethod: q.verificationMethod },
         guardrailEvidence: { decisionId: guard.decisionId, outcome: guard.outcome, confidence: guard.confidence, signatureKind: guard.signatureKind },
         rationale: proposal.rationale, risks: proposal.risks,
         alternativesEvaluated: [], uncertainty: ["No separately calibrated uncertainty estimate was supplied."],
