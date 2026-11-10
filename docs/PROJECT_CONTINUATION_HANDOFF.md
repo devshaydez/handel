@@ -1,6 +1,6 @@
 # Handel — Project Continuation Handoff
 
-**Last updated:** 2026-11-09  
+**Last updated:** 2026-11-10  
 **Repository:** https://github.com/devshaydez/handel  
 **Working base branch:** `feat/handel-archive-core`  
 **Hackathon deadline recorded in the project plan:** 2026-11-14 23:59 UTC
@@ -29,7 +29,7 @@ The planned vertical slice includes:
 
 The repository has meaningful contract, escrow, SDK, workflow and Testnet-readiness foundations. It is **not yet the complete product described by the plans**.
 
-Current AI implementation is a provider-neutral gateway client and approval workflow. It is not a verified NEAR AI Cloud integration and not a complete agent runtime. The README explicitly describes a NEAR AI Cloud adapter as future work and the default demo as offline/mock.
+NEAR AI Cloud integration is now live-verified in GitHub Actions: Chat uses E2EE/OHTTP with a provider-TEE receipt, while System One uses a separate E2EE/OHTTP-disabled client and a Gateway-signed decision. The System One model itself returned no model-attestation reports, so this is not model-level TEE proof. The proposal runtime, policy checks and decision journal exist, but no always-on backend agent service has been deployed.
 
 Current contract/settlement architecture contains useful lifecycle state machines and escrow code, but the documented OptionsContract path does not yet prove actual collateral custody or NEAR Intents settlement. The settlement docs explicitly describe expected-transfer records and receipt-shaped reconciliation evidence; they do not prove that real assets were received or paid out. The current reconciler trust boundary needs independent review.
 
@@ -100,7 +100,7 @@ Required:
 - Preserve strict structured proposal schema validation and deterministic policy checks. LLM output is untrusted input.
 - Add explicit usage controls to protect the user's $10 credit: request/token caps, call limits, bounded retries, rate limiting, cost/usage ledger, and a hard stop when the configured budget is reached. Do not invent a provider balance API or prices; use verified model pricing where available and conservative controls otherwise.
 - Unit tests must use mocks and consume no credit. Live integration tests must be opt-in and run only when the repository secret exists. Never print the secret or raw authorization header.
-- The user must add the API key as a GitHub Actions repository secret named `NEARAI_API_KEY` in repo Settings → Secrets and variables → Actions. The user must not paste it into chat. **As of this handoff, the secret has not been confirmed present and no live inference has been verified.**
+- The user has added `NEARAI_API_KEY` as a GitHub Actions repository secret. The secret authenticated successfully and live Chat + System One smoke tests passed in run #42788929005. The secret value was not printed or exposed. The smoke tests do not exercise a wallet, market feed, trade proposal or transaction.
 - Record model ID, request IDs, verification results and usage metadata without storing secrets or unnecessary sensitive prompts.
 
 Official references previously checked:
@@ -345,3 +345,13 @@ The live smoke does **not** mean the Handel agent is a deployed/always-on servic
 3. No live end-to-end Testnet option lifecycle using a Handel-deployed contract and wallet, including final transaction/receipt inspection.
 4. Settlement verification still depends on a configured trusted verifier/reconciler and one RPC endpoint; independent proof/quorum and production recovery remain outstanding.
 5. No always-on backend agent service has been deployed. The user is building the frontend manually; do not modify frontend files.
+
+
+## 2026-11-10 — Batches 12–15 hardening in progress
+
+- **Batch 12 — Rules:** strict trading-proposal validation now requires a fresh timestamp, valid rationale, bounded risk descriptions, canonical uint256 amounts, valid agent/principal IDs, unique asset allowlists and valid position caps. The runtime invokes strict validation before recording a proposal.
+- **Batch 13 — Pricing:** the Black–Scholes reference engine now requires an injected evidence verifier for spot, volatility, rate and dividend inputs. Every input has provenance and freshness checks; quote evidence is stored in the decision journal. No live approved verifier/provider exists yet, so this does not unlock live trading.
+- **Batch 14 — Testnet:** current automated Testnet checks remain read-only (registry, verifier health and Tidepool dry quote). No Handel contracts have been deployed and no wallet transaction or live trade has been submitted. A funded Testnet account and approved signer are required before a real transaction test; never request private keys in chat.
+- **Batch 15 — Settlement:** receipt inspection now binds the transaction hash and signer, rejects duplicate matching events, and provides a strict multi-RPC agreement inspector requiring distinct endpoint origins. This is RPC corroboration, not a light client or remote-chain proof. The actual verifier authority and custody model still require independent review.
+
+The newest code changes are on `work/batch-10-product-release` / PR #14. Read the latest workflow run for the exact head SHA before claiming the batch passes. Do not merge PR #14 or the stacked PRs without explicit user approval.
