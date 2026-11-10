@@ -322,3 +322,6 @@ The user explicitly chose to build the frontend manually. Batch 10 must not crea
 
 - Batch 10 follow-up commit `7ff955d1a8ed77ac416c2ed9a7c8ae28c9f8c9b9` adds typed raw token balances to portfolio snapshots, validates amount/decimals/provenance metadata, and documents that `OperationView` is lifecycle activity rather than exchange fill history. It also records the Rust-backed distinction that agent proposal creation is agent-signed while approval/rejection are principal-signed.
 - Batch 10 follow-up commit `b2891bb177edf35de558cd43eeb71126caa4e11a` rechecks Wallet Selector account presence after the signing prompt and binds the returned public key to the account key when Wallet Selector exposes it. This narrows account-switch races; it does not replace a browser-level test with the actual selected wallet implementation.
+
+- Batch 10 follow-up commit `6fefc45cd346a8de5c28b6b2f96e8db05b707aa7` binds agent-policy reads to both principal and agent ID and rejects portfolio responses whose completeness flag is not a boolean.
+- Batch 10 follow-up commit `265ed57c800bef99d96267598be4bbaecb606e54` rejects zero-valued agent proposal terms before invoking the connected agent wallet.

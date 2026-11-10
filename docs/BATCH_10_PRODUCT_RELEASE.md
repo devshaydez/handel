@@ -13,7 +13,7 @@ The adapter is a contract, not a deployed service or completed RPC/indexer integ
 
 ## Phase 21 — adversarial integration tests
 
-Added offline tests for account-bound portfolio reads and malformed balance rejection, cross-account response rejection, u128/u64 boundaries, unsafe JS numbers, zero amounts, duplicate allowlists, signer mismatch, submitted-versus-final separation and transaction-bound finality.
+Added offline tests for account-bound portfolio reads and malformed balance rejection, cross-account response rejection, u128/u64 boundaries, unsafe JS numbers, zero amounts, duplicate allowlists, signer mismatch, wallet account removal during signing, optional public-key binding, exact large token balances, malformed balance metadata, agent/principal read binding, zero-valued proposal rejection, submitted-versus-final separation and transaction-bound finality.
 
 These tests do not replace browser wallet round-trip, deployed Testnet contract testing, independent verifier receipt checks or live Ondo route verification.
 
