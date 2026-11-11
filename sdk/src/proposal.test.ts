@@ -56,7 +56,7 @@ test("invalid proposal is rejected before a contract call is built", () => {
 
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.ok(result.errors.some((error) => error.includes("underlying not a supported Ondo asset")));
+  assert.ok(result.errors.some((error) => error.includes("underlying must be a curated Ondo asset or explicitly allowlisted by the principal")));
 });
 
 
