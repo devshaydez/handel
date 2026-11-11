@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { pathToFileURL } from "node:url";
 import { createHandelNearAiStack } from "./nearai-stack.js";
 import { createHandelAdvisoryAgent } from "./nearai-stack.js";
 import { prepareAdvisoryAgentProposal, type PreparedAdvisoryApproval } from "./advisory-workflow.js";
@@ -243,7 +244,7 @@ export async function startHandelAdvisoryServer(): Promise<Server> {
       return { ...prepared, policyBlockHeight: blockHeight } as PreparedAdvisoryApproval;
     },
   });
-  const port = positiveIntEnv("HANDEL_PORT");
+  const port = process.env.HANDEL_PORT ? positiveIntEnv("HANDEL_PORT") : 8787;
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, host, () => resolve());
@@ -251,7 +252,7 @@ export async function startHandelAdvisoryServer(): Promise<Server> {
   return server;
 }
 
-if (process.argv[1] && import.meta.url === new URL("file://" + process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   startHandelAdvisoryServer().then(() => {
     const host = process.env.HANDEL_HOST ?? "127.0.0.1";
     const port = process.env.HANDEL_PORT;
