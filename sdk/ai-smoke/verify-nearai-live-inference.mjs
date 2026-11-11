@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { writeFileSync } from "node:fs";
 /**
  * Low-cost live NEAR AI TEE inference smoke.
  * Uses a public, catalogued verifiable text model; sends no wallet/account data,
@@ -82,20 +83,20 @@ console.log(JSON.stringify({
 }, null, 2));
 
 const simulatedRequest = {
-  userRequest: "Create a simulated seven-day NVDAon Call proposal for the judge demo.",
+  userRequest: "Create a simulated NVDAon Call proposal for the judge demo using the exact supplied fixture terms.",
   mode: "SIMULATION_ONLY",
   marketData: null,
   terms: {
     type: "Call",
-    underlyingAssetId: "simulated:NVDAon",
-    quantity: "1000000000000000000",
-    strike: "100000000",
-    expiryNs: (BigInt(Date.now()) * 1_000_000n + 7n * 24n * 60n * 60n * 1_000_000_000n).toString(),
+    underlyingAssetId: "ondo:test-stock",
+    quantity: "1000000",
+    strike: "2500000",
+    expiryNs: (BigInt(Date.now()) * 1_000_000n + 30n * 60n * 1_000_000_000n).toString(),
   },
   constraints: [
     "Copy every requested term exactly.",
     "Do not invent market prices, volatility, probability, payoff, premium, balances, or execution results.",
-    "Set premium to the non-price placeholder string 1; a deterministic host pricing engine must replace it.",
+    "Copy the non-price fixture placeholder premium string 100000 exactly; this is test data, not a model-generated price.",
     "Clearly label all rationale and risks as based on a simulated request with no live market data.",
     "Return JSON only, with exactly the required proposal fields.",
   ],
@@ -131,7 +132,7 @@ if (proposal.type !== simulatedRequest.terms.type ||
     proposal.quantity !== simulatedRequest.terms.quantity ||
     proposal.strike !== simulatedRequest.terms.strike ||
     proposal.expiryNs !== simulatedRequest.terms.expiryNs ||
-    proposal.premium !== "1" ||
+    proposal.premium !== "100000" ||
     typeof proposal.rationale !== "string" || !proposal.rationale.trim() ||
     !Array.isArray(proposal.risks) || proposal.risks.length === 0 ||
     proposal.risks.some((risk) => typeof risk !== "string")) {
@@ -151,7 +152,11 @@ console.log(JSON.stringify({
   rationale: proposal.rationale,
   risks: proposal.risks,
 }, null, 2));
-console.log("Simulation only: no market data, deterministic premium, wallet approval, collateral, or transaction was involved.");
+if (process.env.HANDEL_DEMO_PROPOSAL_FILE) {
+  writeFileSync(process.env.HANDEL_DEMO_PROPOSAL_FILE, JSON.stringify(proposal), { mode: 0o600 });
+  console.log("Structured proposal fixture exported for the matching Sandbox lifecycle test.");
+}
+console.log("Simulation only: no market data, live premium, wallet approval, or transaction was involved.");
 console.log("Pinned Handel Chat signer/measurement allowlist: PASS.");
 console.log("NOTE: this smoke does not validate the full agent runtime, market data, wallet, or execution.");
 
