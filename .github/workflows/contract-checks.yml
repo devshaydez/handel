@@ -11,6 +11,8 @@ on:
       - work/batch-9-execution-safety
       - work/batch-10-product-release
       - work/batch-8-ai-agent-intelligence
+      - feat/handel-archive-core
+      - work/final-backend-readiness
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
