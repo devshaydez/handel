@@ -84,6 +84,7 @@ console.log(JSON.stringify({
 
 const simulatedRequest = {
   userRequest: "Create a simulated NVDAon Call proposal for the judge demo using the exact supplied fixture terms.",
+  proposalId: "judge-demo-call-001",
   mode: "SIMULATION_ONLY",
   marketData: null,
   terms: {
@@ -94,7 +95,7 @@ const simulatedRequest = {
     expiryNs: (BigInt(Date.now()) * 1_000_000n + 30n * 60n * 1_000_000_000n).toString(),
   },
   constraints: [
-    "Copy every requested term exactly.",
+    "Copy the requested proposalId exactly as well as every requested term.",
     "Do not invent market prices, volatility, probability, payoff, premium, balances, or execution results.",
     "Copy the non-price fixture placeholder premium string 100000 exactly; this is test data, not a model-generated price.",
     "Clearly label all rationale and risks as based on a simulated request with no live market data.",
@@ -127,7 +128,8 @@ if (!proposal || typeof proposal !== "object" || Array.isArray(proposal) ||
     proposalKeys.some((key) => !(key in proposal))) {
   throw new Error("Live NEAR AI proposal does not match the strict Handel proposal schema.");
 }
-if (proposal.type !== simulatedRequest.terms.type ||
+if (proposal.proposalId !== simulatedRequest.proposalId ||
+    proposal.type !== simulatedRequest.terms.type ||
     proposal.underlyingAssetId !== simulatedRequest.terms.underlyingAssetId ||
     proposal.quantity !== simulatedRequest.terms.quantity ||
     proposal.strike !== simulatedRequest.terms.strike ||
