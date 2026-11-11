@@ -20,10 +20,6 @@ if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
 if (-not (Get-Command near -ErrorAction SilentlyContinue)) {
   throw "near-cli-rs is required. Configure its keychain first."
 }
-& near --version *> $null
-if ($LASTEXITCODE -ne 0) {
-  throw "near-cli-rs was found on PATH but cannot run. Repair the near-cli-rs installation before deploying; this is separate from cargo-near."
-}
 # Use the checksum-pinned Windows installer so users do not compile cargo-near/wasm-opt-sys.
 $cargoBin = Join-Path $env:USERPROFILE ".cargo\bin"
 if (Test-Path $cargoBin) {
@@ -49,6 +45,11 @@ if (-not (Get-Command cargo-near -ErrorAction SilentlyContinue)) {
 & cargo near --version *> $null
 if ($LASTEXITCODE -ne 0) {
   throw "cargo-near is installed but 'cargo near' cannot run. Check the Rust Cargo bin directory on PATH."
+}
+
+& near --version *> $null
+if ($LASTEXITCODE -ne 0) {
+  throw "near-cli-rs was found on PATH but cannot run. Repair the near-cli-rs installation before deploying; this is separate from cargo-near."
 }
 
 Push-Location (Join-Path $PSScriptRoot "..")
