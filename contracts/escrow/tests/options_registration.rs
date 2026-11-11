@@ -276,7 +276,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
 
     writer
         .call(options.id(), "approve_agent_proposal")
-        .args_json(json!({"proposal_id": "judge-demo-call-001"}))
+        .args_json(json!({"proposal_id": proposal_id}))
         .transact()
         .await?
         .into_result()?;
