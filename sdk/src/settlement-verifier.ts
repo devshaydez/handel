@@ -100,7 +100,7 @@ export async function verifySettlementReceipt(
       !receipt.blockHash.trim()) {
     throw new SettlementVerificationError("receipt block identity is invalid");
   }
-  const event = receipt.events.find((candidate) =>
+  const matchingEvents = receipt.events.filter((candidate) =>
     candidate.standard === "handel.settlement.v1" &&
     candidate.transactionHash === transactionHash &&
     candidate.receiptId === receiptId &&
@@ -112,9 +112,14 @@ export async function verifySettlementReceipt(
     candidate.sender === expectation.sender &&
     candidate.receiver === expectation.receiver
   );
-  if (!event) {
-    throw new SettlementVerificationError("no verifier event matches the full expected settlement binding");
+  if (matchingEvents.length !== 1) {
+    throw new SettlementVerificationError(
+      matchingEvents.length === 0
+        ? "no verifier event matches the full expected settlement binding"
+        : "multiple verifier events match the same settlement operation",
+    );
   }
+  const event = matchingEvents[0]!;
   if (!Number.isSafeInteger(event.eventIndex) || event.eventIndex < 0) {
     throw new SettlementVerificationError("event index is invalid");
   }

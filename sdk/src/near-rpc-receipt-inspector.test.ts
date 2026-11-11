@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { NearRpcReceiptInspector } from "./near-rpc-receipt-inspector.js";
+import { NearRpcReceiptInspector, QuorumNearRpcReceiptInspector } from "./near-rpc-receipt-inspector.js";
 
 const event = {
   operationId: "op-1",
@@ -39,11 +39,11 @@ function response(overrides: Record<string, unknown> = {}): any {
   };
 }
 
-function inspector(body: unknown) {
+function inspector(body: unknown, rpcUrl = "https://rpc.testnet.near.org") {
   return new NearRpcReceiptInspector({
     verifierAccountId: "verifier.testnet",
     transactionSignerAccountId: "alice.testnet",
-    rpcUrl: "https://rpc.testnet.near.org",
+    rpcUrl,
     fetcher: async (_input, init) => {
       const request = JSON.parse(String(init?.body)) as {
         method: string;
@@ -72,6 +72,15 @@ test("NEAR receipt inspector binds a settlement event to a finalized verifier re
     receiptId: "receipt-1",
     eventIndex: 0,
   });
+});
+
+test("NEAR receipt inspector rejects missing transaction identity and signer mismatch", async () => {
+  const noHash = response();
+  delete noHash.result.transaction.hash;
+  await assert.rejects(() => inspector(noHash).inspect("tx-1", "receipt-1"), /hash or signer/);
+  const wrongSigner = response();
+  wrongSigner.result.transaction.signer_id = "mallory.testnet";
+  await assert.rejects(() => inspector(wrongSigner).inspect("tx-1", "receipt-1"), /hash or signer/);
 });
 
 test("NEAR receipt inspector rejects a receipt executed by another account", async () => {
@@ -113,4 +122,24 @@ test("NEAR receipt inspector rejects non-HTTPS endpoints", () => {
     transactionSignerAccountId: "alice.testnet",
     rpcUrl: "http://remote.example",
   }), /must use HTTPS/);
+});
+
+test("quorum inspector requires two independent matching receipt views", async () => {
+  const matching = new QuorumNearRpcReceiptInspector([
+    inspector(response(), "https://rpc.testnet.fastnear.com"),
+    inspector(response(), "https://near-testnet.drpc.org"),
+  ]);
+  assert.equal((await matching.inspect("tx-1", "receipt-1")).blockHash, "block-100");
+  const forked = response();
+  forked.result.receipts_outcome[0].block_hash = "forked-block";
+  const disagreeing = new QuorumNearRpcReceiptInspector([
+    inspector(response(), "https://rpc.testnet.fastnear.com"),
+    inspector(forked, "https://near-testnet.drpc.org"),
+  ]);
+  await assert.rejects(() => disagreeing.inspect("tx-1", "receipt-1"), /endpoints disagree/);
+  assert.throws(() => new QuorumNearRpcReceiptInspector([inspector(response())]), /at least two/);
+  assert.throws(() => new QuorumNearRpcReceiptInspector([
+    inspector(response(), "https://rpc.testnet.fastnear.com"),
+    inspector(response(), "https://rpc.testnet.fastnear.com"),
+  ]), /distinct endpoint origins/);
 });

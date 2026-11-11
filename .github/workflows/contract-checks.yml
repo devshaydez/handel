@@ -9,6 +9,8 @@ on:
       - work/batch-5-testnet-release-readiness
       - work/testnet-infrastructure-readiness
       - work/batch-9-execution-safety
+      - work/batch-10-product-release
+      - work/batch-8-ai-agent-intelligence
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
@@ -17,7 +19,13 @@ on:
       - work/testnet-backend-hardening
       - work/batch-4-ai-integration-adversarial
       - work/batch-8-ai-agent-intelligence
+      - work/batch-9-execution-safety
   workflow_dispatch:
+
+# Keep only the newest PR run active; superseded commits are not useful release evidence.
+concurrency:
+  group: handel-backend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -128,3 +136,36 @@ jobs:
 
       - name: Run offline lifecycle demo
         run: npm run lifecycle
+
+  nearai-credential-preflight:
+    name: NEAR AI credential and model-catalogue preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NEARAI_API_KEY: ${{ secrets.NEARAI_API_KEY }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.22.1
+
+      - name: Require repository credential
+        run: |
+          if [ -z "${NEARAI_API_KEY:-}" ]; then
+            echo "::error::NEARAI_API_KEY repository secret is unavailable to this workflow."
+            exit 1
+          fi
+
+      - name: Authenticate and inspect official model catalogue (no inference)
+        run: node scripts/verify-nearai-credentials.mjs
+
+      - name: Install isolated NEAR AI smoke dependencies
+        working-directory: sdk/ai-smoke
+        run: npm install --no-audit --no-fund
+
+      - name: Verify live Chat and System One TEE paths
+        working-directory: sdk/ai-smoke
+        run: node verify-nearai-live-inference.mjs

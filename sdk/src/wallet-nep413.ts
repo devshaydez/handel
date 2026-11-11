@@ -21,6 +21,8 @@ export interface WalletIntentApproval {
 
 export interface WalletSelectorAccount {
   accountId: string;
+  /** Wallet Selector may expose the account's active public key. */
+  publicKey?: string;
 }
 
 export interface WalletSelectorSignedMessage {
@@ -78,6 +80,7 @@ export function createWalletSelectorNep413Signer(input: {
       if (!accounts.some((account) => account.accountId === input.expectedAccountId)) {
         throw new Error("Wallet Selector account changed or disconnected before signing");
       }
+      const selectedAccount = accounts.find((account) => account.accountId === input.expectedAccountId);
       const signed = await input.wallet.signMessage({
         message: payload.message,
         recipient: payload.recipient,
@@ -89,6 +92,15 @@ export function createWalletSelectorNep413Signer(input: {
       if (typeof signed.publicKey !== "string" || !signed.publicKey ||
           typeof signed.signature !== "string" || !signed.signature) {
         throw new Error("Wallet Selector returned an incomplete NEP-413 signature");
+      }
+      // Re-check after the prompt because the wallet may switch or disconnect
+      // while its approval dialog is open.
+      const accountsAfter = await input.wallet.getAccounts();
+      if (!accountsAfter.some((account) => account.accountId === input.expectedAccountId)) {
+        throw new Error("Wallet Selector account changed or disconnected during signing");
+      }
+      if (selectedAccount?.publicKey && signed.publicKey !== selectedAccount.publicKey) {
+        throw new Error("Wallet Selector signature public key does not match the approved account");
       }
       return { publicKey: signed.publicKey, signature: signed.signature };
     },

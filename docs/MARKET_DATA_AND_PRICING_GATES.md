@@ -38,3 +38,13 @@ Official references:
 ## Release rule
 
 Until these requirements are evidenced, the runtime must abstain from live trading when authoritative market inputs or deterministic pricing are unavailable. A market display adapter, a model-generated price, or a soft quote does not satisfy this gate. The current Black–Scholes engine is a deterministic reference implementation only; it must not be connected to live execution until the source and unit assumptions are independently verified.
+
+## Additional enforcement added in Batch 13
+
+The trading runtime now requires market verification to return `executionEligible: true` and classify the evidence as `execution_oracle` or `signed_execution_quote`. It rejects `display_only`, `soft_quote` and `historical` evidence even when an adapter mistakenly marks it approved. The decision journal persists the evidence class and eligibility flag. The deterministic pricing engine also requires a caller-supplied `PricingInputEvidenceVerifier` before calculating a premium. The verifier must approve the complete pricing snapshot, including spot, annualized volatility, risk-free rate and dividend yield. All four inputs must have separate provenance labels and fresh timestamps. The resulting quote carries a 64-character SHA-256 evidence digest and verification method; the agent runtime and hash-chained decision journal reject missing or malformed pricing evidence.
+
+This is a fail-closed interface and evidence-binding improvement, **not a live oracle integration**. No production implementation of `PricingInputEvidenceVerifier` or `MarketEvidenceVerifier` is approved or configured. A display feed, a signed API response, or an issuer soft quote must not be assumed to be an execution oracle. The runtime must remain unable to produce a tradable proposal until the actual data source and its evidence verifier are independently reviewed.
+
+## Network compatibility note
+
+Chainlink documents Ondo Global Markets tokenized-equity feeds on Base Mainnet and states that the feed is a total-return value using Ondo's multiplier, not a raw share price. That is useful reference information but does not provide a verified NEAR-side oracle for Handel's current execution route. Do not read a Base feed off-chain and call it a NEAR-verifiable price without a reviewed cross-chain proof path. See [Chainlink's Ondo feed documentation](https://docs.chain.link/data-feeds/tokenized-equity-feeds/ondo).

@@ -22,7 +22,7 @@ const request = {
   type: "Call" as const, assetId: NVDAON_ASSET_ID, quantity: "1000000000000000000",
   strike: "100000000", expiryNs: (BigInt(now + 86400000) * 1000000n).toString(), objective: "covered call",
 };
-async function make(premium = "5000000", guard: () => Promise<{ allowed: boolean; outcome: "allow" | "block" | "review"; confidence: number; decisionId: string; signatureKind: "provider_tee" }> = async () => ({
+async function make(premium = "5000000", guard: () => Promise<{ allowed: boolean; outcome: "allow" | "block" | "review"; confidence: number; decisionId: string; signatureKind: "provider_tee" | "gateway" }> = async () => ({
   allowed: true, outcome: "allow" as const, confidence: 0.99, decisionId: "guard-1", signatureKind: "provider_tee" as const,
 })) {
   const proposal = stubProposal({ underlyingAssetId: NVDAON_ASSET_ID, quantity: request.quantity, strike: request.strike, daysToExpiry: 1 });
@@ -31,10 +31,10 @@ async function make(premium = "5000000", guard: () => Promise<{ allowed: boolean
   return {
     runtime: new HandelAgentRuntime(
       { propose: async () => ({ proposal, requestId: "r", verification: { modelId: "test-model" } }) },
-      { quote: () => ({ premium, source: "fixture-engine", calculatedAt: new Date().toISOString(), methodology: "fixture" }) },
+      { quote: () => ({ premium, source: "fixture-engine", calculatedAt: new Date().toISOString(), methodology: "fixture", evidenceHash: "a".repeat(64), verificationMethod: "fixture-signed-evidence", evidenceType: "signed_source" }) },
       { evaluate: guard },
       journal,
-      { verify: async () => ({ approved: true, method: "fixture-signature-check", evidenceHash: "market-proof" }) },
+      { verify: async () => ({ approved: true, executionEligible: true, evidenceType: "execution_oracle" as const, method: "fixture-signature-check", evidenceHash: "b".repeat(64) }) },
     ),
     journal,
   };
@@ -45,9 +45,18 @@ test("host replaces model premium and durably records a market-verified, guardra
   assert.equal(result.proposal.premium, "5000000");
   assert.equal(result.policy.ok, true);
   assert.equal(result.guardrail.decisionId, "guard-1");
-  assert.equal(result.marketVerification.evidenceHash, "market-proof");
+  assert.equal(result.marketVerification.evidenceHash, "b".repeat(64));
+  assert.equal(result.marketVerification.executionEligible, true);
   assert.equal(journal.list().length, 1);
   assert.equal(journal.list()[0].executionState, "proposed");
+});
+test("records an explicitly Gateway-signed System One screen without upgrading it to model TEE", async () => {
+  const { runtime, journal } = await make("5000000", async () => ({
+    allowed: true, outcome: "allow", confidence: 0.99, decisionId: "gateway-guard", signatureKind: "gateway",
+  }));
+  const result = await runtime.propose(request, permission, market);
+  assert.equal(result.guardrail.signatureKind, "gateway");
+  assert.equal(journal.list()[0]?.guardrailEvidence.signatureKind, "gateway");
 });
 test("blocks revoked and disallowed agents", async () => {
   const { runtime } = await make();
@@ -66,9 +75,9 @@ test("fails closed when market evidence is unapproved or its verifier is unavail
   proposal.expiryNs = request.expiryNs;
   const journal = await DecisionJournal.open(new MemoryStore());
   const base = { propose: async () => ({ proposal, requestId: "r" }) };
-  const pricing = { quote: () => ({ premium: "5000000", source: "fixture-engine", calculatedAt: new Date().toISOString(), methodology: "fixture" }) };
+  const pricing = { quote: () => ({ premium: "5000000", source: "fixture-engine", calculatedAt: new Date().toISOString(), methodology: "fixture", evidenceHash: "a".repeat(64), verificationMethod: "fixture-signed-evidence", evidenceType: "signed_source" as const }) };
   const guardrail = { evaluate: async () => ({ allowed: true, outcome: "allow" as const, confidence: 0.99, decisionId: "g", signatureKind: "provider_tee" as const }) };
-  const denied = new HandelAgentRuntime(base, pricing, guardrail, journal, { verify: async () => ({ approved: false, method: "display-only", evidenceHash: "x" }) });
+  const denied = new HandelAgentRuntime(base, pricing, guardrail, journal, { verify: async () => ({ approved: true, executionEligible: false, evidenceType: "display_only" as const, method: "display-only", evidenceHash: "b".repeat(64) }) });
   await assert.rejects(() => denied.propose(request, permission, market), e => e instanceof Error && "code" in e && e.code === "MARKET_SOURCE_UNVERIFIED");
   const unavailable = new HandelAgentRuntime(base, pricing, guardrail, journal, { verify: async () => { throw new Error("offline"); } });
   await assert.rejects(() => unavailable.propose(request, permission, market), e => e instanceof Error && "code" in e && e.code === "MARKET_SOURCE_UNVERIFIED");

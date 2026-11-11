@@ -13,8 +13,8 @@ const input = {
   authorityMode: "permission-snapshot-only", permissionSnapshotHash: "abc",
   action: "Call", assetId: "ondo:nvda",
   optionTerms: { strike: "100000000", quantity: "1000000000000000000", expiryNs: "999999999999999999", premium: "5000000" },
-  marketEvidence: { source: "approved-feed", observedAt: new Date().toISOString(), verificationMethod: "fixture", evidenceHash: "evidence-hash", snapshotHash: "market-hash" },
-  premiumEvidence: { source: "pricing-v1", calculatedAt: new Date().toISOString(), methodology: "test" },
+  marketEvidence: { source: "approved-feed", observedAt: new Date().toISOString(), verificationMethod: "fixture", evidenceHash: "b".repeat(64), snapshotHash: "c".repeat(64), evidenceType: "execution_oracle" as const, executionEligible: true as const },
+  premiumEvidence: { source: "pricing-v1", calculatedAt: new Date().toISOString(), methodology: "test", evidenceHash: "a".repeat(64), verificationMethod: "fixture-signed-evidence", evidenceType: "signed_source" as const },
   guardrailEvidence: { decisionId: "guard-1", outcome: "allow", confidence: 0.99, signatureKind: "provider_tee" },
   rationale: "Fixture rationale", risks: ["price risk"], alternativesEvaluated: [], uncertainty: ["volatility unknown"],
   policy: { ok: true, errors: [], warnings: [] }, approvalState: "not-requested-at-proposal-stage",
@@ -37,9 +37,13 @@ test("detects altered records and broken chain on reopen", async () => {
   store.value![0].rationale = "tampered";
   await assert.rejects(() => DecisionJournal.open(store), /integrity verification failed/);
 });
-test("rejects unverified guardrail records and duplicate IDs", async () => {
+test("accepts verified provider-TEE or Gateway receipts and rejects unknown signature kinds", async () => {
   const journal = await DecisionJournal.open(new MemoryStore());
-  await assert.rejects(() => journal.record({ ...input, guardrailEvidence: { ...input.guardrailEvidence, signatureKind: "gateway" } }));
-  await journal.record(input);
-  await assert.rejects(() => journal.record(input), /Duplicate decision ID/);
+  await journal.record({ ...input, guardrailEvidence: { ...input.guardrailEvidence, signatureKind: "gateway" } });
+  await assert.rejects(() => journal.record({
+    ...input, decisionId: "decision-unknown",
+    guardrailEvidence: { ...input.guardrailEvidence, signatureKind: "unsigned" },
+  }), /unverified guardrail evidence/);
+  await journal.record({ ...input, decisionId: "decision-tee" });
+  await assert.rejects(() => journal.record({ ...input, decisionId: "decision-tee" }), /Duplicate decision ID/);
 });

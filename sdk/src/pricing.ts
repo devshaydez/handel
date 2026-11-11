@@ -11,6 +11,13 @@ export interface PricingMarketSnapshot extends MarketSnapshot {
   dividendYield: string;
   volatilitySource: string;
   volatilityObservedAt: string;
+  riskFreeRateSource: string;
+  riskFreeRateObservedAt: string;
+  dividendYieldSource: string;
+  dividendYieldObservedAt: string;
+}
+export interface PricingInputEvidenceVerifier {
+  verify(snapshot: PricingMarketSnapshot): Promise<{ approved: boolean; evidenceType: "signed_source" | "display_only" | "historical"; method: string; evidenceHash: string }>;
 }
 const YEAR_SECONDS = 365.25 * 24 * 60 * 60;
 const MAX_SAFE_MINOR_UNITS = BigInt(Number.MAX_SAFE_INTEGER);
@@ -38,17 +45,26 @@ function numeric(value: string, name: string): number {
  * The on-chain contract remains authoritative. This engine is not a quote oracle.
  */
 export class BlackScholesPremiumEngine implements PremiumEngine {
-  constructor(private readonly clock: () => number = Date.now) {}
+  constructor(
+    private readonly evidenceVerifier: PricingInputEvidenceVerifier,
+    private readonly clock: () => number = Date.now,
+  ) {}
 
-  quote(input: {
+  async quote(input: {
     type: "Call" | "Put";
     assetId: string;
     quantity: string;
     strike: string;
     expiryNs: string;
     market: MarketSnapshot;
-  }): PremiumQuote {
+  }): Promise<PremiumQuote> {
     const market = input.market as PricingMarketSnapshot;
+    let evidence: { approved: boolean; evidenceType: "signed_source" | "display_only" | "historical"; method: string; evidenceHash: string };
+    try { evidence = await this.evidenceVerifier.verify(market); }
+    catch { throw new Error("pricing input evidence verification is unavailable"); }
+    if (!evidence.approved || evidence.evidenceType !== "signed_source" || !evidence.method.trim() || !/^[a-f0-9]{64}$/.test(evidence.evidenceHash)) {
+      throw new Error("pricing inputs are not approved by the evidence verifier");
+    }
     if (!/^\d+$/.test(input.quantity) || !/^\d+$/.test(input.strike) ||
         !/^\d+$/.test(market.spotPrice)) throw new Error("quantity, strike and spot price must be unsigned integer base units");
     const quantityBase = BigInt(input.quantity);
@@ -64,10 +80,15 @@ export class BlackScholesPremiumEngine implements PremiumEngine {
     const nowMs = this.clock();
     const spotTime = Date.parse(market.observedAt);
     const volatilityTime = Date.parse(market.volatilityObservedAt);
+    const rateTime = Date.parse(market.riskFreeRateObservedAt);
+    const dividendTime = Date.parse(market.dividendYieldObservedAt);
     if (!Number.isFinite(nowMs) || !Number.isFinite(spotTime) || !Number.isFinite(volatilityTime) ||
-        spotTime > nowMs + 30_000 || volatilityTime > nowMs + 30_000 ||
-        nowMs - spotTime > 300_000 || nowMs - volatilityTime > 300_000) {
-      throw new Error("spot or volatility input is stale or has an invalid timestamp");
+        !Number.isFinite(rateTime) || !Number.isFinite(dividendTime) ||
+        [spotTime, volatilityTime, rateTime, dividendTime].some(t => t > nowMs + 30_000 || nowMs - t > 300_000)) {
+      throw new Error("spot, volatility, rate or dividend input is stale or has an invalid timestamp");
+    }
+    if (![market.source, market.volatilitySource, market.riskFreeRateSource, market.dividendYieldSource].every(v => typeof v === "string" && v.trim())) {
+      throw new Error("pricing input provenance is incomplete");
     }
     const sigma = numeric(market.annualizedVolatility, "annualizedVolatility");
     const rate = numeric(market.riskFreeRate, "riskFreeRate");
@@ -107,6 +128,9 @@ export class BlackScholesPremiumEngine implements PremiumEngine {
       source: "handel:black-scholes-reference-v1",
       calculatedAt: new Date(nowMs).toISOString(),
       methodology: `European Black-Scholes ${input.type}; spot micro-USDC/token; strike total micro-USDC; quantity ${ONDO_DECIMALS} decimals; output ${USDC_DECIMALS}-decimal USDC; sigma=${sigma}; r=${rate}; q=${dividend}; round-up to 1 micro-USDC`,
+      evidenceHash: evidence.evidenceHash,
+      verificationMethod: evidence.method,
+      evidenceType: "signed_source",
     };
   }
 }

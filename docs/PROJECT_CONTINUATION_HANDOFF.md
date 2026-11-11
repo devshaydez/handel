@@ -1,6 +1,6 @@
 # Handel — Project Continuation Handoff
 
-**Last updated:** 2026-11-09  
+**Last updated:** 2026-11-10  
 **Repository:** https://github.com/devshaydez/handel  
 **Working base branch:** `feat/handel-archive-core`  
 **Hackathon deadline recorded in the project plan:** 2026-11-14 23:59 UTC
@@ -29,7 +29,7 @@ The planned vertical slice includes:
 
 The repository has meaningful contract, escrow, SDK, workflow and Testnet-readiness foundations. It is **not yet the complete product described by the plans**.
 
-Current AI implementation is a provider-neutral gateway client and approval workflow. It is not a verified NEAR AI Cloud integration and not a complete agent runtime. The README explicitly describes a NEAR AI Cloud adapter as future work and the default demo as offline/mock.
+NEAR AI Cloud integration is now live-verified in GitHub Actions: Chat uses E2EE/OHTTP with a provider-TEE receipt, while System One uses a separate E2EE/OHTTP-disabled client and a Gateway-signed decision. The System One model itself returned no model-attestation reports, so this is not model-level TEE proof. The proposal runtime, policy checks and decision journal exist, but no always-on backend agent service has been deployed.
 
 Current contract/settlement architecture contains useful lifecycle state machines and escrow code, but the documented OptionsContract path does not yet prove actual collateral custody or NEAR Intents settlement. The settlement docs explicitly describe expected-transfer records and receipt-shaped reconciliation evidence; they do not prove that real assets were received or paid out. The current reconciler trust boundary needs independent review.
 
@@ -100,7 +100,7 @@ Required:
 - Preserve strict structured proposal schema validation and deterministic policy checks. LLM output is untrusted input.
 - Add explicit usage controls to protect the user's $10 credit: request/token caps, call limits, bounded retries, rate limiting, cost/usage ledger, and a hard stop when the configured budget is reached. Do not invent a provider balance API or prices; use verified model pricing where available and conservative controls otherwise.
 - Unit tests must use mocks and consume no credit. Live integration tests must be opt-in and run only when the repository secret exists. Never print the secret or raw authorization header.
-- The user must add the API key as a GitHub Actions repository secret named `NEARAI_API_KEY` in repo Settings → Secrets and variables → Actions. The user must not paste it into chat. **As of this handoff, the secret has not been confirmed present and no live inference has been verified.**
+- The user has added `NEARAI_API_KEY` as a GitHub Actions repository secret. The secret authenticated successfully and live Chat + System One smoke tests passed in run #42788929005. The secret value was not printed or exposed. The smoke tests do not exercise a wallet, market feed, trade proposal or transaction.
 - Record model ID, request IDs, verification results and usage metadata without storing secrets or unnecessary sensitive prompts.
 
 Official references previously checked:
@@ -303,3 +303,62 @@ Work is underway on branch `work/batch-9-execution-safety`, stacked on Batch 8 b
 - Project-wide remaining gates: [ALL_BATCH_LIMITATIONS.md](./ALL_BATCH_LIMITATIONS.md).
 
 Batch 9 is not complete until all phases are implemented, the full branch passes one final integrated CI run, and the outstanding custody, verifier, wallet, and security-review gates are accurately recorded. No deployment, signing, funding, or asset movement is implied by SDK helpers or passing CI.
+
+
+## Batch 10 continuation — 2026-11-10
+
+The user explicitly chose to build the frontend manually. Batch 10 must not create frontend pages, CSS, UI framework setup, or visual design. Work on the SDK/backend integration contract, adversarial tests, documentation, and reproducible release evidence only.
+
+- Batch 9 exact head `115ffd10e47f98d6548a8192c612f9d1bfc3958e` passed integrated CI run #42729697264 (Rust, SDK, read-only Testnet asset/verifier/dry-quote jobs).
+- Batch 9 PR #12 remains open; do not merge without explicit user approval.
+- Batch 10 branch: `work/batch-10-product-release`, initially based on the verified Batch 9 head.
+- Batch 10 first commit: `313b69ad94a943c8e3951ea8b27013ae7f842313`.
+- Added `sdk/src/frontend-contract.ts` and its tests. It defines typed portfolio/position/operation/agent/proposal DTOs, wallet-backed host adapter interfaces, exact string handling for u64/u128, and distinct submitted/finality/unknown states.
+- Added `docs/BATCH_10_PRODUCT_RELEASE.md` and `docs/MANUAL_FRONTEND_INTEGRATION.md`.
+- Exported the new contract from `sdk/src/index.ts`.
+- CI workflow is being extended to run for Batch 10 pushes and a stacked PR targeting Batch 9.
+- No frontend source or live wallet/contract integration has been created. The new port is a typed integration contract; host adapters and the manually authored frontend remain future work.
+- No deployment, wallet signing, funding, or asset movement was performed.
+
+- Batch 10 follow-up commit `7ff955d1a8ed77ac416c2ed9a7c8ae28c9f8c9b9` adds typed raw token balances to portfolio snapshots, validates amount/decimals/provenance metadata, and documents that `OperationView` is lifecycle activity rather than exchange fill history. It also records the Rust-backed distinction that agent proposal creation is agent-signed while approval/rejection are principal-signed.
+- Batch 10 follow-up commit `b2891bb177edf35de558cd43eeb71126caa4e11a` rechecks Wallet Selector account presence after the signing prompt and binds the returned public key to the account key when Wallet Selector exposes it. This narrows account-switch races; it does not replace a browser-level test with the actual selected wallet implementation.
+
+- Batch 10 follow-up commit `6fefc45cd346a8de5c28b6b2f96e8db05b707aa7` binds agent-policy reads to both principal and agent ID and rejects portfolio responses whose completeness flag is not a boolean.
+- Batch 10 follow-up commit `265ed57c800bef99d96267598be4bbaecb606e54` rejects zero-valued agent proposal terms before invoking the connected agent wallet.
+
+
+## 2026-11-10 — Batch 11 AI verification correction
+
+The live NEAR AI workflow now verifies two deliberately separate paths:
+
+- Chat proposal inference: `deepseek-ai/DeepSeek-V4.1-Flash-1017`, with E2EE and OHTTP enabled, Ed25519, zero attestation cache TTL, UpToDate Gateway/model TEE evidence, and a `provider_tee` response signature. The live smoke returned the expected sentinel response. This validates the provider connection and cryptographic response path only; it does not validate a trading proposal, market data, wallet, or execution.
+- System One screening: `levanto/sage-2`, with E2EE/OHTTP disabled as required. The live smoke verified an UpToDate Gateway and a Gateway-signed decision. The model returned no model-attestation reports; therefore the evidence is **Gateway TEE + Gateway receipt**, not proof that the System One model itself executed in a TEE. The runtime now requires an explicit `signaturePolicy` of `gateway` or `provider_tee`; there is no automatic downgrade. Gateway mode is suitable only as a non-authoritative screening signal alongside deterministic policy checks. If a deployment requires model-level TEE for System One, configure `provider_tee` with model signer and measurement allowlists and fail closed when unsupported.
+
+The SDK tests now cover both explicit policies, missing model attestations, signer allowlists, and signature-policy mismatch. The first CI attempt exposed a test assertion that still expected the old error text; it was corrected. The follow-up TypeScript job passed. Full Rust, live AI, and final CI status must be read from the newest workflow run for the branch, not inferred from an earlier run.
+
+The live smoke does **not** mean the Handel agent is a deployed/always-on service. `HandelAgentRuntime` remains an orchestration component requiring a trusted market-evidence adapter, validated premium inputs, durable decision storage, and a separately authorized execution service. No Testnet trade or real-asset settlement has been executed.
+
+## Remaining release blockers after Batch 11
+
+1. No approved authoritative spot/volatility oracle for the exact Ondo instruments; Ondo display feeds and soft quotes must not be promoted to execution/risk prices.
+2. No proven live Handel collateral reservation/custody path for the exact Ondo assets through NEAR Intents.
+3. No live end-to-end Testnet option lifecycle using a Handel-deployed contract and wallet, including final transaction/receipt inspection.
+4. Settlement verification still depends on a configured trusted verifier/reconciler and one RPC endpoint; independent proof/quorum and production recovery remain outstanding.
+5. No always-on backend agent service has been deployed. The user is building the frontend manually; do not modify frontend files.
+
+
+## 2026-11-10 — Batches 12–15 hardening in progress
+
+- **Batch 12 — Rules:** strict trading-proposal validation now requires a fresh timestamp, valid rationale, bounded risk descriptions, canonical uint256 amounts, valid agent/principal IDs, unique asset allowlists and valid position caps. The runtime invokes strict validation before recording a proposal.
+- **Batch 13 — Pricing:** the Black–Scholes reference engine now requires an injected evidence verifier for spot, volatility, rate and dividend inputs. Every input has provenance and freshness checks; quote evidence is stored in the decision journal. No live approved verifier/provider exists yet, so this does not unlock live trading.
+- **Batch 14 — Testnet:** current automated Testnet checks remain read-only (registry, verifier health and Tidepool dry quote). No Handel contracts have been deployed and no wallet transaction or live trade has been submitted. A funded Testnet account and approved signer are required before a real transaction test; never request private keys in chat.
+- **Batch 15 — Settlement:** receipt inspection now binds the transaction hash and signer, rejects duplicate matching events, and provides a strict multi-RPC agreement inspector requiring distinct endpoint origins. This is RPC corroboration, not a light client or remote-chain proof. The actual verifier authority and custody model still require independent review.
+
+The newest code changes are on `work/batch-10-product-release` / PR #14. Read the latest workflow run for the exact head SHA before claiming the batch passes. Do not merge PR #14 or the stacked PRs without explicit user approval.
+
+
+### Batch 11 runtime wiring and market-evidence classification
+
+The SDK now has `createHandelNearAiStack(apiKey, budget)`, which builds the official Chat provider and separate System One guard, pins the currently observed TEE deployment measurements, and shares one hard-budget ledger. `createHandelAgentRuntime` wires that stack into the host-controlled proposal runtime. This is library-level assembly, not a deployed daemon. The caller still supplies budget policy, a trusted market verifier, a signed pricing-input verifier, and durable decision storage.
+
+Market evidence is now explicitly classified. A trading proposal can proceed past the market gate only with `executionEligible: true` and evidence type `execution_oracle` or `signed_execution_quote`. Display-only feeds, soft quotes and historical data are rejected. No production adapter currently meets this requirement, so the market gate remains closed for live trading.

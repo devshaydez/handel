@@ -28,9 +28,11 @@ export interface NearAiSystemOneConfig {
   apiKey: string;
   model: string;
   allowedGatewaySigners: string[];
-  allowedModelSigners: string[];
-  allowedComposeHashes: string[];
-  allowedOsImageHashes: string[];
+  /** Choose the proof actually supported by the configured System One model. Gateway mode proves the attested Gateway signed the decision, not that the model itself ran in a TEE. */
+  signaturePolicy: "provider_tee" | "gateway";
+  allowedModelSigners?: string[];
+  allowedComposeHashes?: string[];
+  allowedOsImageHashes?: string[];
   minimumConfidence?: number;
   maxStateBytes?: number;
 }
@@ -41,8 +43,15 @@ export class NearAiSystemOneGuard {
     if (!config.apiKey.trim() || !config.model.trim()) {
       throw new NearAiError("System One API key and canonical model ID are required", "SYSTEMONE_CONFIG_INVALID");
     }
-    if (!config.allowedGatewaySigners.length || !config.allowedModelSigners.length || !config.allowedComposeHashes.length || !config.allowedOsImageHashes.length) {
-      throw new NearAiError("System One TEE allowlists are required", "SYSTEMONE_ALLOWLIST_REQUIRED");
+    if (!config.allowedGatewaySigners.length) {
+      throw new NearAiError("System One Gateway signer allowlist is required", "SYSTEMONE_ALLOWLIST_REQUIRED");
+    }
+    if (config.signaturePolicy === "provider_tee" &&
+        (!config.allowedModelSigners?.length || !config.allowedComposeHashes?.length || !config.allowedOsImageHashes?.length)) {
+      throw new NearAiError("System One model TEE allowlists are required for provider_tee mode", "SYSTEMONE_ALLOWLIST_REQUIRED");
+    }
+    if (config.signaturePolicy !== "provider_tee" && config.signaturePolicy !== "gateway") {
+      throw new NearAiError("System One signature policy must be explicit", "SYSTEMONE_CONFIG_INVALID");
     }
     const threshold = config.minimumConfidence ?? 0.8;
     if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
@@ -57,7 +66,7 @@ export class NearAiSystemOneGuard {
     outcome: "allow" | "block" | "review";
     confidence: number;
     decisionId: string;
-    signatureKind: "provider_tee";
+    signatureKind: "provider_tee" | "gateway";
     usage: ReturnType<NearAiBudgetLedger["snapshot"]>;
   }> {
     const serializedState = JSON.stringify(state);
@@ -80,20 +89,22 @@ export class NearAiSystemOneGuard {
     if (!deployment.gateway.signer?.signingAddress || !this.config.allowedGatewaySigners.includes(deployment.gateway.signer.signingAddress)) {
       throw new NearAiError("System One Gateway signer is not allowlisted", "SYSTEMONE_GATEWAY_SIGNER_REJECTED");
     }
-    if (!deployment.models?.length) {
-      throw new NearAiError("System One model has no verified TEE attestation", "SYSTEMONE_MODEL_NOT_ATTESTED");
-    }
-    for (const model of deployment.models) {
-      const measurements = model.deployment?.runtimeMeasurements;
-      if (model.tcbStatus !== "UpToDate") {
-        throw new NearAiError("System One model TCB is not UpToDate", "SYSTEMONE_MODEL_TCB_REJECTED");
+    if (this.config.signaturePolicy === "provider_tee") {
+      if (!deployment.models?.length) {
+        throw new NearAiError("System One model has no verified TEE attestation", "SYSTEMONE_MODEL_NOT_ATTESTED");
       }
-      if (!model.signer?.signingAddress || !this.config.allowedModelSigners.includes(model.signer.signingAddress)) {
-        throw new NearAiError("System One model signer is not allowlisted", "SYSTEMONE_SIGNER_REJECTED");
-      }
-      if (!measurements?.composeHash || !this.config.allowedComposeHashes.includes(measurements.composeHash) ||
-          !measurements.osImageHash || !this.config.allowedOsImageHashes.includes(measurements.osImageHash)) {
-        throw new NearAiError("System One deployment measurement is not allowlisted", "SYSTEMONE_MEASUREMENT_REJECTED");
+      for (const model of deployment.models) {
+        const measurements = model.deployment?.runtimeMeasurements;
+        if (model.tcbStatus !== "UpToDate") {
+          throw new NearAiError("System One model TCB is not UpToDate", "SYSTEMONE_MODEL_TCB_REJECTED");
+        }
+        if (!model.signer?.signingAddress || !this.config.allowedModelSigners?.includes(model.signer.signingAddress)) {
+          throw new NearAiError("System One model signer is not allowlisted", "SYSTEMONE_SIGNER_REJECTED");
+        }
+        if (!measurements?.composeHash || !this.config.allowedComposeHashes?.includes(measurements.composeHash) ||
+            !measurements.osImageHash || !this.config.allowedOsImageHashes?.includes(measurements.osImageHash)) {
+          throw new NearAiError("System One deployment measurement is not allowlisted", "SYSTEMONE_MEASUREMENT_REJECTED");
+        }
       }
     }
 
@@ -125,8 +136,9 @@ export class NearAiSystemOneGuard {
     } catch {
       throw new NearAiError("System One decision receipt could not be verified", "SYSTEMONE_RECEIPT_UNVERIFIED");
     }
-    if (receipt.signatureKind !== "provider_tee") {
-      throw new NearAiError("System One decision is not provider-TEE signed", "SYSTEMONE_MODEL_SIGNATURE_REQUIRED");
+    const expectedSignature = this.config.signaturePolicy;
+    if (receipt.signatureKind !== expectedSignature) {
+      throw new NearAiError("System One decision signature does not match configured policy", "SYSTEMONE_SIGNATURE_POLICY_MISMATCH");
     }
 
     const answer = result.data?.answers?.guard;
@@ -137,7 +149,7 @@ export class NearAiSystemOneGuard {
     }
     const outcome = answer.choice as "allow" | "block" | "review";
     const allowed = outcome === "allow" && answer.confidence >= (this.config.minimumConfidence ?? 0.8);
-    return { allowed, outcome, confidence: answer.confidence, decisionId: result.decisionId, signatureKind: "provider_tee", usage };
+    return { allowed, outcome, confidence: answer.confidence, decisionId: result.decisionId, signatureKind: expectedSignature, usage };
   }
 }
 
@@ -147,8 +159,15 @@ export async function createOfficialNearAiSystemOneClient(
   baseUrl = "https://cloud-api.near.ai/v1/",
 ): Promise<NearAiSystemOneClient> {
   if (new URL(baseUrl).protocol !== "https:" || !config.apiKey.trim()) throw new NearAiError("HTTPS endpoint and API key are required for System One", "SYSTEMONE_CONFIG_INVALID");
-  if (!config.allowedGatewaySigners.length || !config.allowedModelSigners.length || !config.allowedComposeHashes.length || !config.allowedOsImageHashes.length) {
-    throw new NearAiError("System One TEE allowlists are required", "SYSTEMONE_ALLOWLIST_REQUIRED");
+  if (!config.allowedGatewaySigners.length) {
+    throw new NearAiError("System One Gateway signer allowlist is required", "SYSTEMONE_ALLOWLIST_REQUIRED");
+  }
+  if (config.signaturePolicy === "provider_tee" &&
+      (!config.allowedModelSigners?.length || !config.allowedComposeHashes?.length || !config.allowedOsImageHashes?.length)) {
+    throw new NearAiError("System One model TEE allowlists are required for provider_tee mode", "SYSTEMONE_ALLOWLIST_REQUIRED");
+  }
+  if (config.signaturePolicy !== "provider_tee" && config.signaturePolicy !== "gateway") {
+    throw new NearAiError("System One signature policy must be explicit", "SYSTEMONE_CONFIG_INVALID");
   }
   const name: string = "@nearai/inference-sdk/node";
   try {
@@ -160,32 +179,35 @@ export async function createOfficialNearAiSystemOneClient(
         ohttp: false;
         attestationCacheTimeToLiveMs: number;
         gatewayVerification: { policy: { acceptedTcbStatuses: string[] } };
-        modelVerification: {
+        modelVerification?: {
           policy: { acceptedTcbStatuses: string[]; gpuEvidence: "required" };
           verifiers: { deployment: (deployment: { runtimeMeasurements: { composeHash?: string; osImageHash?: string } }) => void };
         };
       }) => NearAiSystemOneClient;
     };
-    return new sdk.InferenceClient({
+    const options = {
       apiKey: config.apiKey,
       baseUrl,
-      e2ee: false,
-      ohttp: false,
+      e2ee: false as const,
+      ohttp: false as const,
       attestationCacheTimeToLiveMs: 0,
       gatewayVerification: { policy: { acceptedTcbStatuses: ["UpToDate"] } },
-      modelVerification: {
-        policy: { acceptedTcbStatuses: ["UpToDate"], gpuEvidence: "required" },
-        verifiers: {
-          deployment: (deployment) => {
-            const m = deployment.runtimeMeasurements;
-            if (!m.composeHash || !config.allowedComposeHashes.includes(m.composeHash) ||
-                !m.osImageHash || !config.allowedOsImageHashes.includes(m.osImageHash)) {
-              throw new Error("System One deployment measurement is not allowlisted");
-            }
+      ...(config.signaturePolicy === "provider_tee" ? {
+        modelVerification: {
+          policy: { acceptedTcbStatuses: ["UpToDate"], gpuEvidence: "required" as const },
+          verifiers: {
+            deployment: (deployment: { runtimeMeasurements: { composeHash?: string; osImageHash?: string } }) => {
+              const m = deployment.runtimeMeasurements;
+              if (!m.composeHash || !config.allowedComposeHashes?.includes(m.composeHash) ||
+                  !m.osImageHash || !config.allowedOsImageHashes?.includes(m.osImageHash)) {
+                throw new Error("System One deployment measurement is not allowlisted");
+              }
+            },
           },
         },
-      },
-    });
+      } : {}),
+    };
+    return new sdk.InferenceClient(options);
   } catch {
     throw new NearAiError("Install @nearai/inference-sdk@0.3.0 and use Node.js >=24.22.1", "SDK_NOT_INSTALLED");
   }

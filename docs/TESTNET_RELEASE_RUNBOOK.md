@@ -74,7 +74,7 @@ Provider-published metadata is not independent on-chain verification. The reposi
 
 The Testnet execution target is `verifier.tidepool-sandbox.testnet`. Tidepool documents this as the official NEAR Intents/Defuse v0.4.5 verifier deployed unmodified on NEAR Testnet. Its `/v0/health` endpoint re-checks the deployed code hash. The SDK execution helper therefore requires an explicit verifier account and exports `TIDEPOOL_TESTNET_VERIFIER`; it must not silently default to Mainnet's `intents.near`.
 
-Use the Testnet RPC `https://rpc.testnet.fastnear.com` or another independently selected Testnet RPC for read-only simulation and finality checks. Never point the Testnet wallet flow at `intents.near`. Before enabling a live synthetic transaction, verify the verifier code hash and ABI, register the wallet public key where required, and verify the exact NEP-413 recipient, signer, nonce, deadline and intent payload. A successful simulation alone does not prove settlement; independently inspect the final transaction, receipts and resulting NEP-245 balances.
+Use explicitly configured Testnet RPC endpoints for read-only simulation and finality checks. Settlement evidence acceptance must use `QuorumNearRpcReceiptInspector` with at least two distinct RPC endpoint origins operated independently; it rejects any disagreement. A quorum of RPC views reduces single-provider dependence but is not a cryptographic light client or proof of remote-chain settlement. Never point the Testnet wallet flow at `intents.near`. Before enabling a live synthetic transaction, verify the verifier code hash and ABI, register the wallet public key where required, and verify the exact NEP-413 recipient, signer, nonce, deadline and intent payload. A successful simulation alone does not prove settlement; independently inspect the final transaction, receipts and resulting NEP-245 balances.
 
 Tidepool's 1Click-compatible API base is `https://www.usetidepool.tech`. It does not require a partner JWT for Testnet quote/deposit/status flows; any non-empty API-key/Bearer value merely selects its lower test fee tier. Wallet-authenticated `/v0/account/*` calls use a Tidepool-issued session token created by signing with the user's own wallet; that token is not the production partner JWT. The production 1Click partner JWT is a later Mainnet integration gate and must remain server-side.
 
@@ -135,3 +135,13 @@ For each deployment/test, record:
 | Before/after balances | |
 | Independent reviewer | |
 | Open discrepancies | |
+
+
+### Read-only quote smoke-test rate limits
+
+The Tidepool dry-quote smoke test retries transient upstream failures. Tidepool may wrap an upstream HTTP 429 as HTTP 500 with a message containing `429`. After bounded retries, that specific rate-limit condition is reported as `INCONCLUSIVE` (not `PASS`): CI remains usable, but the run does not claim a live quote was verified. Other HTTP errors and malformed quote responses remain hard failures. Asset-registry and verifier checks are reported independently.
+
+
+## 10. Settlement RPC quorum requirement
+
+The single-endpoint `NearRpcReceiptInspector` is for tests and controlled diagnostics only. Production settlement evidence must be constructed with `QuorumNearRpcReceiptInspector` and at least two distinct RPC providers. The inspector now requires the returned transaction hash and signer ID to match the requested transaction, then binds the exact verifier receipt and settlement event. Duplicate matching events are rejected. RPC agreement is corroboration, not a consensus/light-client proof; the configured verifier's authority and event correctness still require independent review.

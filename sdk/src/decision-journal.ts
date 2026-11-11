@@ -12,8 +12,8 @@ export interface DecisionRecordInput {
   action: string;
   assetId: string;
   optionTerms: { strike: string; quantity: string; expiryNs: string; premium: string };
-  marketEvidence: { source: string; observedAt: string; verificationMethod: string; evidenceHash: string; snapshotHash: string };
-  premiumEvidence: { source: string; calculatedAt: string; methodology: string };
+  marketEvidence: { source: string; observedAt: string; verificationMethod: string; evidenceHash: string; snapshotHash: string; evidenceType: "execution_oracle" | "signed_execution_quote"; executionEligible: true };
+  premiumEvidence: { source: string; calculatedAt: string; methodology: string; evidenceHash: string; verificationMethod: string; evidenceType: "signed_source" };
   guardrailEvidence: { decisionId: string; outcome: string; confidence: number; signatureKind: string };
   rationale: string;
   risks: string[];
@@ -57,12 +57,16 @@ function validateInput(input: DecisionRecordInput): void {
   if (input.schemaVersion !== 1 || !Number.isFinite(Date.parse(input.createdAt))) throw new Error("Invalid decision schema or timestamp");
   if (!/^\d+$/.test(input.optionTerms.strike) || !/^\d+$/.test(input.optionTerms.quantity) ||
       !/^\d+$/.test(input.optionTerms.expiryNs) || !/^\d+$/.test(input.optionTerms.premium)) throw new Error("Invalid option terms in decision record");
-  if (!input.marketEvidence.source || !input.marketEvidence.observedAt || !input.marketEvidence.verificationMethod || !input.marketEvidence.evidenceHash || !input.marketEvidence.snapshotHash ||
-      !input.premiumEvidence.source || !input.premiumEvidence.calculatedAt || !input.premiumEvidence.methodology) {
+  if (!input.marketEvidence.source || !input.marketEvidence.observedAt || !input.marketEvidence.verificationMethod ||
+      input.marketEvidence.executionEligible !== true ||
+      !["execution_oracle", "signed_execution_quote"].includes(input.marketEvidence.evidenceType) ||
+      !/^[a-f0-9]{64}$/.test(input.marketEvidence.evidenceHash) || !/^[a-f0-9]{64}$/.test(input.marketEvidence.snapshotHash) ||
+      !input.premiumEvidence.source || !input.premiumEvidence.calculatedAt || !input.premiumEvidence.methodology ||
+      !/^[a-f0-9]{64}$/.test(input.premiumEvidence.evidenceHash) || input.premiumEvidence.evidenceType !== "signed_source" || !input.premiumEvidence.verificationMethod) {
     throw new Error("Decision record is missing market or premium provenance");
   }
   if (!input.guardrailEvidence.decisionId || input.guardrailEvidence.outcome !== "allow" ||
-      input.guardrailEvidence.signatureKind !== "provider_tee" ||
+      !["provider_tee", "gateway"].includes(input.guardrailEvidence.signatureKind) ||
       !Number.isFinite(input.guardrailEvidence.confidence) || input.guardrailEvidence.confidence < 0 ||
       input.guardrailEvidence.confidence > 1) throw new Error("Decision record has unverified guardrail evidence");
   if (!Array.isArray(input.risks) || !Array.isArray(input.alternativesEvaluated) ||
@@ -128,7 +132,7 @@ export class DecisionJournal implements DecisionRecorder {
       `Decision ${record.decisionId}: ${record.action} proposal for ${record.assetId}.`,
       `Rationale: ${record.rationale}`,
       `Market evidence: ${record.marketEvidence.source} observed at ${record.marketEvidence.observedAt}.`,
-      `Premium: ${record.optionTerms.premium} (calculated by ${record.premiumEvidence.source}: ${record.premiumEvidence.methodology}).`,
+      `Premium: ${record.optionTerms.premium} (calculated by ${record.premiumEvidence.source}: ${record.premiumEvidence.methodology}; verified via ${record.premiumEvidence.verificationMethod} (${record.premiumEvidence.evidenceType}), evidence ${record.premiumEvidence.evidenceHash}).`,
       `Risks: ${record.risks.join("; ") || "No risks were supplied in the proposal."}`,
       `Policy: ${record.policy.ok ? "passed" : "rejected"}.`,
       `Guardrail: ${record.guardrailEvidence.outcome} with confidence ${record.guardrailEvidence.confidence}; verified as ${record.guardrailEvidence.signatureKind}.`,

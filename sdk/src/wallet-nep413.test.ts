@@ -141,3 +141,39 @@ describe("NEP-413 connected wallet boundary", () => {
     );
   });
 });
+
+  it("rejects a wallet account removed while the signing prompt is open", async () => {
+    let reads = 0;
+    const switchingWallet: WalletSelectorNep413Wallet = {
+      async getAccounts() {
+        reads++;
+        return reads === 1 ? [{accountId: "alice.testnet"}] : [{accountId: "mallory.testnet"}];
+      },
+      async signMessage() { return {publicKey: "ed25519:selector", signature: "selector-sig"}; },
+    };
+    const signer = createWalletSelectorNep413Signer({
+      wallet: switchingWallet, expectedAccountId: "alice.testnet",
+    });
+    await assert.rejects(
+      () => signNep413WithConnectedWallet({
+        payload, approval, wallet: signer, nowMs: Date.parse("2026-11-10T01:45:00Z"),
+      }),
+      /changed or disconnected during signing/,
+    );
+  });
+
+  it("binds a returned signature to the account public key when exposed", async () => {
+    const keyedWallet: WalletSelectorNep413Wallet = {
+      async getAccounts() { return [{accountId: "alice.testnet", publicKey: "ed25519:expected"}]; },
+      async signMessage() { return {publicKey: "ed25519:mallory", signature: "sig"}; },
+    };
+    const signer = createWalletSelectorNep413Signer({
+      wallet: keyedWallet, expectedAccountId: "alice.testnet",
+    });
+    await assert.rejects(
+      () => signNep413WithConnectedWallet({
+        payload, approval, wallet: signer, nowMs: Date.parse("2026-11-10T01:45:00Z"),
+      }),
+      /public key does not match/,
+    );
+  });

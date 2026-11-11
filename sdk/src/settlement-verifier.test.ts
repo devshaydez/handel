@@ -39,6 +39,12 @@ test("verifier rejects a receipt with mismatched asset, amount, sender, or recei
   }, expected, "tx-1", "receipt-1"), /no verifier event matches/);
 });
 
+test("verifier rejects duplicate matching settlement events", async () => {
+  await assert.rejects(() => verifySettlementReceipt({
+    inspect: async () => ({ ...receipt, events: [event, { ...event, eventIndex: 1 }] }),
+  }, expected, "tx-1", "receipt-1"), /multiple verifier events/);
+});
+
 test("replay guard persists and rejects duplicate receipt events", () => {
   const guard = new EvidenceReplayGuard();
   guard.accept({ transactionHash: "tx-1", receiptId: "receipt-1", eventIndex: 0 });
