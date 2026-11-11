@@ -256,6 +256,8 @@ export async function startHandelAdvisoryServer(): Promise<Server> {
   const stack = await createHandelNearAiStack(apiKey, budget);
   const agent = createHandelAdvisoryAgent(stack);
   const educationAgent = new HandelEducationAgent(stack.proposalProvider, stack.systemOneGuard);
+  const allowedOrigins = process.env.HANDEL_ALLOWED_ORIGINS
+    ?.split(",").map(origin => origin.trim()).filter(Boolean);
   const server = createHandelAdvisoryHttpServer({
     answerEducation: input => educationAgent.answer(input),
     prepare: async input => {
@@ -270,7 +272,7 @@ export async function startHandelAdvisoryServer(): Promise<Server> {
       });
       return { ...prepared, policyBlockHeight: blockHeight } as PreparedAdvisoryApproval;
     },
-  });
+  }, { allowedOrigins });
   const port = process.env.HANDEL_PORT ? positiveIntEnv("HANDEL_PORT") : 8787;
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
