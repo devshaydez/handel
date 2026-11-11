@@ -10,7 +10,7 @@ const permission: AgentPermission = {
   allowedAssets: [NVDAON_ASSET_ID],
   maxQuantity: "2000000000000000000",
   maxPremium: "10000000",
-  maxCollateralUsdc: "10000000",
+  maxCollateralUsdc: "1000000000",
   maxOpenPositions: 2,
   minExpiryNs: "0",
   maxExpiryNs: "999999999999999999999",
