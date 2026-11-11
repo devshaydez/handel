@@ -50,3 +50,13 @@ test("unsigned integers must be canonical and within uint256", () => {
   const result = validateProposal(p, permission, { nowNs: BigInt(now) * 1_000_000n, requireFreshMarketData: true });
   assert.ok(result.errors.some(x => x.includes("quantity")));
 });
+
+test("Put proposals require and enforce the on-chain USDC collateral cap", () => {
+  const put = { ...proposal(), type: "Put" as const, strike: "2500000" };
+  const missing = validateProposal(put, permission, { requireAgent: true });
+  assert.ok(missing.errors.some(error => error.includes("maxCollateralUsdc")));
+  const tooSmall = validateProposal(put, { ...permission, maxCollateralUsdc: "2000000" }, { requireAgent: true });
+  assert.ok(tooSmall.errors.some(error => error.includes("collateral")));
+  const allowed = validateProposal(put, { ...permission, maxCollateralUsdc: "3000000" }, { requireAgent: true });
+  assert.equal(allowed.ok, true, allowed.errors.join("; "));
+});
