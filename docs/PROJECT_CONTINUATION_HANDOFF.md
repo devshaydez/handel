@@ -56,7 +56,27 @@ Default/working base branch recorded: `feat/handel-archive-core`.
 ### Current continuation handoff PR
 This document is being added on branch `docs/project-continuation-handoff-2026-11-09` as a standalone documentation change. It must not overwrite or merge PR #8 or #9.
 
-## 4. Work still required — ordered delivery backlog
+
+
+### Product refinement — assisted stock trading and beginner education (2026-11-09)
+
+The user clarified that Handel is intended to be an **AI-assisted stock-trading product**, with options trading on Ondo tokenized equities as its initial protocol/execution mechanism. It must also educate beginners. The user wants automatic execution to be available when an individual user explicitly opts in; users who do not opt in retain recommendation-and-approval control.
+
+The full durable requirements are in [`docs/PRODUCT_VISION_AND_AI_AUTONOMY.md`](./PRODUCT_VISION_AND_AI_AUTONOMY.md). Treat that document as a product requirement, not evidence that the features are already implemented.
+
+Important scope distinction: current Handel contracts/SDK are designed around fully collateralized European options. Direct spot-equity buy/sell execution is **not established** by the current architecture. Do not claim that Handel can already buy or sell the underlying stock directly. Decide and document whether spot trading is a later execution rail or outside the initial hackathon vertical slice. The first delivery should truthfully support the actual options actions and explain their relationship to bullish/bearish stock views.
+
+Autonomous execution is opt-in, bounded, auditable and revocable. It must not be implemented by giving the agent a user's full-access private key or seed phrase. The current NEP-413/full-access-key limitation remains unresolved and must be respected.
+
+## 4. Remaining work grouped into three delivery batches
+
+- **Batch 8 — Intelligence (Phases 14–16):** (14) NEAR AI Cloud verified inference and budget guard; (15) bounded AI agent runtime/tools/audit; (16) market-data adapter and deterministic premium/risk engine.
+- **Batch 9 — Execution and safety (Phases 17–19):** (17) on-chain agent permissions/revocation and safe signing; (18) real Ondo/USDC NEAR Intents dry quotes, NEP-413 and settlement adapter; (19) actual collateral custody, physical settlement and independently verifiable proof.
+- **Batch 10 — Product and release (Phases 20–22):** (20) frontend wallet/agent/options/positions integration; (21) end-to-end adversarial/security review and evidence; (22) reproducible demo, README, video/screenshots and hackathon submission.
+
+Current branch `work/batch-8-ai-agent-intelligence` has initial code for Phases 14–15 and market-context validation groundwork for Phase 16. It does not yet have a configured official SDK install in a runtime, live key test, real market-data provider or deterministic premium model. CI must verify this branch before calling the batch CI-verified.
+
+## 5. Work still required — ordered delivery backlog
 
 ### P0 — Establish a working, verifiable vertical slice
 1. Re-read the original uploaded plan files and preserve their exact requirements and terminology.
@@ -238,7 +258,7 @@ Release gates still open:
 - Do not merge PRs without explicit approval.
 - User wants the full planned scope, not just the contract/SDK foundation.
 
-## 7. Exact next actions when resuming
+## 8. Exact next actions when resuming
 
 1. Read this file first.
 2. Check current repo default/base branch and PR #8, #9, plus this handoff PR. Poll CI #42696820178 for PR #9; do not assume it passed.
@@ -251,7 +271,7 @@ Release gates still open:
 9. Run CI once the cohesive batch is complete; fix all failures before opening/updating its PR.
 10. Present a truthful demo/release readiness matrix. Never imply mainnet readiness without evidence.
 
-## 8. Status vocabulary
+## 9. Status vocabulary
 
 Use these labels consistently:
 - **Implemented:** code exists and is reviewed; does not imply live operation.
@@ -265,3 +285,7 @@ Use these labels consistently:
 - **Blocked:** missing external prerequisite or unresolved design/security decision.
 
 Never use one status label as a substitute for another.
+
+## New durable product requirement — AI education and decision accountability
+
+See [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md). This requirement applies across Batches 8–10: one agent combines contextual education with permissioned trading; every consequential action and no-trade decision must have a traceable, evidence-grounded explanation and durable decision record. Education never grants trading authority. This is a product requirement, not evidence of implementation. Do not omit it from future handoffs, implementation plans, acceptance tests, or release reviews.

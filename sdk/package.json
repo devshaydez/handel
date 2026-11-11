@@ -20,5 +20,16 @@
     "tsx": "^4.19.0",
     "@types/node": "^22.0.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "peerDependencies": {
+    "@nearai/inference-sdk": "^0.3.0"
+  },
+  "peerDependenciesMeta": {
+    "@nearai/inference-sdk": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=24.22.1"
+  }
 }

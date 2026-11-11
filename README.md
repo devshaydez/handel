@@ -63,3 +63,8 @@ The contract checks reconciliation caller, operation ID, asset, amount, sender, 
 The preceding PR commit passed GitHub Actions; every new code change must pass CI again before deployment. Do not deploy until the latest GitHub Actions checks pass and the custody/reconciliation design has been reviewed.
 
 Never commit wallet seed phrases, private keys, API keys, or other credentials. Share only public account IDs in chat.
+
+
+## NEAR AI Cloud adapter (Batch 8)
+
+The SDK exposes an optional `NearAiProposalProvider` backed by the official `@nearai/inference-sdk` Node client. Install the optional runtime peer with `npm install @nearai/inference-sdk` in the SDK deployment environment. Configure `NEARAI_API_KEY`, `NEARAI_MODEL`, and `NEARAI_BASE_URL` there; never commit credentials. The adapter verifies Gateway/model deployment evidence and requires a `provider_tee` response receipt by default. Offline CI uses mocked clients and makes no paid requests. A per-request USD reservation ceiling must be set from current verified model pricing; the local ledger is process-local and must be centralised before multi-instance deployment. No live inference has been claimed until a credentialed smoke test passes.

@@ -164,3 +164,13 @@ For each item, record:
 Branch `work/testnet-deployment-preflight` adds a fail-closed, read-only deployment manifest validator, a non-secret example manifest, and regression tests. It requires distinct OptionsContract/Escrow `.testnet` accounts, exact Wasm SHA-256 hashes, operator/key-policy attestation, explicit state disposition, reviewed rollback plan, independent security review, explicit deployment approval, and enabled assets with verified metadata plus NEP-145 registration for both contracts. It rejects placeholders and credential-bearing fields. CI runs the Node syntax check and regression suite.
 
 This is a preflight guard, not deployment automation or independent proof of the attestations. No populated manifest is checked in, and no accounts, keys, storage deposits, deployments, or token transfers are created by it. Actual account provisioning, account-specific storage verification, approvals, and deployed lifecycle evidence remain external gates.
+
+## Batch 8–10 continuation plan (2026-11-09)
+
+- Batch 8 — Intelligence: NEAR AI Cloud verified inference and budget guard; bounded agent runtime; market data and deterministic premium/risk engine. Initial SDK adapter, model-attestation gate, provider-TEE receipt gate, conservative local reservation ledger, market snapshot validator and host-side premium override have been added on `work/batch-8-ai-agent-intelligence`. These are implementation foundations only; no live NEAR AI request, live market feed or production pricing engine is verified. The budget ledger is process-local and the optional official SDK must be installed in the runtime.
+- Batch 9 — Execution and safety: on-chain permissions/revocation and signing model; Ondo/USDC NEAR Intents route verification and NEP-413; real collateral custody, physical settlement and independent proof.
+- Batch 10 — Product and release: frontend integration; end-to-end adversarial/security testing and evidence; reproducible demo and hackathon submission.
+
+## Cross-batch product requirements — AI education and decision accountability
+
+Tracked in [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md). These are open acceptance requirements across Batches 8–10, not completed features: the same agent must teach in context and trade only under the user's selected authority mode; each consequential action, rejection, and no-trade decision must be linked to a durable, evidence-grounded decision record. User-facing explanations must distinguish proposals from confirmed execution and must never invent evidence or outcomes. Close only with implementation, tests, and auditable evidence.
