@@ -19,8 +19,9 @@ if [[ -z "${NEARAI_API_KEY:-}" ]]; then
 fi
 
 HANDEL_DEMO_PROPOSAL_FILE="$(mktemp)"
-export HANDEL_DEMO_PROPOSAL_FILE
-trap 'rm -f "$HANDEL_DEMO_PROPOSAL_FILE"' EXIT
+HANDEL_DEMO_PREPARED_FILE="$(mktemp)"
+export HANDEL_DEMO_PROPOSAL_FILE HANDEL_DEMO_PREPARED_FILE
+trap 'rm -f "$HANDEL_DEMO_PROPOSAL_FILE" "$HANDEL_DEMO_PREPARED_FILE"' EXIT
 
 echo "== 1/5: Build OptionsContract fault-injection artifact =="
 cargo near build non-reproducible-wasm --no-abi --features fault-injection
