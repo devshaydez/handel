@@ -1859,9 +1859,9 @@ mod tests {
         let payment_logs = get_logs();
         assert!(payment_logs.iter().any(|log| {
             log.starts_with("EVENT_JSON:")
-                && log.contains("\\"operationKind\\":\\"exercise_payment\\"")
-                && log.contains("\\"amount\\":\\"500\\"")
-                && log.contains("\\"receiver\\":\\"writer.testnet\\"")
+                && log.contains("\"operationKind\":\"exercise_payment\"")
+                && log.contains("\"amount\":\"500\"")
+                && log.contains("\"receiver\":\"writer.testnet\"")
         }));
 
         let collateral_callback = VMContextBuilder::new()
@@ -1915,9 +1915,9 @@ mod tests {
         let delivery_logs = get_logs();
         assert!(delivery_logs.iter().any(|log| {
             log.starts_with("EVENT_JSON:")
-                && log.contains("\\"operationKind\\":\\"exercise_delivery\\"")
-                && log.contains("\\"assetId\\":\\"nep141:synthetic-stock.testnet\\"")
-                && log.contains("\\"receiver\\":\\"holder.testnet\\"")
+                && log.contains("\"operationKind\":\"exercise_delivery\"")
+                && log.contains("\"assetId\":\"nep141:synthetic-stock.testnet\"")
+                && log.contains("\"receiver\":\"holder.testnet\"")
         }));
     }
 
