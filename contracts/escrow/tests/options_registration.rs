@@ -13,6 +13,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
     let root = worker.root_account()?;
     let writer = worker.dev_create_account().await?;
     let holder = worker.dev_create_account().await?;
+    let agent = worker.dev_create_account().await?;
     let stock_token = deploy(
         &worker,
         concat!(
@@ -147,19 +148,69 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .into_result()?;
 
     let expiry = worker.view_block().await?.header().timestamp_nanosec() + 60_000_000_000;
+
+    // Reproduce the AI-agent handoff on-chain: the agent may propose only within
+    // the principal's bounded policy, while the principal alone approves it.
     writer
-        .call(options.id(), "create_call")
+        .call(options.id(), "set_agent_policy")
         .args_json(json!({
+            "agent_id": agent.id(),
+            "allowed_assets": [STOCK_ASSET],
+            "max_underlying_amount": 1000000,
+            "max_premium_usdc": 100000,
+            "max_collateral_usdc": 2500000,
+            "max_open_positions": 5,
+            "expires_at_ns": expiry + 60_000_000_000
+        }))
+        .transact()
+        .await?
+        .into_result()?;
+
+    agent
+        .call(options.id(), "create_agent_proposal")
+        .args_json(json!({
+            "proposal_id": "judge-demo-call-001",
+            "kind": "Call",
             "holder": holder.id(),
             "asset_id": STOCK_ASSET,
             "underlying_amount": 1000000,
             "strike_amount_usdc": 2500000,
             "expiry_ns": expiry,
-            "premium_amount_usdc": 100000
+            "premium_amount_usdc": 100000,
+            "rationale_hash": "sha256:simulated-market-rationale"
         }))
         .transact()
         .await?
         .into_result()?;
+
+    let pending_proposal = root
+        .view(options.id(), "get_agent_proposal")
+        .args_json(json!({"proposal_id": "judge-demo-call-001"}))
+        .await?
+        .json::<serde_json::Value>()?;
+    assert_eq!(pending_proposal["state"], "PendingApproval");
+
+    // A proposal cannot be registered into escrow before the principal approves.
+    let premature_registration = agent
+        .call(options.id(), "register_escrow_position")
+        .args_json(json!({"position_id": 0}))
+        .max_gas()
+        .transact()
+        .await?;
+    assert!(premature_registration.is_failure());
+
+    writer
+        .call(options.id(), "approve_agent_proposal")
+        .args_json(json!({"proposal_id": "judge-demo-call-001"}))
+        .transact()
+        .await?
+        .into_result()?;
+    let approved_proposal = root
+        .view(options.id(), "get_agent_proposal")
+        .args_json(json!({"proposal_id": "judge-demo-call-001"}))
+        .await?
+        .json::<serde_json::Value>()?;
+    assert_eq!(approved_proposal["state"], "Approved");
 
     // Inject a one-time callback receipt failure after Escrow has committed its
     // idempotent source-position record. The Options state must remain pending.
