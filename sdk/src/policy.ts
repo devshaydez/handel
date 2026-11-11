@@ -20,12 +20,11 @@ export function validateProposal(
   if (!p || typeof p !== "object") return { ok: false, errors: ["proposal must be an object"], warnings };
   if (typeof p.proposalId !== "string" || !p.proposalId.trim() || p.proposalId.length > 128) errors.push("proposalId is missing or invalid");
   if (p.type !== "Call" && p.type !== "Put") errors.push("type must be Call or Put");
-  if (typeof p.underlyingAssetId !== "string" || !p.underlyingAssetId.trim() || p.underlyingAssetId.length > 256) {
-    errors.push("underlyingAssetId is missing or invalid");
-  } else if (!permission && !isOndoUnderlying(p.underlyingAssetId)) {
-    // Provider-level schema validation has no permission context. The contract
-    // and the subsequent permission-bound runtime remain authoritative.
-    warnings.push("asset is outside the curated Ondo registry; require an explicit on-chain allowlist before submission");
+  if (typeof p.underlyingAssetId !== "string" || !p.underlyingAssetId.trim() ||
+      p.underlyingAssetId.length > 256 ||
+      (!isOndoUnderlying(p.underlyingAssetId) &&
+       !(permission?.allowedAssets?.includes(p.underlyingAssetId) ?? false))) {
+    errors.push("underlying must be a curated Ondo asset or explicitly allowlisted by the principal");
   }
 
   const strike = big(p.strike), quantity = big(p.quantity), premium = big(p.premium), expiry = big(p.expiryNs);
