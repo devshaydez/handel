@@ -25,6 +25,18 @@ Use the repository's GitHub Actions secret for CI. Do not paste API keys into ch
 3. Calls the official NEAR AI inference SDK against the pinned Chat model, verifies Gateway/model TEE evidence and the provider-TEE response signature, asks for a structured **simulated** option proposal, and sends that proposal to System One for a separately signed safety classification.
 4. Runs the Sandbox integration test `call_and_put_registration_deposit_and_settle_through_escrow`. Its Call path now uses the on-chain agent policy, creates an agent proposal, proves that escrow registration is rejected before principal approval, records principal approval, registers immutable terms, locks mock NEP-141 collateral, pays premium, waits for maturity, exercises, and verifies the two payout legs and final token balances. The same test also exercises the Put path.
 
+## Receipt-bound evidence emitted by Escrow
+
+On the normal successful NEP-141 payout path, Escrow now emits a NEP-297-style `EVENT_JSON` log with standard `handel.settlement.v1` from the callback receipt, **only after** the NEP-141 `ft_transfer` promise returns success. The event binds:
+- source Options position ID and deterministic per-leg operation ID;
+- operation kind (premium, exercise payment, exercise delivery, premium refund, or expiry release);
+- exact `nep141:<token-account>` asset ID and raw integer amount;
+- Escrow sender and intended recipient.
+
+The SDK `NearRpcReceiptInspector` can inspect the finalized callback receipt, require that the receipt executor is the configured Escrow account, and match the complete event binding. `QuorumNearRpcReceiptInspector` can require matching results from at least two distinct RPC origins. The unit tests assert that the success callbacks emit the expected payment and delivery events.
+
+This strengthens evidence for **successful NEAR-native escrow transfers**. It does not turn RPC responses into a cryptographic light-client proof, prove a remote-chain transfer, establish that an arbitrary token contract is honest, or resolve a callback receipt that itself failed after the token transfer. Trusted-reconciler overrides remain a separate, explicitly disclosed exception and are not allowed to emit this settlement event.
+
 ## Evidence and limitations
 
 This is a **reproducible development/hackathon demo**, not production deployment:
