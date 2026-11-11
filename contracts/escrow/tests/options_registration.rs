@@ -191,7 +191,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
     assert_eq!(pending_proposal["state"], "PendingApproval");
 
     // A proposal cannot be registered into escrow before the principal approves.
-    let premature_registration = agent
+    let premature_registration = writer
         .call(options.id(), "register_escrow_position")
         .args_json(json!({"position_id": 0}))
         .max_gas()
