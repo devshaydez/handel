@@ -45,6 +45,11 @@ export class HandelAdvisoryAgent {
       instructions: "No verified market feed is configured. Do not invent spot prices, volatility, premium, payoff, balances, or execution evidence. Preserve every requested term exactly. Return rationale and concrete risks. This is advisory only.",
     });
     const model = generated.proposal;
+    if (typeof model.rationale !== "string" || !model.rationale.trim() || model.rationale.length > 4096 ||
+        !Array.isArray(model.risks) || model.risks.length < 1 || model.risks.length > 20 ||
+        model.risks.some(risk => typeof risk !== "string" || !risk.trim() || risk.length > 500)) {
+      throw new AdvisoryAgentError("model rationale or risk disclosures are missing/invalid", "INVALID_DISCLOSURE");
+    }
     if (model.type !== request.type || model.underlyingAssetId !== request.assetId ||
         model.quantity !== request.quantity || model.strike !== request.strike || model.expiryNs !== request.expiryNs) {
       throw new AdvisoryAgentError("model changed requested terms", "TERMS_MISMATCH");
