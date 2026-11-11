@@ -109,8 +109,9 @@ const completion = await client.chat.completions.create({
     content: "You are generating a structured Handel proposal from a simulated user request. Return one JSON object with exactly these keys: proposalId, type, underlyingAssetId, strike, quantity, premium, expiryNs, estimatedPayoff, risks, dataFreshness, rationale, createdAt. Use string values except risks, which must be an array of strings. Do not add markdown. Request: " + JSON.stringify(simulatedRequest),
   }],
   temperature: 0,
-  // DeepSeek may spend part of the output budget on reasoning before its final JSON.
-  max_tokens: 1024,
+  // DeepSeek Flash may spend substantial output budget on internal reasoning;
+  // reserve enough tokens for the required JSON response as well.
+  max_tokens: 4096,
 });
 if (!completion?.id) throw new Error("NEAR AI completion ID is missing.");
 const receipt = await client.verifyResponse(completion.id);
