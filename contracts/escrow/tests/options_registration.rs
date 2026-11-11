@@ -13,6 +13,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
     let root = worker.root_account()?;
     let writer = worker.dev_create_account().await?;
     let holder = worker.dev_create_account().await?;
+    let agent = worker.dev_create_account().await?;
     let stock_token = deploy(
         &worker,
         concat!(
@@ -146,20 +147,126 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .await?
         .into_result()?;
 
-    let expiry = worker.view_block().await?.header().timestamp_nanosec() + 60_000_000_000;
+    // The judge script passes the exact live-AI proposal JSON into this Sandbox
+    // test. Without that file, the same deterministic fixture keeps CI self-contained.
+    let ai_proposal = match std::env::var("HANDEL_DEMO_PROPOSAL_FILE") {
+        Ok(path) => Some(serde_json::from_slice::<serde_json::Value>(
+            &std::fs::read(path)?,
+        )?),
+        Err(_) => None,
+    };
+    let now_ns = worker.view_block().await?.header().timestamp_nanosec();
+    let expiry = match ai_proposal.as_ref() {
+        Some(proposal) => proposal["expiryNs"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("AI proposal expiryNs must be a decimal string"))?
+            .parse::<u64>()?,
+        None => now_ns + 60_000_000_000,
+    };
+    let underlying_amount = match ai_proposal.as_ref() {
+        Some(proposal) => proposal["quantity"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("AI proposal quantity must be a decimal string"))?
+            .parse::<u128>()?,
+        None => 1_000_000,
+    };
+    let strike_amount_usdc = match ai_proposal.as_ref() {
+        Some(proposal) => proposal["strike"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("AI proposal strike must be a decimal string"))?
+            .parse::<u128>()?,
+        None => 2_500_000,
+    };
+    let premium_amount_usdc = match ai_proposal.as_ref() {
+        Some(proposal) => proposal["premium"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("AI proposal premium fixture must be a decimal string"))?
+            .parse::<u128>()?,
+        None => 100_000,
+    };
+    if let Some(proposal) = ai_proposal.as_ref() {
+        assert_eq!(proposal["proposalId"], "judge-demo-call-001");
+        assert_eq!(proposal["type"], "Call");
+        assert_eq!(proposal["underlyingAssetId"], STOCK_ASSET);
+        assert_eq!(proposal["quantity"], "1000000");
+        assert_eq!(proposal["strike"], "2500000");
+        assert_eq!(proposal["premium"], "100000");
+        assert!(
+            expiry > now_ns + 5 * 60 * 1_000_000_000,
+            "AI proposal expires too soon for Sandbox run"
+        );
+        assert!(!proposal["rationale"]
+            .as_str()
+            .unwrap_or_default()
+            .trim()
+            .is_empty());
+        assert!(proposal["risks"]
+            .as_array()
+            .is_some_and(|risks| !risks.is_empty()));
+    }
+
+    // Reproduce the AI-agent handoff on-chain: the agent may propose only within
+    // the principal's bounded policy, while the principal alone approves it.
     writer
-        .call(options.id(), "create_call")
+        .call(options.id(), "set_agent_policy")
         .args_json(json!({
-            "holder": holder.id(),
-            "asset_id": STOCK_ASSET,
-            "underlying_amount": 1000000,
-            "strike_amount_usdc": 2500000,
-            "expiry_ns": expiry,
-            "premium_amount_usdc": 100000
+            "agent_id": agent.id(),
+            "allowed_assets": [STOCK_ASSET],
+            "max_underlying_amount": underlying_amount,
+            "max_premium_usdc": premium_amount_usdc,
+            "max_collateral_usdc": strike_amount_usdc,
+            "max_open_positions": 5,
+            "expires_at_ns": expiry + 60_000_000_000
         }))
         .transact()
         .await?
         .into_result()?;
+
+    agent
+        .call(options.id(), "create_agent_proposal")
+        .args_json(json!({
+            "proposal_id": "judge-demo-call-001",
+            "kind": "Call",
+            "holder": holder.id(),
+            "asset_id": STOCK_ASSET,
+            "underlying_amount": underlying_amount,
+            "strike_amount_usdc": strike_amount_usdc,
+            "expiry_ns": expiry,
+            "premium_amount_usdc": premium_amount_usdc,
+            "rationale_hash": "sha256:simulated-market-rationale"
+        }))
+        .transact()
+        .await?
+        .into_result()?;
+
+    let pending_proposal = root
+        .view(options.id(), "get_agent_proposal")
+        .args_json(json!({"proposal_id": "judge-demo-call-001"}))
+        .await?
+        .json::<serde_json::Value>()?;
+    assert_eq!(pending_proposal["state"], "PendingApproval");
+
+    // A proposal cannot be registered into escrow before the principal approves.
+    let premature_registration = writer
+        .call(options.id(), "register_escrow_position")
+        .args_json(json!({"position_id": 0}))
+        .max_gas()
+        .transact()
+        .await?;
+    assert!(premature_registration.is_failure());
+
+    writer
+        .call(options.id(), "approve_agent_proposal")
+        .args_json(json!({"proposal_id": "judge-demo-call-001"}))
+        .transact()
+        .await?
+        .into_result()?;
+    let approved_proposal = root
+        .view(options.id(), "get_agent_proposal")
+        .args_json(json!({"proposal_id": "judge-demo-call-001"}))
+        .await?
+        .json::<serde_json::Value>()?;
+    assert_eq!(approved_proposal["state"], "Approved");
 
     // Inject a one-time callback receipt failure after Escrow has committed its
     // idempotent source-position record. The Options state must remain pending.

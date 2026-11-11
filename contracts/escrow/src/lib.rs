@@ -1021,6 +1021,13 @@ impl EscrowContract {
             premium.payout_pending = false;
             premium.payout_failed = false;
             self.store_premium_status(id, &premium);
+            Self::emit_settlement_event(
+                &p,
+                "premium_payment",
+                &premium.token,
+                premium.amount,
+                &p.writer,
+            );
             self.emit_lifecycle_event_with_state(&p, "PremiumPaid");
             true
         } else {
@@ -1043,6 +1050,13 @@ impl EscrowContract {
             premium.refund_pending = false;
             premium.refund_failed = false;
             self.store_premium_status(id, &premium);
+            Self::emit_settlement_event(
+                &p,
+                "premium_refund",
+                &premium.token,
+                premium.amount,
+                &p.holder,
+            );
             self.emit_lifecycle_event_with_state(&p, "PremiumRefunded");
             true
         } else {
@@ -1069,6 +1083,13 @@ impl EscrowContract {
             position.payment_paid = true;
             position.state = EscrowState::CollateralPayoutPending;
             self.positions.insert(position_id, position.clone());
+            Self::emit_settlement_event(
+                &position,
+                "exercise_payment",
+                &position.payment_token,
+                position.payment_amount,
+                &position.writer,
+            );
             self.emit_lifecycle_event(&position);
             PromiseOrValue::Promise(
                 Self::transfer(
@@ -1103,6 +1124,13 @@ impl EscrowContract {
             position.collateral_delivered_to_holder = true;
             position.state = EscrowState::Settled;
             self.positions.insert(position_id, position.clone());
+            Self::emit_settlement_event(
+                &position,
+                "exercise_delivery",
+                &position.collateral_token,
+                position.collateral_amount,
+                &position.holder,
+            );
             self.emit_lifecycle_event(&position);
             true
         } else {
@@ -1129,6 +1157,13 @@ impl EscrowContract {
             position.collateral_returned_to_writer = true;
             position.state = EscrowState::Expired;
             self.positions.insert(position_id, position.clone());
+            Self::emit_settlement_event(
+                &position,
+                "expiry_release",
+                &position.collateral_token,
+                position.collateral_amount,
+                &position.writer,
+            );
             self.emit_lifecycle_event(&position);
             true
         } else {
@@ -1301,6 +1336,33 @@ impl EscrowContract {
         env::storage_write(&Self::premium_key(id), &bytes);
     }
 
+    /// Emits a receipt-local settlement record only after the NEP-141 transfer
+    /// promise succeeded. RPC inspectors can bind this log to the finalized
+    /// callback receipt; it is not emitted for trusted-reconciler assertions.
+    fn emit_settlement_event(
+        position: &EscrowPosition,
+        operation_kind: &str,
+        token: &AccountId,
+        amount: u128,
+        receiver: &AccountId,
+    ) {
+        let event = near_sdk::serde_json::json!({
+            "standard": "handel.settlement.v1",
+            "version": "1.0.0",
+            "event": "transfer_confirmed",
+            "data": [{
+                "operationId": format!("escrow:{}:{}", position.source_position_id, operation_kind),
+                "positionId": position.source_position_id.to_string(),
+                "operationKind": operation_kind,
+                "assetId": format!("nep141:{}", token),
+                "amount": amount.to_string(),
+                "sender": env::current_account_id(),
+                "receiver": receiver,
+            }]
+        });
+        env::log_str(&format!("EVENT_JSON:{}", event));
+    }
+
     fn sequence_key(position_id: u64) -> Vec<u8> {
         format!("handel:escrow:v2:event-seq:{position_id}").into_bytes()
     }
@@ -1399,7 +1461,7 @@ impl EscrowContract {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use near_sdk::test_utils::VMContextBuilder;
+    use near_sdk::test_utils::{get_logs, VMContextBuilder};
     use near_sdk::testing_env;
 
     fn account(value: &str) -> AccountId {
@@ -1824,6 +1886,13 @@ mod tests {
             c.get_position(0).state,
             EscrowState::CollateralPayoutPending
         );
+        let payment_logs = get_logs();
+        assert!(payment_logs.iter().any(|log| {
+            log.starts_with("EVENT_JSON:")
+                && log.contains("\"operationKind\":\"exercise_payment\"")
+                && log.contains("\"amount\":\"500\"")
+                && log.contains("\"receiver\":\"writer.testnet\"")
+        }));
 
         let collateral_callback = VMContextBuilder::new()
             .current_account_id(account("escrow.testnet"))
@@ -1873,6 +1942,13 @@ mod tests {
         assert_eq!(settled.state, EscrowState::Settled);
         assert!(settled.payment_paid);
         assert!(settled.collateral_delivered_to_holder);
+        let delivery_logs = get_logs();
+        assert!(delivery_logs.iter().any(|log| {
+            log.starts_with("EVENT_JSON:")
+                && log.contains("\"operationKind\":\"exercise_delivery\"")
+                && log.contains("\"assetId\":\"nep141:synthetic-stock.testnet\"")
+                && log.contains("\"receiver\":\"holder.testnet\"")
+        }));
     }
 
     #[test]
