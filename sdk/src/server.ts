@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { pathToFileURL } from "node:url";
-import { createHandelNearAiStack } from "./nearai-stack.js";
-import { createHandelAdvisoryAgent } from "./nearai-stack.js";
+import { createHandelNearAiStack, createHandelAdvisoryAgent } from "./nearai-stack.js";
+import { HandelEducationAgent } from "./education-agent.js";
 import { prepareAdvisoryAgentProposal, type PreparedAdvisoryApproval } from "./advisory-workflow.js";
 import type { AdvisoryAgentRequest } from "./advisory-agent.js";
 import type { AgentPermission } from "./types.js";
@@ -12,8 +12,10 @@ export interface AdvisoryApiInput {
   holder: string;
   request: Omit<AdvisoryAgentRequest, "demoPremiumFixture">;
 }
+export interface EducationApiInput { question: string; context?: unknown; }
 export interface AdvisoryApiDependencies {
   prepare(input: AdvisoryApiInput): Promise<PreparedAdvisoryApproval>;
+  answerEducation?(input: EducationApiInput): Promise<Awaited<ReturnType<HandelEducationAgent["answer"]>>>;
 }
 export interface AdvisoryHttpOptions {
   allowedOrigins?: string[];
@@ -73,7 +75,20 @@ function validateInput(value: unknown): AdvisoryApiInput {
   };
 }
 
-/** Small localhost API for the frontend. It never signs or submits transactions. */
+function validateEducationInput(value: unknown): EducationApiInput {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new AdvisoryApiError("request must be an object", 400);
+  const x = value as Record<string, unknown>;
+  if (typeof x.question !== "string" || !x.question.trim() || x.question.length > 2_000) {
+    throw new AdvisoryApiError("question must contain 1–2000 characters", 400);
+  }
+  let bytes: number;
+  try { bytes = new TextEncoder().encode(JSON.stringify(x.context ?? null)).byteLength; }
+  catch { throw new AdvisoryApiError("context must be JSON-serializable", 400); }
+  if (bytes > 8_000) throw new AdvisoryApiError("context exceeds size limit", 400);
+  return { question: x.question.trim(), context: x.context ?? null };
+}
+
+/** Localhost API for educational answers and advisory proposals. It never signs or submits transactions. */
 export function createHandelAdvisoryHttpServer(
   dependencies: AdvisoryApiDependencies,
   options: AdvisoryHttpOptions = {},
@@ -98,10 +113,10 @@ export function createHandelAdvisoryHttpServer(
       }
       if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
       if (req.method === "GET" && req.url === "/health") {
-        send(res, 200, { ok: true, service: "handel-advisory-api", mode: "advisory-only", transactionSubmission: false });
+        send(res, 200, { ok: true, service: "handel-advisory-api", mode: "education-and-advisory", transactionSubmission: false });
         return;
       }
-      if (req.method !== "POST" || req.url !== "/v1/advisory/proposals") {
+      if (req.method !== "POST" || (req.url !== "/v1/advisory/proposals" && req.url !== "/v1/education/answer")) {
         send(res, 404, { error: "not_found" }); return;
       }
       if (options.requireAuth) {
@@ -115,8 +130,18 @@ export function createHandelAdvisoryHttpServer(
       if (recent.length >= maxRequests) throw new AdvisoryApiError("rate limit exceeded", 429);
       recent.push(now); hits.set(ip, recent);
 
-      const input = validateInput(await readJson(req, maxBodyBytes));
-      const result = await dependencies.prepare(input);
+      const body = await readJson(req, maxBodyBytes);
+      if (req.url === "/v1/education/answer") {
+        if (!dependencies.answerEducation) throw new AdvisoryApiError("education service is unavailable", 503);
+        const result = await dependencies.answerEducation(validateEducationInput(body));
+        send(res, 200, {
+          ...result,
+          transactionSubmitted: false,
+          walletSignatureRequested: false,
+        });
+        return;
+      }
+      const result = await dependencies.prepare(validateInput(body));
       send(res, 200, {
         ...result,
         transactionSubmitted: false,
@@ -230,7 +255,9 @@ export async function startHandelAdvisoryServer(): Promise<Server> {
   }
   const stack = await createHandelNearAiStack(apiKey, budget);
   const agent = createHandelAdvisoryAgent(stack);
+  const educationAgent = new HandelEducationAgent(stack.proposalProvider, stack.systemOneGuard);
   const server = createHandelAdvisoryHttpServer({
+    answerEducation: input => educationAgent.answer(input),
     prepare: async input => {
       const { permission, blockHeight } = await readOnChainAgentPermission({
         rpcUrl, contractId, agentId: input.agentId,
