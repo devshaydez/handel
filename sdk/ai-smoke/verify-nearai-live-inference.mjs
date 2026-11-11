@@ -2,8 +2,8 @@
 import { writeFileSync } from "node:fs";
 /**
  * Low-cost live NEAR AI TEE inference smoke.
- * Uses a public, catalogued verifiable text model; sends no wallet/account data,
- * no trading prompt, and no order/transaction. It is discovery evidence only:
+ * Uses a public, catalogued verifiable text model; sends a synthetic proposal
+ * prompt only, with no market data, wallet/account data, or order/transaction.
  * Handel's governance signer/measurement allowlists remain a separate gate.
  */
 import { InferenceClient } from "@nearai/inference-sdk/node";
@@ -116,10 +116,15 @@ const receipt = await client.verifyResponse(completion.id);
 if (receipt?.signatureKind !== "provider_tee") {
   throw new Error(`Expected provider_tee response signature; received ${receipt?.signatureKind ?? "none"}.`);
 }
+const rawProposal = completion.choices?.[0]?.message?.content ?? "";
 let proposal;
 try {
-  proposal = JSON.parse(completion.choices?.[0]?.message?.content ?? "");
+  const unfenced = rawProposal.trim()
+    .replace(/^\`\`\`(?:json)?\\s*/i, "")
+    .replace(/\\s*\`\`\`$/, "");
+  proposal = JSON.parse(unfenced);
 } catch {
+  console.error("Raw live proposal response (synthetic prompt only):", JSON.stringify(rawProposal));
   throw new Error("Live NEAR AI did not return valid JSON proposal output.");
 }
 const proposalKeys = ["proposalId", "type", "underlyingAssetId", "strike", "quantity", "premium", "expiryNs", "estimatedPayoff", "risks", "dataFreshness", "rationale", "createdAt"];
