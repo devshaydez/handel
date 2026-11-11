@@ -13,6 +13,7 @@ import {
   type NearAiSystemOneConfig,
 } from "./nearai-systemone.js";
 import { HandelAgentRuntime, type MarketEvidenceVerifier, type PremiumEngine } from "./agent-runtime.js";
+import { HandelAdvisoryAgent } from "./advisory-agent.js";
 import type { DecisionRecorder } from "./decision-journal.js";
 
 /**
@@ -103,4 +104,9 @@ export function createHandelAgentRuntime(
     dependencies.decisions,
     dependencies.marketVerifier,
   );
+}
+
+/** Builds the approval-only live advisory path from the same attested Chat/System One stack. */
+export function createHandelAdvisoryAgent(stack: HandelNearAiStack): HandelAdvisoryAgent {
+  return new HandelAdvisoryAgent(stack.proposalProvider, stack.systemOneGuard);
 }
