@@ -163,6 +163,12 @@ jobs:
       - name: Authenticate and inspect official model catalogue (no inference)
         run: node scripts/verify-nearai-credentials.mjs
 
+      - name: Build SDK for live advisory-to-contract smoke
+        working-directory: sdk
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
       - name: Install isolated NEAR AI smoke dependencies
         working-directory: sdk/ai-smoke
         run: npm install --no-audit --no-fund
