@@ -7,6 +7,7 @@ import { writeFileSync } from "node:fs";
  * Handel's governance signer/measurement allowlists remain a separate gate.
  */
 import { InferenceClient } from "@nearai/inference-sdk/node";
+import { verifyComposeManagerDeploymentImageProvenance } from "@nearai/inference-sdk";
 
 const apiKey = process.env.NEARAI_API_KEY;
 const model = process.env.NEARAI_SMOKE_MODEL ?? "deepseek-ai/DeepSeek-V4.1-Flash-1017";
@@ -32,6 +33,24 @@ const client = new InferenceClient({
   gatewayVerification: { policy: { acceptedTcbStatuses: ["UpToDate"] } },
   modelVerification: {
     policy: { acceptedTcbStatuses: ["UpToDate"], gpuEvidence: "required" },
+    verifiers: {
+      deployment: (deployment) => verifyComposeManagerDeploymentImageProvenance({
+        deployment,
+        imagePolicies: {
+          "nearaidev/vllm-proxy-rs": {
+            repository: "nearai/inference-proxy",
+            workflow: ".github/workflows/build.yml",
+            ref: "refs/heads/main",
+          },
+        },
+        composeManagerImagePolicy: {
+          imageRepository: "nearaidev/compose-manager",
+          repository: "nearai/compose-manager",
+          workflow: ".github/workflows/build.yml",
+          ref: "refs/heads/main",
+        },
+      }),
+    },
   },
 });
 
@@ -120,8 +139,8 @@ const rawProposal = completion.choices?.[0]?.message?.content ?? "";
 let proposal;
 try {
   const unfenced = rawProposal.trim()
-    .replace(/^\`\`\`(?:json)?\\s*/i, "")
-    .replace(/\\s*\`\`\`$/, "");
+    .replace(/^\`\`\`(?:json)?\s*/i, "")
+    .replace(/\s*\`\`\`$/, "");
   proposal = JSON.parse(unfenced);
 } catch {
   console.error("Raw live proposal response (synthetic prompt only):", JSON.stringify(rawProposal));
@@ -235,6 +254,9 @@ const guard = decision.data?.answers?.guard;
 if (guard?.type !== "choice" || !["allow", "block", "review"].includes(guard.choice ?? "") ||
     typeof guard.confidence !== "number" || guard.confidence < 0 || guard.confidence > 1) {
   throw new Error("System One returned a malformed decision.");
+}
+if (guard.choice !== "allow") {
+  throw new Error(`System One did not allow the simulated proposal (outcome: ${guard.choice}); stopping before Sandbox approval and settlement.`);
 }
 console.log(`System One separate-client Gateway attestation: PASS (E2EE/OHTTP disabled; expected signature ${expectedSystemOneSignature}).`);
 console.log(JSON.stringify({
