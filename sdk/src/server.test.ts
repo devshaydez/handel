@@ -144,3 +144,41 @@ test("HTTP service rejects invalid origins, malformed requests and missing beare
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }
 });
+
+test("HTTP education route returns a guarded education-only answer without wallet activity", async () => {
+  const server = createHandelAdvisoryHttpServer({
+    prepare: async () => { throw new Error("proposal route must not run"); },
+    answerEducation: async input => ({
+      answer: "A put option gives its buyer the right, but not the obligation, to sell at the strike price.",
+      mode: "EDUCATION_ONLY",
+      executionEligible: false,
+      transactionSubmitted: false,
+      question: input.question,
+    }) as never,
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  try {
+    const response = await fetch("http://127.0.0.1:" + address.port + "/v1/education/answer", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ question: "What is a put option?" }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as { mode: string; executionEligible: boolean; transactionSubmitted: boolean; walletSignatureRequested: boolean };
+    assert.equal(body.mode, "EDUCATION_ONLY");
+    assert.equal(body.executionEligible, false);
+    assert.equal(body.transactionSubmitted, false);
+    assert.equal(body.walletSignatureRequested, false);
+
+    const invalid = await fetch("http://127.0.0.1:" + address.port + "/v1/education/answer", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ question: " " }),
+    });
+    assert.equal(invalid.status, 400);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+});
