@@ -87,6 +87,11 @@ export function validateProposal(
       if (mq === null || mp === null || mn === null || mx === null || mn > mx) errors.push("agent limits are invalid");
       if (mq !== null && quantity !== null && quantity > mq) errors.push("quantity exceeds agent maxQuantity");
       if (mp !== null && premium !== null && premium > mp) errors.push("premium exceeds agent maxPremium");
+      if (p.type === "Put") {
+        const collateralCap = big(permission.maxCollateralUsdc);
+        if (collateralCap === null) errors.push("agent maxCollateralUsdc is missing or invalid for Put");
+        else if (strike !== null && strike > collateralCap) errors.push("Put strike collateral exceeds agent maxCollateralUsdc");
+      }
       if (mn !== null && expiry !== null && expiry < mn) errors.push("expiry before agent minExpiryNs");
       if (mx !== null && expiry !== null && expiry > mx) errors.push("expiry after agent maxExpiryNs");
     }
