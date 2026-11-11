@@ -43,7 +43,7 @@ On Windows, run:
 
     .\scripts\run-e2e-proof-demo.ps1
 
-If local cargo-near installation is unavailable, download the handel-sandbox-wasm artifact from the successful GitHub Actions run, place its contents under target/near, and use:
+The PowerShell runner installs the checksum-pinned cargo-near 0.22.0 prebuilt release binary automatically if it is missing; it does not compile cargo-near from source. To skip local Wasm compilation entirely, download the handel-sandbox-wasm artifact from the successful GitHub Actions run, place its contents under target/near, and use:
 
     .\scripts\run-e2e-proof-demo.ps1 -UsePrebuiltWasm
 
