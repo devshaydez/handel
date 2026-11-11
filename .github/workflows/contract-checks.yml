@@ -33,6 +33,8 @@ jobs:
           bash -n scripts/deploy-escrow-testnet.sh
           bash scripts/test-deploy-safety.sh
           bash scripts/test-escrow-deploy-safety.sh
+          node --check scripts/check-testnet-deployment-readiness.mjs
+          node --test scripts/test-testnet-deployment-readiness.mjs
 
       - name: Install system dependencies for cargo-near
         run: |
