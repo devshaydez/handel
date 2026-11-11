@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { HandelAdvisoryAgent } from "./advisory-agent.js";
+import type { ProposalGuardrail } from "./agent-runtime.js";
 import { NVDAON_ASSET_ID } from "./assets.js";
 import type { AgentPermission, AgentProposal } from "./types.js";
 
@@ -24,7 +25,7 @@ function proposal(): AgentProposal {
     rationale: "A simulated proposal for review.", createdAt: new Date().toISOString(),
   };
 }
-function agent(guard = async () => ({ allowed: true, outcome: "allow" as const, confidence: 0.99, decisionId: "guard-1", signatureKind: "gateway" as const })) {
+function agent(guard: ProposalGuardrail["evaluate"] = async () => ({ allowed: true, outcome: "allow", confidence: 0.99, decisionId: "guard-1", signatureKind: "gateway" })) {
   return new HandelAdvisoryAgent(
     { propose: async () => ({ proposal: proposal(), requestId: "live-request", verification: { signatureKind: "provider_tee" } }) },
     { evaluate: guard },
