@@ -15,7 +15,10 @@ const pinned = {
   model: "deepseek-ai/DeepSeek-V4.1-Flash-1017",
   gatewaySigner: "40599fb284f43953bb356b09080fd803c960fc10285ad90eca462ca711ad4acb",
   modelSigner: "236f5a6b91dd47dc3b7b36e43d4eb531a042ffb8f8fbf3a1555b78cef4fdda4c",
-  composeHash: "c53e254e8b70aa14b45ba3043730a0736ca2afb1df7fa3db9c61578845e470fe",
+  composeHashes: [
+    "c53e254e8b70aa14b45ba3043730a0736ca2afb1df7fa3db9c61578845e470fe",
+    "448683dd83e50727b9c5f6cdc84bd9d93fcf2c888001a85b1ba32f76b3612e3e",
+  ],
   osImageHash: "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
 };
 if (!apiKey?.trim()) throw new Error("NEARAI_API_KEY is unavailable.");
@@ -62,7 +65,7 @@ for (const m of deployment.models) {
     throw new Error("TEE deployment evidence is incomplete.");
   }
   if (m.signer.signingAddress !== pinned.modelSigner ||
-      measurements.composeHash !== pinned.composeHash ||
+      !pinned.composeHashes.includes(measurements.composeHash) ||
       measurements.osImageHash !== pinned.osImageHash) {
     throw new Error("Model signer or deployment measurement differs from the reviewed Handel TEE allowlist.");
   }
