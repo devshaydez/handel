@@ -97,3 +97,22 @@ test("agent and principal wallet roles cannot be interchanged", async () => {
     approveWithConnectedWallet: async () => "should-not-run",
   }), /explicit principal approval/);
 });
+
+test("explicitly allowlisted synthetic Sandbox assets pass advisory preflight without being relabelled as Ondo", async () => {
+  const sandboxAsset = "ondo:test-stock";
+  const sandboxPermission = { ...permission, allowedAssets: [sandboxAsset] };
+  const sandboxProposal = { ...proposal, underlyingAssetId: sandboxAsset };
+  const sandboxAgent = new HandelAdvisoryAgent(
+    { propose: async () => ({ proposal: sandboxProposal, requestId: "sandbox-request" }) },
+    { evaluate: async () => ({ allowed: true, outcome: "allow", confidence: 0.99, decisionId: "guard-sandbox", signatureKind: "gateway" }) },
+  );
+  const result = await prepareAdvisoryAgentProposal({
+    agent: sandboxAgent,
+    request: { ...request, assetId: sandboxAsset },
+    permission: sandboxPermission,
+    holder: "holder.testnet",
+  });
+  assert.equal(result.prepared.args.asset_id, sandboxAsset);
+  assert.equal(result.prepared.evidenceMode, "advisory_only");
+  assert.equal(result.executionEligible, false);
+});
