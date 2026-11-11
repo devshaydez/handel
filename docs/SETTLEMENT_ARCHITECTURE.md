@@ -191,3 +191,18 @@ No mainnet deployment, real collateral, or user-facing claim of fully collateral
 ## Independent RPC receipt inspection
 
 The SDK now provides `QuorumNearRpcReceiptInspector`, which requires at least two distinct RPC endpoint origins and rejects any disagreement in the finalized transaction, receipt, block identity or verifier event view. Configure endpoints operated by different providers; two hostnames under the same operator do not create meaningful independence. This reduces reliance on one RPC response but is not a light client, consensus proof, or proof of an external-chain event. It only corroborates the NEAR transaction/receipt evidence exposed by those RPCs. The verifier event and its trusted authority remain separate security assumptions.
+
+
+## Receipt-local evidence for NEP-141 escrow payouts
+
+The Escrow contract emits a `EVENT_JSON` log using `handel.settlement.v1` from the private payout callback only after the corresponding NEP-141 `ft_transfer` promise reports success. The event binds the Options source-position ID, deterministic per-position operation ID, operation kind, `nep141:<token-account>` asset ID, raw amount, Escrow sender, and recipient. It is emitted for premium payout/refund, exercise payment, exercise delivery, and expiry collateral release. It is deliberately **not** emitted by the trusted-reconciler override.
+
+A finalized NEAR transaction's receipt outcomes can expose the callback receipt log. Configure `NearRpcReceiptInspector.verifierAccountId` as the Escrow contract account and bind the exact initiating transaction signer and callback receipt ID. The SDK validates the executor, transaction identity, finality, block identity, and full event fields. The quorum wrapper requires matching receipt/event views from distinct RPC origins.
+
+This gives independent observers a receipt-local record of what the Escrow callback observed. It is stronger than a database row or reconciler-supplied receipt string, but the trust boundary must be stated precisely:
+- RPC quorum is corroboration, not a consensus light client; operators may share infrastructure.
+- The event proves that the pinned NEP-141 token contract call returned success. Token-contract code and its transfer semantics still require allowlisting and review.
+- It does not prove remote-chain/Intents internal-ledger balances or an external-chain withdrawal.
+- If the transfer succeeds but the callback receipt itself fails, no settlement event is emitted and the position remains pending. The trusted-reconciler recovery path remains a disclosed trust assumption until an independently verifiable proof mechanism is implemented.
+
+The local Sandbox test asserts the payment and delivery events. Production acceptance still requires Testnet evidence from the actual pinned token contracts and independently operated RPC providers.
