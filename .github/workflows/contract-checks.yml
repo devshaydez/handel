@@ -89,6 +89,14 @@ jobs:
       - name: Run contract and sandbox integration tests
         run: cargo test --workspace
 
+      - name: Upload compiled Sandbox contract Wasm
+        uses: actions/upload-artifact@v4
+        with:
+          name: handel-sandbox-wasm
+          path: target/near/
+          if-no-files-found: error
+          retention-days: 1
+
   testnet-assets:
     name: Live Testnet asset verification (read-only)
     runs-on: ubuntu-latest
@@ -173,6 +181,58 @@ jobs:
         working-directory: sdk/ai-smoke
         run: npm install --no-audit --no-fund
 
+      - name: Set live AI proof artifact paths
+        run: |
+          echo "HANDEL_DEMO_PROPOSAL_FILE=$RUNNER_TEMP/handel-live-ai-proposal.json" >> "$GITHUB_ENV"
+          echo "HANDEL_DEMO_PREPARED_FILE=$RUNNER_TEMP/handel-live-ai-prepared.json" >> "$GITHUB_ENV"
+
       - name: Verify live Chat and System One TEE paths
         working-directory: sdk/ai-smoke
         run: node verify-nearai-live-inference.mjs
+
+      - name: Upload live AI and SDK-prepared proposal evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: handel-live-ai-proposal
+          path: |
+            ${{ runner.temp }}/handel-live-ai-proposal.json
+            ${{ runner.temp }}/handel-live-ai-prepared.json
+          if-no-files-found: error
+          retention-days: 1
+
+  live-ai-sandbox-proof:
+    name: Live NEAR AI → SDK → Sandbox contract proof
+    needs: [contract, nearai-credential-preflight]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Sandbox system dependencies
+        run: |
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=5 install --yes pkg-config libudev-dev
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Download contract Wasm built by the contract job
+        uses: actions/download-artifact@v4
+        with:
+          name: handel-sandbox-wasm
+          path: target/near
+
+      - name: Download live AI and SDK-prepared proposal
+        uses: actions/download-artifact@v4
+        with:
+          name: handel-live-ai-proposal
+          path: ${{ runner.temp }}/handel-live-ai
+
+      - name: Run the live AI → SDK → approval-gated Sandbox lifecycle
+        env:
+          HANDEL_DEMO_PROPOSAL_FILE: ${{ runner.temp }}/handel-live-ai/handel-live-ai-proposal.json
+          HANDEL_DEMO_PREPARED_FILE: ${{ runner.temp }}/handel-live-ai/handel-live-ai-prepared.json
+        run: cargo test -p handel-escrow --test options_registration call_and_put_registration_deposit_and_settle_through_escrow -- --nocapture
