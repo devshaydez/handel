@@ -161,6 +161,27 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
             .parse::<u64>()?,
         None => now_ns + 60_000_000_000,
     };
+    let underlying_amount = match ai_proposal.as_ref() {
+        Some(proposal) => proposal["quantity"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("AI proposal quantity must be a decimal string"))?
+            .parse::<u128>()?,
+        None => 1_000_000,
+    };
+    let strike_amount_usdc = match ai_proposal.as_ref() {
+        Some(proposal) => proposal["strike"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("AI proposal strike must be a decimal string"))?
+            .parse::<u128>()?,
+        None => 2_500_000,
+    };
+    let premium_amount_usdc = match ai_proposal.as_ref() {
+        Some(proposal) => proposal["premium"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("AI proposal premium fixture must be a decimal string"))?
+            .parse::<u128>()?,
+        None => 100_000,
+    };
     if let Some(proposal) = ai_proposal.as_ref() {
         assert_eq!(proposal["proposalId"], "judge-demo-call-001");
         assert_eq!(proposal["type"], "Call");
@@ -180,9 +201,9 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .args_json(json!({
             "agent_id": agent.id(),
             "allowed_assets": [STOCK_ASSET],
-            "max_underlying_amount": 1000000,
-            "max_premium_usdc": 100000,
-            "max_collateral_usdc": 2500000,
+            "max_underlying_amount": underlying_amount,
+            "max_premium_usdc": premium_amount_usdc,
+            "max_collateral_usdc": strike_amount_usdc,
             "max_open_positions": 5,
             "expires_at_ns": expiry + 60_000_000_000
         }))
@@ -197,10 +218,10 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
             "kind": "Call",
             "holder": holder.id(),
             "asset_id": STOCK_ASSET,
-            "underlying_amount": 1000000,
-            "strike_amount_usdc": 2500000,
+            "underlying_amount": underlying_amount,
+            "strike_amount_usdc": strike_amount_usdc,
             "expiry_ns": expiry,
-            "premium_amount_usdc": 100000,
+            "premium_amount_usdc": premium_amount_usdc,
             "rationale_hash": "sha256:simulated-market-rationale"
         }))
         .transact()
