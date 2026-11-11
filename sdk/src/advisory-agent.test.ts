@@ -34,6 +34,7 @@ function agent(guard: ProposalGuardrail["evaluate"] = async () => ({ allowed: tr
 test("creates an advisory proposal, replaces model premium/payoff, and never claims execution eligibility", async () => {
   const result = await agent().propose(request, permission);
   assert.equal(result.proposal.premium, request.demoPremiumFixture);
+  assert.ok(Number.isFinite(Date.parse(result.proposal.createdAt)));
   assert.match(result.proposal.estimatedPayoff, /Not calculated/);
   assert.equal(result.executionEligible, false);
   assert.equal(result.approvalRequired, true);
