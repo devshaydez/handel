@@ -156,7 +156,9 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         Err(_) => None,
     };
     let ai_prepared = match std::env::var("HANDEL_DEMO_PREPARED_FILE") {
-        Ok(path) => Some(serde_json::from_slice::<serde_json::Value>(&std::fs::read(path)?)?),
+        Ok(path) => Some(serde_json::from_slice::<serde_json::Value>(
+            &std::fs::read(path)?,
+        )?),
         Err(_) => None,
     };
     let prepared_args = ai_prepared
