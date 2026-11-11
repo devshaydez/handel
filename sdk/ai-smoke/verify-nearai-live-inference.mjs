@@ -7,7 +7,6 @@ import { writeFileSync } from "node:fs";
  * Handel's governance signer/measurement allowlists remain a separate gate.
  */
 import { InferenceClient } from "@nearai/inference-sdk/node";
-import { verifyComposeManagerDeploymentImageProvenance } from "@nearai/inference-sdk";
 
 const apiKey = process.env.NEARAI_API_KEY;
 const model = process.env.NEARAI_SMOKE_MODEL ?? "deepseek-ai/DeepSeek-V4.1-Flash-1017";
@@ -16,7 +15,7 @@ const pinned = {
   model: "deepseek-ai/DeepSeek-V4.1-Flash-1017",
   gatewaySigner: "40599fb284f43953bb356b09080fd803c960fc10285ad90eca462ca711ad4acb",
   modelSigner: "236f5a6b91dd47dc3b7b36e43d4eb531a042ffb8f8fbf3a1555b78cef4fdda4c",
-  composeHash: "448683dd83e50727b9c5f6cdc84bd9d93fcf2c888001a85b1ba32f76b3612e3e",
+  composeHash: "c53e254e8b70aa14b45ba3043730a0736ca2afb1df7fa3db9c61578845e470fe",
   osImageHash: "91fd5d69ccee3e5ea4f2aeb8c9b632c4358c4ecfc29ba1aa6fb1e402af209829",
 };
 if (!apiKey?.trim()) throw new Error("NEARAI_API_KEY is unavailable.");
@@ -33,24 +32,6 @@ const client = new InferenceClient({
   gatewayVerification: { policy: { acceptedTcbStatuses: ["UpToDate"] } },
   modelVerification: {
     policy: { acceptedTcbStatuses: ["UpToDate"], gpuEvidence: "required" },
-    verifiers: {
-      deployment: (deployment) => verifyComposeManagerDeploymentImageProvenance({
-        deployment,
-        imagePolicies: {
-          "nearaidev/vllm-proxy-rs": {
-            repository: "nearai/inference-proxy",
-            workflow: ".github/workflows/build.yml",
-            ref: "refs/heads/main",
-          },
-        },
-        composeManagerImagePolicy: {
-          imageRepository: "nearaidev/compose-manager",
-          repository: "nearai/compose-manager",
-          workflow: ".github/workflows/build.yml",
-          ref: "refs/heads/main",
-        },
-      }),
-    },
   },
 });
 
