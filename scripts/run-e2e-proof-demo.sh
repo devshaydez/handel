@@ -18,6 +18,10 @@ if [[ -z "${NEARAI_API_KEY:-}" ]]; then
   exit 2
 fi
 
+HANDEL_DEMO_PROPOSAL_FILE="$(mktemp)"
+export HANDEL_DEMO_PROPOSAL_FILE
+trap 'rm -f "$HANDEL_DEMO_PROPOSAL_FILE"' EXIT
+
 echo "== 1/5: Build OptionsContract fault-injection artifact =="
 cargo near build non-reproducible-wasm --no-abi --features fault-injection
 cp target/near/handel_options.wasm target/near/handel_options_fault_injection.wasm
@@ -55,6 +59,7 @@ npm --prefix sdk/ai-smoke install --no-audit --no-fund
   cd sdk/ai-smoke
   node verify-nearai-live-inference.mjs
 )
+test -s "$HANDEL_DEMO_PROPOSAL_FILE"
 
 echo "== 5/5: Run the Options → agent approval → NEP-141 escrow → exercise → settlement Sandbox demo =="
 cargo test -p handel-escrow --test options_registration -- --nocapture
