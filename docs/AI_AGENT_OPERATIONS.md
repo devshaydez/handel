@@ -19,7 +19,7 @@ The live CI smoke uses `deepseek-ai/DeepSeek-V4.1-Flash-1017` through `@nearai/i
 - Gateway and model TCB status required to be `UpToDate`;
 - response receipt verified and required to be `provider_tee`.
 
-The latest recorded live smoke verified the Gateway signer, model signer, compose/OS measurements and provider-TEE response signature, and returned the expected connectivity sentinel. The measured compose hash can change between deployments; do not pin a value from one run as a permanent allowlist without an explicit governance/review process.
+The Chat deployment was re-observed on 2026-11-11 in workflow runs 43088851773 and 43089306819. Gateway signer, model signer, TCB status and OS image measurement matched; the provider returned two UpToDate compose measurements (`c53e254e8b70aa14b45ba3043730a0736ca2afb1df7fa3db9c61578845e470fe` and `448683dd83e50727b9c5f6cdc84bd9d93fcf2c888001a85b1ba32f76b3612e3e`). Both exact measurements are pinned. Any later deployment measurement must fail closed until reviewed and pinned.
 
 The smoke is not a trading decision test. It sends no wallet, portfolio, market, order or transaction data.
 

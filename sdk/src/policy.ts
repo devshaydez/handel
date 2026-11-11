@@ -20,7 +20,12 @@ export function validateProposal(
   if (!p || typeof p !== "object") return { ok: false, errors: ["proposal must be an object"], warnings };
   if (typeof p.proposalId !== "string" || !p.proposalId.trim() || p.proposalId.length > 128) errors.push("proposalId is missing or invalid");
   if (p.type !== "Call" && p.type !== "Put") errors.push("type must be Call or Put");
-  if (typeof p.underlyingAssetId !== "string" || !isOndoUnderlying(p.underlyingAssetId)) errors.push(`underlying not a supported Ondo asset: ${String(p.underlyingAssetId)}`);
+  if (typeof p.underlyingAssetId !== "string" || !p.underlyingAssetId.trim() ||
+      p.underlyingAssetId.length > 256 ||
+      (!isOndoUnderlying(p.underlyingAssetId) &&
+       !(permission?.allowedAssets?.includes(p.underlyingAssetId) ?? false))) {
+    errors.push("underlying must be a curated Ondo asset or explicitly allowlisted by the principal");
+  }
 
   const strike = big(p.strike), quantity = big(p.quantity), premium = big(p.premium), expiry = big(p.expiryNs);
   if (strike === null || strike === 0n) errors.push("strike must be a positive canonical uint256 integer string");
@@ -82,6 +87,11 @@ export function validateProposal(
       if (mq === null || mp === null || mn === null || mx === null || mn > mx) errors.push("agent limits are invalid");
       if (mq !== null && quantity !== null && quantity > mq) errors.push("quantity exceeds agent maxQuantity");
       if (mp !== null && premium !== null && premium > mp) errors.push("premium exceeds agent maxPremium");
+      if (p.type === "Put") {
+        const collateralCap = big(permission.maxCollateralUsdc);
+        if (collateralCap === null) errors.push("agent maxCollateralUsdc is missing or invalid for Put");
+        else if (strike !== null && strike > collateralCap) errors.push("Put strike collateral exceeds agent maxCollateralUsdc");
+      }
       if (mn !== null && expiry !== null && expiry < mn) errors.push("expiry before agent minExpiryNs");
       if (mx !== null && expiry !== null && expiry > mx) errors.push("expiry after agent maxExpiryNs");
     }

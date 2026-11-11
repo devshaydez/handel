@@ -1,70 +1,73 @@
 # Handel
 
-Handel is a NEAR Testnet backend prototype for fully collateralized European-style options on Ondo tokenized assets. It is a hackathon demonstration, not a production financial application or investment advice.
+**Handel** is an AI-assisted, approval-gated options prototype on NEAR. The repository contains the Rust OptionsContract and Escrow contracts, a TypeScript SDK, a local AI service, and a Sandbox proof flow.
 
-## Current scope
+## Current working slice
 
-- Rust contract is the source of truth for option lifecycle, asset allowlists, agent limits, ownership, pause state, and reconciliation state.
-- TypeScript SDK provides proposal validation, contract-compatible call builders, NEP-413 payload helpers, an offline lifecycle demonstration, and bounded monitoring primitives for stuck operation/position states.
-- The deterministic local proposal fallback works without a paid AI API. A NEAR AI Cloud adapter can be added later; AI output never overrides contract policy.
-- Frontend work is intentionally deferred until the user supplies their UI.
-- Development and demo target: NEAR Testnet only. No mainnet deployment, signatures, custody, or real funds.
+- NEAR AI Chat uses the official Node inference SDK with pinned Gateway/model identities and TEE measurements.
+- System One is a separate safety-classification call. Its current configured trust mode is Gateway-signed; it is not represented as a separately model-TEE-attested classifier.
+- The same agent exposes education-only answers and advisory option proposals.
+- Advisory proposals are checked against an on-chain agent policy read at NEAR finality and require ManualApproval mode.
+- The configured **agent account** submits create_agent_proposal; the **principal account** separately signs approve_agent_proposal.
+- The SDK refuses to treat an advisory proposal as executable. The AI path has no verified market feed or live option-pricing engine; it replaces model premium output with an explicitly labelled fixed demo fixture.
+- The Sandbox lifecycle exercises the OptionsContract, mock NEP-141 collateral, escrow, premium, exercise and settlement callbacks.
 
-## NEAR Intents and Testnet boundary
+## Local advisory API
 
-There is no official NEAR Intents Testnet in the hackathon materials. A community-operated sandbox, Tidepool, now advertises an Intents verifier deployment and 1Click-compatible Testnet API. It is not affiliated with NEAR/1Click, uses a single maker, and its published token list does not include Handel's BNB-chain Ondo assets. Tidepool may be used for isolated test-token integration experiments; it does not prove Ondo collateral support.
+The local Node service keeps NEARAI_API_KEY out of browser code. It listens on 127.0.0.1:8787 and exposes:
 
-The default demo remains offline/mock. Do not describe it as live Intents settlement. The current reconciler is a trusted service boundary, not a cryptographic proof verifier.
+- GET /health
+- POST /v1/education/answer
+- POST /v1/advisory/proposals
 
-## Build and test
+The proposal endpoint reads the configured agent's policy and execution mode from the deployed OptionsContract; it does not trust a browser-supplied permission snapshot. It returns the advisory result and exact contract-call arguments. It never signs or submits a transaction.
 
-Rust contract (run from repository root):
+See [Local advisory API](docs/ADVISORY_API.md) and [Frontend integration contract](docs/MANUAL_FRONTEND_INTEGRATION.md).
 
-```sh
-cargo fmt --all -- --check
-cargo test --lib
-cargo build --target wasm32-unknown-unknown --release
-```
+### Start on Windows PowerShell
 
-TypeScript SDK:
+Build the SDK, set the required environment variables from sdk/.env.example in the current PowerShell session, then:
 
-```sh
-cd sdk
-npm install
-npm run build
-npm test
-npm run lifecycle
-```
+    cd sdk
+    npm install
+    npm run build
+    npm run server
 
-The offline lifecycle demo prints contract-compatible method names and argument shapes. It does not sign NEP-413 messages, submit transactions, or move assets.
+Required server values include NEARAI_API_KEY, HANDEL_OPTIONS_CONTRACT_ID, HANDEL_AI_BUDGET_MICROS, HANDEL_AI_MAX_REQUEST_COST_MICROS, HANDEL_AI_MAX_REQUESTS, HANDEL_AI_MAX_COMPLETION_TOKENS, and HANDEL_AI_MAX_PROMPT_BYTES. Budget values are local reservation ceilings, not a provider billing quote.
 
-## Testnet deployment preparation
+The OptionsContract must already be deployed and the agent must have an enabled on-chain policy in ManualApproval mode. The browser wallet still performs both signing steps separately.
 
-The PowerShell deployment helper is `scripts/deploy-testnet.ps1`; the Bash equivalent is `scripts/deploy.sh`. Both now require an explicit Testnet confirmation flag, build only the OptionsContract artifact (never an arbitrary workspace Wasm), print its SHA-256, and deploy only to `network-config testnet`. They require an existing dedicated `.testnet` account and its full-access key in the local NEAR CLI keychain; they do not create accounts, keys, register tokens, or fund storage. Initialization is opt-in and must be used only for a brand-new account with no prior contract state. See `docs/TESTNET_RELEASE_RUNBOOK.md` for mandatory preflight and post-deployment evidence. Do not deploy until the exact CI commit, account/key policy, custody/reconciliation design, and independent review are approved.
+## End-to-end proof
 
-GitHub Actions runs Rust formatting, unit tests, optimized Wasm builds, callback-failure Wasm builds, Sandbox/workspace integration tests, SDK compilation/tests, and the offline demo. The workflow also syntax-checks the Bash deployment helper.
+On Windows, run:
 
-## Contract lifecycle
+    .\scripts\run-e2e-proof-demo.ps1
 
-- Direct writer offers: `create_call` / `create_put`.
-- Agent proposals: `create_agent_proposal`; the principal must approve using `approve_agent_proposal`.
-- Collateral: `begin_collateral_lock`, then trusted-reconciler evidence through `reconcile_operation`. A definitively failed lock can be retried by the writer with `retry_collateral_lock`.
-- Premium: `begin_premium_payment`, then reconciliation. A definitively failed payment can be retried by the holder with `retry_premium_payment`; collateral must already be confirmed.
-- Agent policy: configure `max_collateral_usdc` as well as underlying and premium limits; put proposals are rejected when their strike collateral exceeds this cap.
-- Exercise: `exercise` is blocked before maturity and may be submitted during the 24-hour post-maturity transaction grace period. It creates separate payment and delivery operations; both must reconcile successfully before `Settled`. If a leg fails, the relevant party can retry it with a fresh operation ID using `retry_exercise_payment` or `retry_exercise_delivery`.
-- Expiry: `request_expiry_release` is available only after the exercise grace period and creates an external release operation; this is not a native token transfer by the contract.
+The PowerShell runner installs the checksum-pinned cargo-near 0.22.0 prebuilt release binary automatically if it is missing; it does not compile cargo-near from source. To skip local Wasm compilation entirely, download the handel-sandbox-wasm artifact from the successful GitHub Actions run, place its contents under target/near, and use:
 
-## Security and deployment boundary
+    .\scripts\run-e2e-proof-demo.ps1 -UsePrebuiltWasm
 
-See [`docs/CUSTODY_AND_SETTLEMENT.md`](docs/CUSTODY_AND_SETTLEMENT.md), [`docs/SETTLEMENT_ARCHITECTURE.md`](docs/SETTLEMENT_ARCHITECTURE.md), and [`docs/ESCROW_TESTNET_PROTOTYPE.md`](docs/ESCROW_TESTNET_PROTOTYPE.md) for the Testnet boundary, Tidepool compatibility, custody architecture, partial-settlement risks, maturity rules, and release gates.
+On Linux/macOS/WSL:
 
-The contract checks reconciliation caller, operation ID, asset, amount, sender, and receiver. It does not independently prove that an external NEAR Intents or verifier event occurred. The configured reconciler is a trust root. Retryable exercise-leg recovery is implemented, but it does not solve economic compensation if one transfer is irreversible and the counter-transfer cannot be completed. Authenticated proof verification, custody authority, and finality/reorg handling remain unresolved. Do not use real assets or deploy for production.
+    ./scripts/run-e2e-proof-demo.sh
 
-The preceding PR commit passed GitHub Actions; every new code change must pass CI again before deployment. Do not deploy until the latest GitHub Actions checks pass and the custody/reconciliation design has been reviewed.
+The proof path runs live Chat + System One, feeds the result through the Handel advisory SDK, then uses the SDK-prepared contract arguments in the Sandbox lifecycle. The workflow also runs this integrated proof in GitHub Actions.
 
-Never commit wallet seed phrases, private keys, API keys, or other credentials. Share only public account IDs in chat.
+## Explicit demo and release boundaries
 
+This is a **simulation-backed hackathon slice**, not a production trading venue:
 
-## NEAR AI Cloud adapter (Batch 8)
+- Tidepool Testnet assets are synthetic. They do not prove live Ondo tokenized-stock support.
+- The advisory premium is a fixed demo fixture; no verified live market feed or production pricing is configured.
+- Sandbox mock tokens and local callbacks do not prove real Testnet collateral movement or real Intents settlement.
+- Settlement still has trusted reconciliation paths for ambiguous callback failures; receipt logs and multiple RPC origins are not a NEAR light-client proof.
+- The bundled HTTP service is localhost-only and process-local. Public hosting requires wallet/session authentication, durable shared budgets and rate limits, persistent audit storage, monitoring and security review.
+- Testnet deployment, agent-account provisioning, policy configuration and wallet signing are separate release operations; no contract deployment or real asset movement is performed by CI.
 
-The SDK exposes an optional `NearAiProposalProvider` backed by the official `@nearai/inference-sdk` Node client. Install the optional runtime peer with `npm install @nearai/inference-sdk` in the SDK deployment environment. Configure `NEARAI_API_KEY`, `NEARAI_MODEL`, and `NEARAI_BASE_URL` there; never commit credentials. The adapter verifies Gateway/model deployment evidence and requires a `provider_tee` response receipt by default. Offline CI uses mocked clients and makes no paid requests. A per-request USD reservation ceiling must be set from current verified model pricing; the local ledger is process-local and must be centralised before multi-instance deployment. No live inference has been claimed until a credentialed smoke test passes.
+Do not present a simulated proposal, premium, collateral transfer, or settlement as a live trade.
+
+## Development checks
+
+GitHub Actions validates Rust formatting, contract/Wasm builds, workspace tests, SDK build/tests, the offline lifecycle, read-only Testnet asset checks, live NEAR AI attestation/inference, and the live AI → SDK → Sandbox proof.
+
+The full frontend-excluded delivery checklist and remaining gates are in [Final backend readiness](docs/FINAL_BACKEND_READINESS.md).

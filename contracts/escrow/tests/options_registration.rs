@@ -147,49 +147,98 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .await?
         .into_result()?;
 
-    // The judge script passes the exact live-AI proposal JSON into this Sandbox
-    // test. Without that file, the same deterministic fixture keeps CI self-contained.
+    // The proof script supplies both the exact live-AI proposal and the SDK-prepared
+    // create_agent_proposal arguments. CI without those files remains deterministic.
     let ai_proposal = match std::env::var("HANDEL_DEMO_PROPOSAL_FILE") {
         Ok(path) => Some(serde_json::from_slice::<serde_json::Value>(
             &std::fs::read(path)?,
         )?),
         Err(_) => None,
     };
+    let ai_prepared = match std::env::var("HANDEL_DEMO_PREPARED_FILE") {
+        Ok(path) => Some(serde_json::from_slice::<serde_json::Value>(
+            &std::fs::read(path)?,
+        )?),
+        Err(_) => None,
+    };
+    let prepared_args = ai_prepared
+        .as_ref()
+        .map(|prepared| &prepared["prepared"]["args"]);
     let now_ns = worker.view_block().await?.header().timestamp_nanosec();
-    let expiry = match ai_proposal.as_ref() {
-        Some(proposal) => proposal["expiryNs"]
-            .as_str()
-            .ok_or_else(|| anyhow::anyhow!("AI proposal expiryNs must be a decimal string"))?
-            .parse::<u64>()?,
-        None => now_ns + 60_000_000_000,
-    };
-    let underlying_amount = match ai_proposal.as_ref() {
-        Some(proposal) => proposal["quantity"]
-            .as_str()
-            .ok_or_else(|| anyhow::anyhow!("AI proposal quantity must be a decimal string"))?
-            .parse::<u128>()?,
-        None => 1_000_000,
-    };
-    let strike_amount_usdc = match ai_proposal.as_ref() {
-        Some(proposal) => proposal["strike"]
-            .as_str()
-            .ok_or_else(|| anyhow::anyhow!("AI proposal strike must be a decimal string"))?
-            .parse::<u128>()?,
-        None => 2_500_000,
-    };
-    let premium_amount_usdc = match ai_proposal.as_ref() {
-        Some(proposal) => proposal["premium"]
-            .as_str()
-            .ok_or_else(|| anyhow::anyhow!("AI proposal premium fixture must be a decimal string"))?
-            .parse::<u128>()?,
-        None => 100_000,
-    };
+    let expiry = prepared_args
+        .and_then(|args| args["expiry_ns"].as_str())
+        .or_else(|| {
+            ai_proposal
+                .as_ref()
+                .and_then(|proposal| proposal["expiryNs"].as_str())
+        })
+        .map(str::parse::<u64>)
+        .transpose()?
+        .unwrap_or(now_ns + 60_000_000_000);
+    let underlying_amount = prepared_args
+        .and_then(|args| args["underlying_amount"].as_str())
+        .or_else(|| {
+            ai_proposal
+                .as_ref()
+                .and_then(|proposal| proposal["quantity"].as_str())
+        })
+        .map(str::parse::<u128>)
+        .transpose()?
+        .unwrap_or(1_000_000);
+    let strike_amount_usdc = prepared_args
+        .and_then(|args| args["strike_amount_usdc"].as_str())
+        .or_else(|| {
+            ai_proposal
+                .as_ref()
+                .and_then(|proposal| proposal["strike"].as_str())
+        })
+        .map(str::parse::<u128>)
+        .transpose()?
+        .unwrap_or(2_500_000);
+    let premium_amount_usdc = prepared_args
+        .and_then(|args| args["premium_amount_usdc"].as_str())
+        .or_else(|| {
+            ai_proposal
+                .as_ref()
+                .and_then(|proposal| proposal["premium"].as_str())
+        })
+        .map(str::parse::<u128>)
+        .transpose()?
+        .unwrap_or(100_000);
+    let proposal_id = prepared_args
+        .and_then(|args| args["proposal_id"].as_str())
+        .or_else(|| {
+            ai_proposal
+                .as_ref()
+                .and_then(|proposal| proposal["proposalId"].as_str())
+        })
+        .unwrap_or("judge-demo-call-001");
+    let kind = prepared_args
+        .and_then(|args| args["kind"].as_str())
+        .or_else(|| {
+            ai_proposal
+                .as_ref()
+                .and_then(|proposal| proposal["type"].as_str())
+        })
+        .unwrap_or("Call");
+    let asset_id = prepared_args
+        .and_then(|args| args["asset_id"].as_str())
+        .or_else(|| {
+            ai_proposal
+                .as_ref()
+                .and_then(|proposal| proposal["underlyingAssetId"].as_str())
+        })
+        .unwrap_or(STOCK_ASSET);
+    let rationale_hash = prepared_args
+        .and_then(|args| args["rationale_hash"].as_str())
+        .unwrap_or("sha256:simulated-market-rationale");
+
     if let Some(proposal) = ai_proposal.as_ref() {
-        assert_eq!(proposal["proposalId"], "judge-demo-call-001");
-        assert_eq!(proposal["type"], "Call");
-        assert_eq!(proposal["underlyingAssetId"], STOCK_ASSET);
-        assert_eq!(proposal["quantity"], "1000000");
-        assert_eq!(proposal["strike"], "2500000");
+        assert_eq!(proposal["proposalId"], proposal_id);
+        assert_eq!(proposal["type"], kind);
+        assert_eq!(proposal["underlyingAssetId"], asset_id);
+        assert_eq!(proposal["quantity"], underlying_amount.to_string());
+        assert_eq!(proposal["strike"], strike_amount_usdc.to_string());
         assert_eq!(proposal["premium"], "100000");
         assert!(
             expiry > now_ns + 5 * 60 * 1_000_000_000,
@@ -204,14 +253,26 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
             .as_array()
             .is_some_and(|risks| !risks.is_empty()));
     }
+    if let (Some(proposal), Some(args)) = (ai_proposal.as_ref(), prepared_args) {
+        assert_eq!(args["proposal_id"], proposal["proposalId"]);
+        assert_eq!(args["kind"], proposal["type"]);
+        assert_eq!(args["asset_id"], proposal["underlyingAssetId"]);
+        assert_eq!(args["underlying_amount"], proposal["quantity"]);
+        assert_eq!(args["strike_amount_usdc"], proposal["strike"]);
+        assert_eq!(args["expiry_ns"], proposal["expiryNs"]);
+        assert_eq!(args["premium_amount_usdc"], "100000");
+        assert!(args["rationale_hash"]
+            .as_str()
+            .is_some_and(|hash| hash.starts_with("sha256:")));
+    }
 
-    // Reproduce the AI-agent handoff on-chain: the agent may propose only within
-    // the principal's bounded policy, while the principal alone approves it.
+    // The contract receives the exact SDK-prepared terms. The agent account
+    // submits the proposal; the principal must approve it in a separate call.
     writer
         .call(options.id(), "set_agent_policy")
         .args_json(json!({
             "agent_id": agent.id(),
-            "allowed_assets": [STOCK_ASSET],
+            "allowed_assets": [asset_id],
             "max_underlying_amount": underlying_amount,
             "max_premium_usdc": premium_amount_usdc,
             "max_collateral_usdc": strike_amount_usdc,
@@ -225,15 +286,15 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
     agent
         .call(options.id(), "create_agent_proposal")
         .args_json(json!({
-            "proposal_id": "judge-demo-call-001",
-            "kind": "Call",
+            "proposal_id": proposal_id,
+            "kind": kind,
             "holder": holder.id(),
-            "asset_id": STOCK_ASSET,
+            "asset_id": asset_id,
             "underlying_amount": underlying_amount,
             "strike_amount_usdc": strike_amount_usdc,
             "expiry_ns": expiry,
             "premium_amount_usdc": premium_amount_usdc,
-            "rationale_hash": "sha256:simulated-market-rationale"
+            "rationale_hash": rationale_hash
         }))
         .transact()
         .await?
@@ -241,7 +302,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
 
     let pending_proposal = root
         .view(options.id(), "get_agent_proposal")
-        .args_json(json!({"proposal_id": "judge-demo-call-001"}))
+        .args_json(json!({"proposal_id": proposal_id}))
         .await?
         .json::<serde_json::Value>()?;
     assert_eq!(pending_proposal["state"], "PendingApproval");
@@ -257,13 +318,13 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
 
     writer
         .call(options.id(), "approve_agent_proposal")
-        .args_json(json!({"proposal_id": "judge-demo-call-001"}))
+        .args_json(json!({"proposal_id": proposal_id}))
         .transact()
         .await?
         .into_result()?;
     let approved_proposal = root
         .view(options.id(), "get_agent_proposal")
-        .args_json(json!({"proposal_id": "judge-demo-call-001"}))
+        .args_json(json!({"proposal_id": proposal_id}))
         .await?
         .json::<serde_json::Value>()?;
     assert_eq!(approved_proposal["state"], "Approved");

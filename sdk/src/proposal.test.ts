@@ -10,6 +10,7 @@ const permission: AgentPermission = {
   allowedAssets: [NVDAON_ASSET_ID],
   maxQuantity: "2000000000000000000",
   maxPremium: "10000000",
+  maxCollateralUsdc: "1000000000",
   maxOpenPositions: 2,
   minExpiryNs: "0",
   maxExpiryNs: "999999999999999999999",
@@ -56,7 +57,7 @@ test("invalid proposal is rejected before a contract call is built", () => {
 
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.ok(result.errors.some((error) => error.includes("underlying not a supported Ondo asset")));
+  assert.ok(result.errors.some((error) => error.includes("underlying must be a curated Ondo asset or explicitly allowlisted by the principal")));
 });
 
 

@@ -59,6 +59,8 @@ export class HandelAdvisoryAgent {
       premium: request.demoPremiumFixture,
       estimatedPayoff: "Not calculated: no verified market data or pricing oracle is configured.",
       dataFreshness: "not-used: no verified market feed configured",
+      // Creation time is host-generated metadata, never model-authored evidence.
+      createdAt: new Date().toISOString(),
     };
     const policy = validateProposal(proposal, permission, { requireAgent: true });
     if (!policy.ok) throw new AdvisoryAgentError(policy.errors.join("; "), "POLICY_REJECTED");
