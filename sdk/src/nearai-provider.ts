@@ -181,6 +181,79 @@ export class NearAiProposalProvider {
 
   budgetSnapshot() { return this.ledger.snapshot(); }
 
+  /** Verified educational response path; it cannot create a proposal or request a transaction. */
+  async explain(input: { question: string; context?: unknown }) {
+    const body = JSON.stringify({
+      mode: "EDUCATION_ONLY",
+      question: input.question,
+      context: input.context ?? null,
+      instructions: "Explain concepts clearly and distinguish general education from personalized financial advice. No live market data is configured. Never invent prices, balances, news, permissions, calculations, or execution outcomes. Do not recommend a specific trade or claim that a transaction was submitted. Label hypothetical examples.",
+    });
+    if (new TextEncoder().encode(body).byteLength > this.c.budget.maxPromptBytes) {
+      throw new NearAiError("education prompt exceeds byte cap", "PROMPT_TOO_LARGE");
+    }
+    const usage = this.ledger.reserve();
+    let deployment: NearAiVerifiedDeployment;
+    try { deployment = await this.client.verify(this.c.model); }
+    catch { throw new NearAiError("deployment attestation failed", "ATTESTATION_FAILED"); }
+    if (deployment.gateway?.tcbStatus !== "UpToDate") throw new NearAiError("Gateway TCB is not UpToDate", "GATEWAY_TCB_REJECTED");
+    if (!deployment.gateway.signer?.signingAddress || !this.c.allowedGatewaySigners.includes(deployment.gateway.signer.signingAddress)) {
+      throw new NearAiError("Gateway signer is not allowlisted", "GATEWAY_SIGNER_REJECTED");
+    }
+    if (!Array.isArray(deployment.models) || !deployment.models.length) throw new NearAiError("model deployment has no verified model attestation", "MODEL_NOT_ATTESTED");
+    for (const model of deployment.models) {
+      if (model.tcbStatus !== "UpToDate") throw new NearAiError("model TCB is not UpToDate", "MODEL_TCB_REJECTED");
+      if (!model.signer?.signingAddress || !this.c.allowedModelSigners.includes(model.signer.signingAddress)) {
+        throw new NearAiError("model signer is not allowlisted", "MODEL_SIGNER_REJECTED");
+      }
+      const m = model.deployment?.runtimeMeasurements;
+      if (!m?.composeHash || !this.c.allowedComposeHashes.includes(m.composeHash) ||
+          !m.osImageHash || !this.c.allowedOsImageHashes.includes(m.osImageHash)) {
+        throw new NearAiError("model deployment measurement is not allowlisted", "DEPLOYMENT_MEASUREMENT_REJECTED");
+      }
+    }
+    let completion;
+    try {
+      completion = await this.client.chat.completions.create({
+        model: this.c.model,
+        messages: [
+          { role: "system", content: "You are Handel's educational options assistant. Explain options, tokenized assets, risk, and how the Handel prototype works. You are educational only, not a financial adviser or execution agent. No live market feed or real pricing is available. Never fabricate market facts, prices, news, balances, permissions, calculations, or transaction status. Clearly label hypothetical examples and state when evidence is unavailable." },
+          { role: "user", content: body },
+        ],
+        temperature: 0.2,
+        max_tokens: this.c.budget.maxCompletionTokens,
+      });
+    } catch { throw new NearAiError("education inference failed", "INFERENCE_FAILED"); }
+    if (!completion.id) throw new NearAiError("completion ID missing", "INVALID_RESPONSE");
+    let receipt;
+    try { receipt = await this.client.verifyResponse(completion.id); }
+    catch { throw new NearAiError("response signature verification failed", "RESPONSE_UNVERIFIED"); }
+    if (receipt.signatureKind !== "provider_tee" && this.c.requireProviderTee !== false) {
+      throw new NearAiError("response is not provider-TEE signed", "MODEL_SIGNATURE_REQUIRED");
+    }
+    if (receipt.signatureKind !== "provider_tee" && receipt.signatureKind !== "gateway") {
+      throw new NearAiError("unknown signature kind", "INVALID_SIGNATURE");
+    }
+    const answer = completion.choices?.[0]?.message?.content;
+    if (typeof answer !== "string" || !answer.trim() || answer.length > 12_000) {
+      throw new NearAiError("education response is empty or oversized", "INVALID_RESPONSE");
+    }
+    return {
+      answer: answer.trim(),
+      requestId: completion.id,
+      verification: {
+        modelId: this.c.model,
+        gatewayVerified: true,
+        modelAttested: true,
+        signatureKind: receipt.signatureKind,
+        verifiedAt: deployment.verifiedAt ?? Date.now(),
+        modelSigners: deployment.models.map(m => m.signer?.signingAddress),
+      },
+      privacy: { e2ee: true, ohttp: true, signingAlgo: "ed25519" as const },
+      usage,
+    };
+  }
+
   async propose(input: unknown) {
     const body = JSON.stringify(input);
     if (new TextEncoder().encode(body).byteLength > this.c.budget.maxPromptBytes) throw new NearAiError("prompt exceeds byte cap", "PROMPT_TOO_LARGE");
