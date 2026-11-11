@@ -33,7 +33,7 @@ permissions:
 jobs:
   contract:
     name: Rust format, unit tests, and Wasm build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -50,8 +50,8 @@ jobs:
 
       - name: Install system dependencies for cargo-near
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes pkg-config libudev-dev
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=5 install --yes pkg-config libudev-dev
 
       - name: Install stable Rust
         uses: dtolnay/rust-toolchain@stable
