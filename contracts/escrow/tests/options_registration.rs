@@ -150,50 +150,82 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
     // The proof script supplies both the exact live-AI proposal and the SDK-prepared
     // create_agent_proposal arguments. CI without those files remains deterministic.
     let ai_proposal = match std::env::var("HANDEL_DEMO_PROPOSAL_FILE") {
-        Ok(path) => Some(serde_json::from_slice::<serde_json::Value>(&std::fs::read(path)?)?),
+        Ok(path) => Some(serde_json::from_slice::<serde_json::Value>(
+            &std::fs::read(path)?,
+        )?),
         Err(_) => None,
     };
     let ai_prepared = match std::env::var("HANDEL_DEMO_PREPARED_FILE") {
         Ok(path) => Some(serde_json::from_slice::<serde_json::Value>(&std::fs::read(path)?)?),
         Err(_) => None,
     };
-    let prepared_args = ai_prepared.as_ref().map(|prepared| &prepared["prepared"]["args"]);
+    let prepared_args = ai_prepared
+        .as_ref()
+        .map(|prepared| &prepared["prepared"]["args"]);
     let now_ns = worker.view_block().await?.header().timestamp_nanosec();
     let expiry = prepared_args
         .and_then(|args| args["expiry_ns"].as_str())
-        .or_else(|| ai_proposal.as_ref().and_then(|proposal| proposal["expiryNs"].as_str()))
+        .or_else(|| {
+            ai_proposal
+                .as_ref()
+                .and_then(|proposal| proposal["expiryNs"].as_str())
+        })
         .map(str::parse::<u64>)
         .transpose()?
         .unwrap_or(now_ns + 60_000_000_000);
     let underlying_amount = prepared_args
         .and_then(|args| args["underlying_amount"].as_str())
-        .or_else(|| ai_proposal.as_ref().and_then(|proposal| proposal["quantity"].as_str()))
+        .or_else(|| {
+            ai_proposal
+                .as_ref()
+                .and_then(|proposal| proposal["quantity"].as_str())
+        })
         .map(str::parse::<u128>)
         .transpose()?
         .unwrap_or(1_000_000);
     let strike_amount_usdc = prepared_args
         .and_then(|args| args["strike_amount_usdc"].as_str())
-        .or_else(|| ai_proposal.as_ref().and_then(|proposal| proposal["strike"].as_str()))
+        .or_else(|| {
+            ai_proposal
+                .as_ref()
+                .and_then(|proposal| proposal["strike"].as_str())
+        })
         .map(str::parse::<u128>)
         .transpose()?
         .unwrap_or(2_500_000);
     let premium_amount_usdc = prepared_args
         .and_then(|args| args["premium_amount_usdc"].as_str())
-        .or_else(|| ai_proposal.as_ref().and_then(|proposal| proposal["premium"].as_str()))
+        .or_else(|| {
+            ai_proposal
+                .as_ref()
+                .and_then(|proposal| proposal["premium"].as_str())
+        })
         .map(str::parse::<u128>)
         .transpose()?
         .unwrap_or(100_000);
     let proposal_id = prepared_args
         .and_then(|args| args["proposal_id"].as_str())
-        .or_else(|| ai_proposal.as_ref().and_then(|proposal| proposal["proposalId"].as_str()))
+        .or_else(|| {
+            ai_proposal
+                .as_ref()
+                .and_then(|proposal| proposal["proposalId"].as_str())
+        })
         .unwrap_or("judge-demo-call-001");
     let kind = prepared_args
         .and_then(|args| args["kind"].as_str())
-        .or_else(|| ai_proposal.as_ref().and_then(|proposal| proposal["type"].as_str()))
+        .or_else(|| {
+            ai_proposal
+                .as_ref()
+                .and_then(|proposal| proposal["type"].as_str())
+        })
         .unwrap_or("Call");
     let asset_id = prepared_args
         .and_then(|args| args["asset_id"].as_str())
-        .or_else(|| ai_proposal.as_ref().and_then(|proposal| proposal["underlyingAssetId"].as_str()))
+        .or_else(|| {
+            ai_proposal
+                .as_ref()
+                .and_then(|proposal| proposal["underlyingAssetId"].as_str())
+        })
         .unwrap_or(STOCK_ASSET);
     let rationale_hash = prepared_args
         .and_then(|args| args["rationale_hash"].as_str())
@@ -210,8 +242,14 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
             expiry > now_ns + 5 * 60 * 1_000_000_000,
             "AI proposal expires too soon for Sandbox run"
         );
-        assert!(!proposal["rationale"].as_str().unwrap_or_default().trim().is_empty());
-        assert!(proposal["risks"].as_array().is_some_and(|risks| !risks.is_empty()));
+        assert!(!proposal["rationale"]
+            .as_str()
+            .unwrap_or_default()
+            .trim()
+            .is_empty());
+        assert!(proposal["risks"]
+            .as_array()
+            .is_some_and(|risks| !risks.is_empty()));
     }
     if let (Some(proposal), Some(args)) = (ai_proposal.as_ref(), prepared_args) {
         assert_eq!(args["proposal_id"], proposal["proposalId"]);
@@ -221,7 +259,9 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         assert_eq!(args["strike_amount_usdc"], proposal["strike"]);
         assert_eq!(args["expiry_ns"], proposal["expiryNs"]);
         assert_eq!(args["premium_amount_usdc"], "100000");
-        assert!(args["rationale_hash"].as_str().is_some_and(|hash| hash.starts_with("sha256:")));
+        assert!(args["rationale_hash"]
+            .as_str()
+            .is_some_and(|hash| hash.starts_with("sha256:")));
     }
 
     // The contract receives the exact SDK-prepared terms. The agent account
