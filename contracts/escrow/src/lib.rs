@@ -1431,7 +1431,7 @@ impl EscrowContract {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use near_sdk::test_utils::VMContextBuilder;
+    use near_sdk::test_utils::{get_logs, VMContextBuilder};
     use near_sdk::testing_env;
 
     fn account(value: &str) -> AccountId {
@@ -1856,6 +1856,13 @@ mod tests {
             c.get_position(0).state,
             EscrowState::CollateralPayoutPending
         );
+        let payment_logs = get_logs();
+        assert!(payment_logs.iter().any(|log| {
+            log.starts_with("EVENT_JSON:")
+                && log.contains("\\"operationKind\\":\\"exercise_payment\\"")
+                && log.contains("\\"amount\\":\\"500\\"")
+                && log.contains("\\"receiver\\":\\"writer.testnet\\"")
+        }));
 
         let collateral_callback = VMContextBuilder::new()
             .current_account_id(account("escrow.testnet"))
@@ -1905,6 +1912,13 @@ mod tests {
         assert_eq!(settled.state, EscrowState::Settled);
         assert!(settled.payment_paid);
         assert!(settled.collateral_delivered_to_holder);
+        let delivery_logs = get_logs();
+        assert!(delivery_logs.iter().any(|log| {
+            log.starts_with("EVENT_JSON:")
+                && log.contains("\\"operationKind\\":\\"exercise_delivery\\"")
+                && log.contains("\\"assetId\\":\\"nep141:synthetic-stock.testnet\\"")
+                && log.contains("\\"receiver\\":\\"holder.testnet\\"")
+        }));
     }
 
     #[test]
