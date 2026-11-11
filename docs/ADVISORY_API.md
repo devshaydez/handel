@@ -28,7 +28,9 @@ The service listens on `127.0.0.1:8787` by default. It deliberately refuses non-
 
 The service reads `get_agent_policy` and `get_agent_execution_mode` from the configured OptionsContract at NEAR finality. Both reads must be from the same block. It rejects disabled policies, malformed policy state, and any mode other than `ManualApproval`. The permission snapshot used for the proposal is therefore read from the contract, not accepted from the browser.
 
-The service then calls the NEAR AI Chat provider and System One guard, applies the fixed demo premium fixture, and returns the advisory proposal plus the exact `create_agent_proposal` arguments. It does not sign, submit, approve, lock collateral, or settle anything.
+The education route uses the same pinned NEAR AI Chat model and shared request-budget ledger, then screens the response with System One. It is education-only and has no market data, wallet or transaction authority.
+
+The proposal route calls the NEAR AI Chat provider and System One guard, applies the fixed demo premium fixture, and returns the advisory proposal plus the exact `create_agent_proposal` arguments. It does not sign, submit, approve, lock collateral, or settle anything.
 
 ## Wallet handoff
 
