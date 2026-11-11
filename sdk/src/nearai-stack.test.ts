@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createHandelAgentRuntime,
+  createHandelAdvisoryAgent,
   createHandelNearAiStack,
   HANDEL_NEARAI_TEE_ALLOWLIST,
 } from "./nearai-stack.js";
@@ -44,6 +45,9 @@ test("assembles official Chat and System One clients with pinned evidence and on
     marketVerifier: { verify: async () => ({ approved: false, executionEligible: false, evidenceType: "display_only", method: "fixture", evidenceHash: "b".repeat(64) }) },
   });
   assert.ok(runtime instanceof Object);
+  const advisoryAgent = createHandelAdvisoryAgent(stack);
+  assert.ok(advisoryAgent instanceof Object);
+  assert.equal(advisoryAgent.constructor.name, "HandelAdvisoryAgent");
 });
 
 test("requires an API key and explicit valid budget", async () => {
