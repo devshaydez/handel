@@ -125,3 +125,22 @@ For each deployment/test, record:
 | Before/after balances | |
 | Independent reviewer | |
 | Open discrepancies | |
+
+
+## 7. Machine-checked deployment readiness manifest
+
+Copy `config/testnet-deployment.example.json` to `config/testnet-deployment.json` in a controlled local workspace and fill it only with independently verified, non-secret facts. Record both contract accounts, exact SHA-256 hashes of the built Wasm artifacts, operator account, selected asset IDs/decimals, and each contract's NEP-145 registration state.
+
+Run:
+
+    node scripts/check-testnet-deployment-readiness.mjs config/testnet-deployment.json
+
+The checker fails closed unless the contract accounts are distinct `.testnet` accounts, both artifact hashes are valid SHA-256 digests, the operator account and key policy are recorded, the state disposition and rollback plan are reviewed, independent security review and explicit deployment approval are recorded, and each selected asset is enabled with metadata and both contracts' storage registrations verified.
+
+The checker is deliberately read-only. It does not create accounts, inspect/export keys, submit transactions, register storage, deploy contracts, or transfer tokens. A passing manifest records operator attestations; it does not independently prove them. Never mark approval/review fields true without the corresponding human approval and captured evidence. The checked-in example contains placeholders and must fail.
+
+Run regression tests with:
+
+    node --test scripts/test-testnet-deployment-readiness.mjs
+
+Do not commit a populated deployment manifest or credentials.
