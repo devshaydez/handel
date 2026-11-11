@@ -41,6 +41,17 @@ if (deployment?.gateway?.tcbStatus !== "UpToDate") {
 if (!deployment.models?.length || deployment.models.some((m) => m.tcbStatus !== "UpToDate")) {
   throw new Error("Model deployment is missing or not UpToDate.");
 }
+console.log("Observed live deployment evidence (public signer/measurement metadata):");
+console.log(JSON.stringify({
+  gatewayTcbStatus: deployment.gateway.tcbStatus,
+  gatewaySigner: deployment.gateway.signer?.signingAddress ?? null,
+  models: deployment.models.map((m) => ({
+    tcbStatus: m.tcbStatus,
+    signer: m.signer?.signingAddress ?? null,
+    composeHash: m.deployment?.runtimeMeasurements?.composeHash ?? null,
+    osImageHash: m.deployment?.runtimeMeasurements?.osImageHash ?? null,
+  })),
+}, null, 2));
 if (deployment.gateway.signer?.signingAddress !== pinned.gatewaySigner) {
   throw new Error("Gateway signer differs from the reviewed Handel TEE allowlist.");
 }
