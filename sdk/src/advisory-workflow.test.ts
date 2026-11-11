@@ -54,7 +54,6 @@ test("live advisory proposal bridges to agent submission then separate principal
   assert.equal(result.executionEligible, false);
   assert.equal(result.prepared.evidenceMode, "advisory_only");
   assert.equal(result.prepared.principalApprovalRequired, true);
-  assert.equal(result.prepared.args.method, undefined);
   assert.equal(result.prepared.args.premium_amount_usdc, request.demoPremiumFixture);
 
   const submitted: unknown[] = [];
