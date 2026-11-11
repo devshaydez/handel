@@ -36,7 +36,18 @@ try {
         throw "npm is required."
     }
     if (-not $UsePrebuiltWasm -and -not (Get-Command cargo-near -ErrorAction SilentlyContinue)) {
-        throw "cargo-near 0.22.0 is required, or rerun with -UsePrebuiltWasm after downloading the handel-sandbox-wasm CI artifact into target/near."
+        $installer = Join-Path $env:TEMP "cargo-near-installer.ps1"
+        $installerUrl = "https://github.com/near/cargo-near/releases/download/cargo-near-v0.22.0/cargo-near-installer.ps1"
+        Invoke-WebRequest -Uri $installerUrl -OutFile $installer
+        $installerHash = (Get-FileHash -Algorithm SHA256 $installer).Hash.ToLowerInvariant()
+        if ($installerHash -ne "78c477ce11ddb1d5e3874fc69f0e990a9fb2f49d34bc79d29801b201401ffc49") {
+            throw "cargo-near installer checksum mismatch; refusing to execute it."
+        }
+        & $installer
+        $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+        if (-not (Get-Command cargo-near -ErrorAction SilentlyContinue)) {
+            throw "Pinned cargo-near 0.22.0 installer completed but cargo-near was not found on PATH."
+        }
     }
 
     $env:HANDEL_DEMO_PROPOSAL_FILE = $proposalFile
