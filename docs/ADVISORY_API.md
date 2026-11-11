@@ -23,6 +23,7 @@ The service listens on `127.0.0.1:8787` by default. It deliberately refuses non-
 ## Routes
 
 - `GET /health` — reports service health and confirms transaction submission is disabled.
+- `POST /v1/education/answer` — accepts an educational `question` and optional context; returns a verified education-only response screened by System One.
 - `POST /v1/advisory/proposals` — accepts `agentId`, `holder`, and requested option terms (`type`, `assetId`, `quantity`, `strike`, `expiryNs`, `objective`).
 
 The service reads `get_agent_policy` and `get_agent_execution_mode` from the configured OptionsContract at NEAR finality. Both reads must be from the same block. It rejects disabled policies, malformed policy state, and any mode other than `ManualApproval`. The permission snapshot used for the proposal is therefore read from the contract, not accepted from the browser.
