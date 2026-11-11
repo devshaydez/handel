@@ -247,7 +247,7 @@ export async function startHandelAdvisoryServer(): Promise<Server> {
     maxPromptBytes: positiveIntEnv("HANDEL_AI_MAX_PROMPT_BYTES"),
   };
   const apiKey = requiredEnv("NEARAI_API_KEY");
-  const rpcUrl = process.env.NEAR_RPC_URL ?? "https://rpc.testnet.near.org";
+  const rpcUrl = process.env.NEAR_RPC_URL ?? "https://rpc.testnet.fastnear.com";
   const contractId = requiredEnv("HANDEL_OPTIONS_CONTRACT_ID");
   const demoPremiumFixture = process.env.HANDEL_DEMO_PREMIUM_FIXTURE ?? "100000";
   if (!/^(0|[1-9][0-9]*)$/.test(demoPremiumFixture) || BigInt(demoPremiumFixture) <= 0n) {
