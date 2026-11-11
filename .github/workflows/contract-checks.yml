@@ -42,6 +42,7 @@ jobs:
         run: |
           bash -n scripts/deploy.sh
           bash -n scripts/deploy-escrow-testnet.sh
+          bash -n scripts/run-e2e-proof-demo.sh
           bash scripts/test-deploy-safety.sh
           bash scripts/test-escrow-deploy-safety.sh
           node --check scripts/check-testnet-deployment-readiness.mjs
