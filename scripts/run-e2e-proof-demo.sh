@@ -61,6 +61,7 @@ npm --prefix sdk/ai-smoke install --no-audit --no-fund
   node verify-nearai-live-inference.mjs
 )
 test -s "$HANDEL_DEMO_PROPOSAL_FILE"
+test -s "$HANDEL_DEMO_PREPARED_FILE"
 
 echo "== 5/5: Run the Options → agent approval → NEP-141 escrow → exercise → settlement Sandbox demo =="
 cargo test -p handel-escrow --test options_registration -- --nocapture
