@@ -20,8 +20,12 @@ if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
 if (-not (Get-Command near -ErrorAction SilentlyContinue)) {
   throw "near-cli-rs is required. Configure its keychain first."
 }
+& near --version *> $null
+if ($LASTEXITCODE -ne 0) {
+  throw "near-cli-rs was found on PATH but cannot run. Repair the near-cli-rs installation before deploying; this is separate from cargo-near."
+}
 # Use the checksum-pinned Windows installer so users do not compile cargo-near/wasm-opt-sys.
-$cargoBin = Join-Path $env:USERPROFILE ".cargo\\bin"
+$cargoBin = Join-Path $env:USERPROFILE ".cargo\bin"
 if (Test-Path $cargoBin) {
   $env:PATH = "$cargoBin;$env:PATH"
 }
