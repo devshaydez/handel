@@ -39,7 +39,6 @@ test("creates an advisory proposal, replaces model premium/payoff, and never cla
   assert.equal(result.guardrail.signatureKind, "gateway");
 });
 test("rejects model term mutation", async () => {
-  const bad = agent();
   const mutating = new HandelAdvisoryAgent(
     { propose: async () => ({ proposal: { ...proposal(), quantity: "2" } }) },
     { evaluate: async () => ({ allowed: true, outcome: "allow", confidence: 1, decisionId: "g", signatureKind: "gateway" }) },
