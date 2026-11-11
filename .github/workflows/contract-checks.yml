@@ -67,8 +67,16 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Install cargo-near
-        run: cargo install --locked cargo-near --version 0.22.0
+      - name: Install pinned cargo-near 0.22.0 release binary
+        run: |
+          installer="$RUNNER_TEMP/cargo-near-installer.sh"
+          curl --fail --location --silent --show-error \
+            https://github.com/near/cargo-near/releases/download/cargo-near-v0.22.0/cargo-near-installer.sh \
+            --output "$installer"
+          echo "efbc260384a2e40c5690a6e0c5eae125eaa51347e38dfaaff07d342e704486f7  $installer" | sha256sum --check -
+          sh "$installer"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          cargo near --version
 
       - name: Build optimized NEAR contract Wasm
         run: |
