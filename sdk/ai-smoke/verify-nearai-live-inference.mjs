@@ -223,4 +223,4 @@ console.log(JSON.stringify({
   outcome: guard.choice,
   confidence: guard.confidence,
 }, null, 2));
-console.log("No trade proposal, wallet approval, or transaction was created.");
+console.log("No wallet approval or transaction was created; this proposal is simulated and was not submitted.");
