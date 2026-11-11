@@ -30,7 +30,7 @@ test("reads agent permission and ManualApproval mode from the same finalized blo
     rpcResponse("ManualApproval"),
   ];
   const result = await readOnChainAgentPermission({
-    rpcUrl: "https://rpc.testnet.near.org",
+    rpcUrl: "https://rpc.testnet.fastnear.com",
     contractId: "options.testnet",
     agentId: "agent.testnet",
     fetcher: async () => new Response(JSON.stringify(queue.shift()), { status: 200 }),
@@ -47,7 +47,7 @@ test("rejects disabled, absent, malformed or non-manual on-chain policies", asyn
   const disabled = rpcResponse({ enabled: false });
   const mode = rpcResponse("ManualApproval");
   await assert.rejects(() => readOnChainAgentPermission({
-    rpcUrl: "https://rpc.testnet.near.org",
+    rpcUrl: "https://rpc.testnet.fastnear.com",
     contractId: "options.testnet",
     agentId: "agent.testnet",
     fetcher: async () => new Response(JSON.stringify(disabled), { status: 200 }),
@@ -59,7 +59,7 @@ test("rejects disabled, absent, malformed or non-manual on-chain policies", asyn
     max_open_positions: 1, expires_at_ns: "999999999999999999", enabled: true,
   });
   await assert.rejects(() => readOnChainAgentPermission({
-    rpcUrl: "https://rpc.testnet.near.org",
+    rpcUrl: "https://rpc.testnet.fastnear.com",
     contractId: "options.testnet",
     agentId: "agent.testnet",
     fetcher: async () => new Response(JSON.stringify(policy), { status: 200 }),
@@ -67,7 +67,7 @@ test("rejects disabled, absent, malformed or non-manual on-chain policies", asyn
 
   const responses = [policy, rpcResponse("ManualApproval", 124)];
   await assert.rejects(() => readOnChainAgentPermission({
-    rpcUrl: "https://rpc.testnet.near.org",
+    rpcUrl: "https://rpc.testnet.fastnear.com",
     contractId: "options.testnet",
     agentId: "agent.testnet",
     fetcher: async () => new Response(JSON.stringify(responses.shift()), { status: 200 }),
