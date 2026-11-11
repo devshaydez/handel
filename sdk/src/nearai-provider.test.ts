@@ -66,3 +66,12 @@ test("rejects unsafe endpoint and oversized prompt", async () => {
   const provider = new NearAiProposalProvider({ ...config, budget: { ...budget, maxPromptBytes: 1 } }, fake());
   await assert.rejects(() => provider.propose({ a: 1 }), e => e instanceof NearAiError && e.code === "PROMPT_TOO_LARGE");
 });
+
+test("education answers use the same attested Chat model, response signature and shared budget", async () => {
+  const provider = new NearAiProposalProvider(config, fake());
+  const result = await provider.explain({ question: "What is a call option?" });
+  assert.equal(result.verification.signatureKind, "provider_tee");
+  assert.equal(result.verification.modelAttested, true);
+  assert.equal(result.usage.reservedCostMicros, 100000);
+  assert.ok(result.answer.length > 0);
+});
