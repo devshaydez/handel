@@ -22,8 +22,8 @@ Use the repository's GitHub Actions secret for CI. Do not paste API keys into ch
 
 1. Builds the OptionsContract, Escrow and mock NEP-141 token Wasm artifacts, including isolated callback-failure variants.
 2. Builds and tests the TypeScript SDK and runs the offline fallback lifecycle example.
-3. Calls the official NEAR AI inference SDK against the pinned Chat model, verifies Gateway/model TEE evidence and the provider-TEE response signature, asks for a structured **simulated** option proposal, and sends that proposal to System One for a separately signed safety classification.
-4. Runs the Sandbox integration test `call_and_put_registration_deposit_and_settle_through_escrow`. Its Call path now uses the on-chain agent policy, creates an agent proposal, proves that escrow registration is rejected before principal approval, records principal approval, registers immutable terms, locks mock NEP-141 collateral, pays premium, waits for maturity, exercises, and verifies the two payout legs and final token balances. The same test also exercises the Put path.
+3. Calls the official NEAR AI inference SDK against the pinned Chat model, verifies Gateway/model TEE evidence and the provider-TEE response signature, asks for a structured **simulated** option proposal, exports that exact JSON to a temporary file, and sends the same proposal to System One for a separately signed safety classification.
+4. Runs the Sandbox integration test `call_and_put_registration_deposit_and_settle_through_escrow`. When launched by this script, the Call path reads the exact AI proposal JSON from the temporary file and uses its proposal ID, asset ID, quantity, strike, premium fixture, and expiry to create the on-chain agent proposal. It proves that escrow registration is rejected before principal approval, records principal approval, registers immutable terms, locks mock NEP-141 collateral, pays premium, waits for maturity, exercises, and verifies the two payout legs and final token balances. The same test also exercises the Put path.
 
 ## Receipt-bound evidence emitted by Escrow
 
@@ -40,7 +40,7 @@ This strengthens evidence for **successful NEAR-native escrow transfers**. It do
 ## Evidence and limitations
 
 This is a **reproducible development/hackathon demo**, not production deployment:
-- The AI request is synthetic and explicitly marked simulation-only. It does not use live market data or claim to calculate a real premium. The model's premium field is only a placeholder; the production runtime must replace it with a verified deterministic quote.
+- The AI request is synthetic and explicitly marked simulation-only. It does not use live market data or claim to calculate a real premium. The model must copy a fixed test-fixture premium amount; this is not a model-generated price. A production runtime must replace it with a verified deterministic quote.
 - The live AI smoke proves that the pinned NEAR AI Cloud Chat model and System One Gateway path respond and that the Chat response is provider-TEE signed under the current allowlist. It does not prove the entire Handel agent runtime has been deployed as a hosted service.
 - Contract settlement runs against local Sandbox and repository mock NEP-141 tokens. It demonstrates actual contract callbacks and token-balance changes in the local test chain, not real Testnet/Intents or Ondo settlement.
 - The OptionsContract's external-operation `reconcile_operation` and Escrow's ambiguous-callback `reconcile_ambiguous_payout` remain trusted-reconciler boundaries. The normal Sandbox payout path does not need that override, but the override is still not a cryptographic proof.
