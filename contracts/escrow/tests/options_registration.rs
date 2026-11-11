@@ -150,7 +150,9 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
     // The judge script passes the exact live-AI proposal JSON into this Sandbox
     // test. Without that file, the same deterministic fixture keeps CI self-contained.
     let ai_proposal = match std::env::var("HANDEL_DEMO_PROPOSAL_FILE") {
-        Ok(path) => Some(serde_json::from_slice::<serde_json::Value>(&std::fs::read(path)?)?),
+        Ok(path) => Some(serde_json::from_slice::<serde_json::Value>(
+            &std::fs::read(path)?,
+        )?),
         Err(_) => None,
     };
     let now_ns = worker.view_block().await?.header().timestamp_nanosec();
@@ -189,9 +191,18 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         assert_eq!(proposal["quantity"], "1000000");
         assert_eq!(proposal["strike"], "2500000");
         assert_eq!(proposal["premium"], "100000");
-        assert!(expiry > now_ns + 5 * 60 * 1_000_000_000, "AI proposal expires too soon for Sandbox run");
-        assert!(!proposal["rationale"].as_str().unwrap_or_default().trim().is_empty());
-        assert!(proposal["risks"].as_array().is_some_and(|risks| !risks.is_empty()));
+        assert!(
+            expiry > now_ns + 5 * 60 * 1_000_000_000,
+            "AI proposal expires too soon for Sandbox run"
+        );
+        assert!(!proposal["rationale"]
+            .as_str()
+            .unwrap_or_default()
+            .trim()
+            .is_empty());
+        assert!(proposal["risks"]
+            .as_array()
+            .is_some_and(|risks| !risks.is_empty()));
     }
 
     // Reproduce the AI-agent handoff on-chain: the agent may propose only within
