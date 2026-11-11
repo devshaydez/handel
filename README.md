@@ -70,4 +70,4 @@ Do not present a simulated proposal, premium, collateral transfer, or settlement
 
 GitHub Actions validates Rust formatting, contract/Wasm builds, workspace tests, SDK build/tests, the offline lifecycle, read-only Testnet asset checks, live NEAR AI attestation/inference, and the live AI → SDK → Sandbox proof.
 
-The product roadmap and known release limitations are tracked in docs/.
+The full frontend-excluded delivery checklist and remaining gates are in [Final backend readiness](docs/FINAL_BACKEND_READINESS.md).
