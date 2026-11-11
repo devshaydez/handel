@@ -109,7 +109,8 @@ const completion = await client.chat.completions.create({
     content: "You are generating a structured Handel proposal from a simulated user request. Return one JSON object with exactly these keys: proposalId, type, underlyingAssetId, strike, quantity, premium, expiryNs, estimatedPayoff, risks, dataFreshness, rationale, createdAt. Use string values except risks, which must be an array of strings. Do not add markdown. Request: " + JSON.stringify(simulatedRequest),
   }],
   temperature: 0,
-  max_tokens: 256,
+  // DeepSeek may spend part of the output budget on reasoning before its final JSON.
+  max_tokens: 1024,
 });
 if (!completion?.id) throw new Error("NEAR AI completion ID is missing.");
 const receipt = await client.verifyResponse(completion.id);
@@ -124,6 +125,12 @@ try {
     .replace(/\s*\`\`\`$/, "");
   proposal = JSON.parse(unfenced);
 } catch {
+  console.error("Live completion diagnostics (no credentials):", JSON.stringify({
+    finishReason: completion.choices?.[0]?.finish_reason ?? null,
+    messageKeys: Object.keys(completion.choices?.[0]?.message ?? {}),
+    contentLength: typeof rawProposal === "string" ? rawProposal.length : null,
+    usage: completion.usage ?? null,
+  }));
   console.error("Raw live proposal response (synthetic prompt only):", JSON.stringify(rawProposal));
   throw new Error("Live NEAR AI did not return valid JSON proposal output.");
 }
