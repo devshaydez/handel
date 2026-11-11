@@ -9,6 +9,8 @@ on:
       - work/batch-5-testnet-release-readiness
       - work/testnet-infrastructure-readiness
       - work/batch-9-execution-safety
+      - work/batch-10-product-release
+      - work/batch-8-ai-agent-intelligence
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
@@ -42,6 +44,8 @@ jobs:
           bash -n scripts/deploy-escrow-testnet.sh
           bash scripts/test-deploy-safety.sh
           bash scripts/test-escrow-deploy-safety.sh
+          node --check scripts/check-testnet-deployment-readiness.mjs
+          node --test scripts/test-testnet-deployment-readiness.mjs
 
       - name: Install system dependencies for cargo-near
         run: |
@@ -95,7 +99,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24.22.1
 
       - name: Verify Tidepool assets through two independent Testnet RPCs
         run: node scripts/verify-testnet-assets.mjs

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "network": "near-testnet",
+  "contracts": {
+    "options": {"accountId": "REPLACE_WITH_OPTIONS_ACCOUNT.testnet", "artifactSha256": "REPLACE_WITH_64_CHARACTER_SHA256"},
+    "escrow": {"accountId": "REPLACE_WITH_ESCROW_ACCOUNT.testnet", "artifactSha256": "REPLACE_WITH_64_CHARACTER_SHA256"}
+  },
+  "operator": {"accountId": "REPLACE_WITH_OPERATOR_ACCOUNT.testnet", "accountKeyPolicyReviewed": false},
+  "release": {
+    "stateDisposition": "fresh-deployment",
+    "migrationPlanReviewed": false,
+    "rollbackPlanReviewed": false,
+    "independentSecurityReview": false,
+    "deploymentApproval": false
+  },
+  "assets": [
+    {"assetId": "nep141:usdc.tidepool-sandbox.testnet", "tokenAccount": "usdc.tidepool-sandbox.testnet", "decimals": 6, "enabled": true, "metadataVerified": true, "optionsStorageRegistered": false, "escrowStorageRegistered": false},
+    {"assetId": "nep141:wnear.tidepool-sandbox.testnet", "tokenAccount": "wnear.tidepool-sandbox.testnet", "decimals": 24, "enabled": false, "metadataVerified": true, "optionsStorageRegistered": false, "escrowStorageRegistered": false}
+  ],
+  "_note": "Copy to config/testnet-deployment.json only after independent verification. Never add keys, seed phrases, API keys, or keychain exports. This manifest is not a deployment command."
+}
