@@ -1,5 +1,4 @@
 import type { AgentProposal } from "./types.js";
-import { validateProposal } from "./policy.js";
 
 export interface NearAiVerifiedDeployment {
   gateway?: { tcbStatus?: string; signer?: { signingAddress?: string } };
@@ -223,8 +222,6 @@ export class NearAiProposalProvider {
       throw new NearAiError("unknown signature kind", "INVALID_SIGNATURE");
     }
     const proposal = parseProposal(completion.choices?.[0]?.message?.content);
-    const policy = validateProposal(proposal, null);
-    if (!policy.ok) throw new NearAiError("proposal rejected: " + policy.errors.join("; "), "PROPOSAL_REJECTED");
     return {
       proposal,
       requestId: completion.id,
