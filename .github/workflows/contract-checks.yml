@@ -13,6 +13,7 @@ on:
       - work/batch-8-ai-agent-intelligence
       - feat/handel-archive-core
       - feat/handel-frontend-integration
+      - feat/frontend-prototype-upload
       - work/final-backend-readiness
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -20,6 +21,7 @@ on:
       - main
       - feat/handel-archive-core
       - feat/handel-frontend-integration
+      - feat/frontend-prototype-upload
       - work/testnet-backend-hardening
       - work/batch-4-ai-integration-adversarial
       - work/batch-8-ai-agent-intelligence
@@ -35,6 +37,32 @@ permissions:
   contents: read
 
 jobs:
+  frontend:
+    name: Frontend typecheck and production build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.22.1
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck frontend
+        run: npm run typecheck
+
+      - name: Build frontend
+        run: npm run build
+
   contract:
     name: Rust format, unit tests, and Wasm build
     runs-on: ubuntu-24.04
