@@ -23,7 +23,7 @@ function formatBaseUnits(value: string | number, decimals: number): string {
   return fraction ? whole.toString() + '.' + fraction : whole.toString();
 }
 function parseBaseUnits(value: string, decimals: number): string {
-  if (!/^\\d+(?:\\.\\d+)?$/.test(value)) throw new Error('Enter a valid positive decimal amount.');
+  if (!/^\d+(?:\.\d+)?$/.test(value)) throw new Error('Enter a valid positive decimal amount.');
   const [whole, fraction = ''] = value.split('.');
   if (fraction.length > decimals) throw new Error('This token supports at most ' + decimals + ' decimal places.');
   return (BigInt(whole) * (10n ** BigInt(decimals)) + BigInt((fraction + '0'.repeat(decimals)).slice(0, decimals) || '0')).toString();
