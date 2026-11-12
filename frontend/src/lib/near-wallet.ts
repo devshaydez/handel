@@ -242,21 +242,35 @@ async function ensureTokenStorage(token: string, accountId: string): Promise<str
   const registration = await send(token, 'storage_deposit', { account_id: accountId, registration_only: true }, bounds.min);
   return registration.transactionHash;
 }
-async function transferCall(token: string, escrowPositionId: string, leg: 'collateral' | 'premium' | 'exercise_payment', amount: string) {
+async function transferCall(
+  token: string,
+  escrowPositionId: string,
+  leg: 'collateral' | 'premium' | 'exercise_payment',
+  amount: string,
+  onSubmitted?: (hash: string, label: string) => void,
+) {
   const accountId = await currentNearAccount();
   if (!accountId) throw new Error('Wallet disconnected before escrow funding.');
-  const preparatoryTransactions: string[] = [];
-  const accountRegistration = await ensureTokenStorage(token, accountId);
-  if (accountRegistration) preparatoryTransactions.push(accountRegistration);
-  const escrowRegistration = await ensureTokenStorage(token, ESCROW_CONTRACT!);
-  if (escrowRegistration) preparatoryTransactions.push(escrowRegistration);
   const balance = await view<string>(token, 'ft_balance_of', { account_id: accountId });
   if (BigInt(balance) < BigInt(amount)) throw new Error(`Insufficient ${token} balance for ${leg}. Need ${amount} base units; wallet has ${balance}.`);
+  const preparatoryTransactions: string[] = [];
+  const accountRegistration = await ensureTokenStorage(token, accountId);
+  if (accountRegistration) {
+    preparatoryTransactions.push(accountRegistration);
+    onSubmitted?.(accountRegistration, 'Token storage registration');
+  }
+  const escrowRegistration = await ensureTokenStorage(token, ESCROW_CONTRACT!);
+  if (escrowRegistration) {
+    preparatoryTransactions.push(escrowRegistration);
+    onSubmitted?.(escrowRegistration, 'Token storage registration');
+  }
   const transfer = await send(token, 'ft_transfer_call', {
     receiver_id: ESCROW_CONTRACT,
     amount,
     msg: JSON.stringify({ position_id: Number(escrowPositionId), leg }),
   }, '1', '100000000000000');
+  const label = leg === 'collateral' ? 'Collateral transfer' : leg === 'premium' ? 'Premium transfer' : 'Exercise payment';
+  onSubmitted?.(transfer.transactionHash, label);
   return { ...transfer, preparatoryTransactions };
 }
 
@@ -285,10 +299,11 @@ async function fundExistingEscrowPosition(positionId: string, methodName: 'creat
     const collateralAmount = String(isCall ? args.underlying_amount : args.strike_amount_usdc);
     let escrowState = await view<{ collateral_received?: boolean } | null>(ESCROW_CONTRACT!, 'get_position', { position_id: Number(escrowPositionId) });
     if (escrowState?.collateral_received !== true) {
-      const collateralTx = await transferCall(collateralToken, escrowPositionId, 'collateral', collateralAmount);
-      for (const hash of collateralTx.preparatoryTransactions) transactionSteps.push({ hash, label: 'Token storage registration' });
+      const collateralTx = await transferCall(collateralToken, escrowPositionId, 'collateral', collateralAmount, (hash, label) => {
+        lastHash = hash;
+        transactionSteps.push({ hash, label });
+      });
       lastHash = collateralTx.transactionHash;
-      transactionSteps.push({ hash: collateralTx.transactionHash, label: 'Collateral transfer' });
       escrowState = await view<{ collateral_received?: boolean } | null>(ESCROW_CONTRACT!, 'get_position', { position_id: Number(escrowPositionId) });
     }
     if (escrowState?.collateral_received !== true) {
@@ -297,10 +312,11 @@ async function fundExistingEscrowPosition(positionId: string, methodName: 'creat
     const premiumAmount = String(args.premium_amount_usdc);
     let premiumStatus = await view<{ received?: boolean; paid?: boolean } | null>(ESCROW_CONTRACT!, 'get_premium_status', { position_id: Number(escrowPositionId) });
     if (!premiumStatus?.received) {
-      const premiumTx = await transferCall(USDC_TOKEN, escrowPositionId, 'premium', premiumAmount);
-      for (const hash of premiumTx.preparatoryTransactions) transactionSteps.push({ hash, label: 'Token storage registration' });
+      const premiumTx = await transferCall(USDC_TOKEN, escrowPositionId, 'premium', premiumAmount, (hash, label) => {
+        lastHash = hash;
+        transactionSteps.push({ hash, label });
+      });
       lastHash = premiumTx.transactionHash;
-      transactionSteps.push({ hash: premiumTx.transactionHash, label: 'Premium transfer' });
       premiumStatus = await view<{ received?: boolean; paid?: boolean } | null>(ESCROW_CONTRACT!, 'get_premium_status', { position_id: Number(escrowPositionId) });
     }
     if (!premiumStatus?.received) {
@@ -400,7 +416,9 @@ export async function exerciseEscrowPosition(positionId: string, escrowPositionI
   const accountId = await currentNearAccount();
   if (!accountId) throw new Error('Connect your NEAR Testnet wallet first.');
   const position = await view<{ payment_token: string; payment_amount: string | number }>(ESCROW_CONTRACT, 'get_position', { position_id: Number(escrowPositionId) });
-  const paymentTx = await transferCall(position.payment_token, escrowPositionId, 'exercise_payment', String(position.payment_amount));
+  const paymentSteps: { hash: string; label: string }[] = [];
+  const paymentTx = await transferCall(position.payment_token, escrowPositionId, 'exercise_payment', String(position.payment_amount),
+    (hash, label) => paymentSteps.push({ hash, label }));
   const received = await view<{ exercise_payment_received?: boolean }>(ESCROW_CONTRACT, 'get_position', { position_id: Number(escrowPositionId) });
   if (received.exercise_payment_received !== true) throw new Error('Escrow has not confirmed exercise payment. Transaction ' + paymentTx.transactionHash);
   const settleTx = await send(ESCROW_CONTRACT, 'settle_exercise', { position_id: Number(escrowPositionId) });
@@ -415,8 +433,7 @@ export async function exerciseEscrowPosition(positionId: string, escrowPositionI
     option.state && typeof option.state === 'object' ? Object.keys(option.state)[0] : '';
   if (optionState !== 'Settled') throw new Error('Escrow settled, but OptionsContract callback has not confirmed Settled. Transaction ' + settleTx.transactionHash);
   return { transactionHash: settleTx.transactionHash, transactionSteps: [
-    ...paymentTx.preparatoryTransactions.map((hash) => ({ hash, label: 'Token storage registration' })),
-    { hash: paymentTx.transactionHash, label: 'Exercise payment' },
+    ...paymentSteps,
     { hash: settleTx.transactionHash, label: 'Exercise settlement' },
   ], accountId, positionId, escrowPositionId };
 }
