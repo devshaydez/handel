@@ -39,3 +39,12 @@ Treat every model field as untrusted. Parse integer strings with checked bounds,
 6. Record request/response hashes, provider/model identifier, validation outcome, policy version/hash, and approval in a privacy-conscious audit trail. Do not log secrets or unnecessary personal data.
 
 Provider key rotation, budgets, quota, access controls, and retention are managed by the user in their provider and deployment consoles. Without the key, use deterministic rules and no external model calls.
+
+
+## Implemented NEAR Testnet proposal authorization
+
+The hosted advisory endpoint now uses the dedicated agent account configured with `NEAR_AGENT_ACCOUNT_ID` and the encrypted server-side `NEAR_AGENT_PRIVATE_KEY`. The principal must first sign a NEP-413 message binding the exact holder, option type, asset, underlying amount, strike, demo premium, expiry, recipient, callback URL, and short issue-time window. The backend verifies the signature and confirms that the signing public key is a current full-access key for the claimed principal before it calls NEAR AI or submits anything.
+
+The proposal ID is deterministically derived from the principal and signed nonce. Replaying the same signed request therefore reuses the same proposal ID, which the contract rejects after the first successful submission. The backend also checks the on-chain agent policy and requires `ManualApproval` mode. The agent submits only `create_agent_proposal`; the principal wallet must separately sign `approve_agent_proposal` or reject it. Approval is followed by the existing escrow registration, collateral transfer, premium transfer, and settlement verification. The agent key never approves or funds a proposal.
+
+Never expose the agent key to the browser or logs. If the principal wallet cannot return a NEP-413 signature (for example, a redirect-only wallet flow), fail closed and use a wallet integration that returns a verifiable signed message.
