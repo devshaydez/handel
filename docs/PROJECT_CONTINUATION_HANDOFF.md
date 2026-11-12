@@ -1,5 +1,19 @@
 # Handel — Project Continuation Handoff
 
+## Current release status — 2026-11-12
+
+> This dated status block supersedes stale branch, PR, CI, and release-gate snapshots in the historical notes below. Update this block first when the live repository state changes.
+
+- **Current integration branch:** `feat/handel-frontend-integration`.
+- **Latest merged change:** PR [#22](https://github.com/devshaydez/handel/pull/22), merged 2026-11-12 as `2fdfb34edc3eef15e988c48a4ddb938c6783851a`. It clears mock account state, reads connected-wallet Testnet USDC balance, discloses exact configured Testnet premium/collateral before approval, captures transaction-step hashes, and disables unsupported automatic execution.
+- **CI evidence:** [Run #43300087425](https://github.com/devshaydez/handel/actions/runs/43300087425) completed successfully. All seven jobs passed, including TypeScript SDK build/tests, read-only dual-RPC Testnet asset verification, Rust format/unit/Wasm/Sandbox integration tests, frontend typecheck and production build, Windows proof-runner syntax, NEAR AI preflight/live inference, and the live NEAR AI → SDK → approval-gated Sandbox lifecycle.
+- **Deployed contracts:** OptionsContract `options.shaydez.testnet` and Escrow `escrow.shaydez.testnet` are deployed/configured on NEAR Testnet. The latest OptionsContract deploy transaction recorded in the release evidence is `52uV54wSzzmPjRqcnv3gQcuHBZg4Sdgt3wo3wpQg9iao`. This is not evidence of a user-wallet trade.
+- **Frontend:** The latest final code has passed the CI production build, but it is not yet deployed to the public production alias. Vercel's latest failed build was for intermediate commit `b31414f`, before `getTestnetUsdcBalance` was exported; the final PR head includes that export and passed CI. Subsequent Vercel attempts were blocked by the Hobby daily deployment cap. Do not claim the final merged frontend is deployed until a deployment for the merged code is READY and the public alias is verified.
+- **Public service:** `https://handel-live.vercel.app/api/health` returned HTTP 200 with `network=testnet` and `pricingMode=demo_fixture`. This is service health only; it does not establish live market pricing or a completed trade.
+- **Product boundary:** Quotes/market data remain synthetic demo fixtures; Tidepool assets are valueless Testnet assets. The Sandbox proof is automated integration evidence, not a live wallet-to-contract transaction. No real Ondo stock route, Mainnet trade, or real-asset settlement is established. The current contract/reconciler architecture still requires independent custody and settlement review.
+- **Remaining release work:** deploy the merged frontend after the Vercel limit resets (or use an already-authorized deployment path), verify the public alias serves that exact commit, run a user-controlled Testnet wallet lifecycle with synthetic tokens and inspect receipts/balances, and retain the stated architecture/security limitations. No one should provide a seed phrase or private key in chat.
+
+
 **Last updated:** 2026-11-10  
 **Repository:** https://github.com/devshaydez/handel  
 **Working base branch:** `feat/handel-archive-core`  
