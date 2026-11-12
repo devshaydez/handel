@@ -25,7 +25,7 @@ export default function Proposals() {
   const [rej, setRej] = useState(false);
   const [reason, setReason] = useState(REASONS[0]);
   const [section, setSection] = useState<'reasoning' | 'evidence' | 'risks' | 'alts'>('reasoning');
-  const [preparedCall, setPreparedCall] = useState<{ method: 'create_call' | 'create_put'; args: Record<string, string>; rationale: string; risks: string[]; aiModel: string } | null>(null);
+  const [preparedCall, setPreparedCall] = useState<{ method: 'approve_agent_proposal'; args: Record<string, string>; rationale: string; risks: string[]; aiModel: string } | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [prepareError, setPrepareError] = useState('');
 
