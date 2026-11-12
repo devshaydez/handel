@@ -210,7 +210,7 @@ async function fundExistingEscrowPosition(positionId: string, methodName: 'creat
       lastHash = collateralTx.transactionHash;
       escrowState = await view<{ collateral_received?: boolean } | null>(ESCROW_CONTRACT!, 'get_position', { position_id: Number(escrowPositionId) });
     }
-    if (escrowState.collateral_received !== true) {
+    if (escrowState?.collateral_received !== true) {
       throw new Error('Escrow has not confirmed collateral receipt. Position remains pending; transaction ' + lastHash);
     }
     const premiumAmount = String(args.premium_amount_usdc);
@@ -272,8 +272,9 @@ async function approveAndFundAgentProposal(args: Record<string, unknown>): Promi
   }
   const accountId = await currentNearAccount();
   if (!accountId) throw new Error('Connect the principal wallet to approve this agent proposal.');
-  const proposal = await view<{ state?: string } | null>(OPTIONS_CONTRACT, 'get_agent_proposal', { proposal_id: proposalId });
+  const proposal = await view<{ state?: string; principal?: string } | null>(OPTIONS_CONTRACT, 'get_agent_proposal', { proposal_id: proposalId });
   if (!proposal) throw new Error('The on-chain agent proposal could not be found.');
+  if (proposal.principal !== accountId) throw new Error('Only the proposal principal can approve and fund this agent proposal.');
   let initialHash: string | undefined;
   const initialLabel = 'Principal approval';
   if (proposal.state === 'PendingApproval') {
