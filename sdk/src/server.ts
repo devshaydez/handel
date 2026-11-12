@@ -158,25 +158,26 @@ export function createHandelAdvisoryHttpServer(
 
 type RpcFetcher = (input: string | URL, init?: RequestInit) => Promise<Response>;
 interface RpcResponse { result?: { result?: number[]; block_height?: number; block_hash?: string }; error?: { message?: string }; }
-async function viewCall<T>(rpcUrl: string, contractId: string, methodName: string, args: unknown, fetcher: RpcFetcher): Promise<{ value: T; blockHeight: number }> {
+async function viewCall<T>(rpcUrl: string, contractId: string, methodName: string, args: unknown, fetcher: RpcFetcher, blockId?: string): Promise<{ value: T; blockHeight: number; blockHash: string }> {
   const response = await fetcher(rpcUrl, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       jsonrpc: "2.0", id: "handel-policy-read", method: "query",
       params: {
-        request_type: "call_function", finality: "final", account_id: contractId,
-        method_name: methodName, args_base64: Buffer.from(JSON.stringify(args)).toString("base64"),
+        request_type: "call_function", ...(blockId ? { block_id: blockId } : { finality: "final" }),
+        account_id: contractId, method_name: methodName,
+        args_base64: Buffer.from(JSON.stringify(args)).toString("base64"),
       },
     }),
   });
   if (!response.ok) throw new AdvisoryApiError("NEAR RPC policy read failed", 503);
   const body = await response.json() as RpcResponse;
-  if (body.error || !Array.isArray(body.result?.result)) throw new AdvisoryApiError("NEAR RPC policy read returned no final result", 503);
+  if (body.error || !Array.isArray(body.result?.result) || !body.result.block_hash) throw new AdvisoryApiError("NEAR RPC policy read returned no final result", 503);
   let value: T;
   try { value = JSON.parse(Buffer.from(body.result.result).toString("utf8")) as T; }
   catch { throw new AdvisoryApiError("NEAR RPC policy response is malformed", 503); }
-  return { value, blockHeight: body.result.block_height ?? 0 };
+  return { value, blockHeight: body.result.block_height ?? 0, blockHash: body.result.block_hash };
 }
 
 export async function readOnChainAgentPermission(input: {
@@ -191,10 +192,11 @@ export async function readOnChainAgentPermission(input: {
     throw new AdvisoryApiError("NEAR RPC endpoint must use HTTPS", 400);
   }
   const fetcher = input.fetcher ?? fetch;
-  const [policyResult, modeResult] = await Promise.all([
-    viewCall<Record<string, unknown>>(input.rpcUrl, input.contractId, "get_agent_policy", { agent_id: input.agentId }, fetcher),
-    viewCall<string>(input.rpcUrl, input.contractId, "get_agent_execution_mode", { agent_id: input.agentId }, fetcher),
-  ]);
+  // Read the policy at finality, then pin the mode read to the exact same block hash.
+  // Two independent finality reads can legitimately land on adjacent blocks and
+  // spuriously reject an otherwise valid policy snapshot.
+  const policyResult = await viewCall<Record<string, unknown>>(input.rpcUrl, input.contractId, "get_agent_policy", { agent_id: input.agentId }, fetcher);
+  const modeResult = await viewCall<string>(input.rpcUrl, input.contractId, "get_agent_execution_mode", { agent_id: input.agentId }, fetcher, policyResult.blockHash);
   const p = policyResult.value;
   if (!p || typeof p !== "object" || p.enabled !== true || p.principal === undefined ||
       !Array.isArray(p.allowed_assets) || typeof p.max_underlying_amount !== "string" ||
