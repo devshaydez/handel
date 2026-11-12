@@ -35,8 +35,14 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return payload;
 }
 
-export function askHandelEducation(question: string, context?: unknown): Promise<EducationReply> {
-  return post<EducationReply>('/v1/education/answer', { question, context });
+export async function askHandelEducation(question: string, context?: unknown): Promise<EducationReply> {
+  const reply = await post<EducationReply>('/v1/education/answer', { question, context });
+  if (typeof reply.answer !== 'string' || !reply.answer.trim() ||
+      reply.mode !== 'EDUCATION_ONLY' || reply.executionEligible !== false ||
+      reply.transactionSubmitted !== false) {
+    throw new HandelApiError('Handel backend returned an invalid education-only response.');
+  }
+  return reply;
 }
 
 export function checkHandelHealth(): Promise<{ ok: boolean; service: string; mode: string; transactionSubmission: false }> {
