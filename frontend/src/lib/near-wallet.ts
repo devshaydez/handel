@@ -204,11 +204,11 @@ async function fundExistingEscrowPosition(positionId: string, methodName: 'creat
     const isCall = methodName === 'create_call';
     const collateralToken = isCall ? UNDERLYING_TOKEN : USDC_TOKEN;
     const collateralAmount = String(isCall ? args.underlying_amount : args.strike_amount_usdc);
-    let escrowState = await view<{ collateral_received?: boolean }>(ESCROW_CONTRACT!, 'get_position', { position_id: Number(escrowPositionId) });
-    if (escrowState.collateral_received !== true) {
+    let escrowState = await view<{ collateral_received?: boolean } | null>(ESCROW_CONTRACT!, 'get_position', { position_id: Number(escrowPositionId) });
+    if (escrowState?.collateral_received !== true) {
       const collateralTx = await transferCall(collateralToken, escrowPositionId, 'collateral', collateralAmount);
       lastHash = collateralTx.transactionHash;
-      escrowState = await view<{ collateral_received?: boolean }>(ESCROW_CONTRACT!, 'get_position', { position_id: Number(escrowPositionId) });
+      escrowState = await view<{ collateral_received?: boolean } | null>(ESCROW_CONTRACT!, 'get_position', { position_id: Number(escrowPositionId) });
     }
     if (escrowState.collateral_received !== true) {
       throw new Error('Escrow has not confirmed collateral receipt. Position remains pending; transaction ' + lastHash);
@@ -257,7 +257,7 @@ async function approveAndFundAgentProposal(args: Record<string, unknown>): Promi
   const proposalId = String(args.proposal_id || '');
   const positionId = String(args.position_id || '');
   const kind = String(args.kind || '');
-  if (!proposalId || !/^\\d+$/.test(positionId) || (kind !== 'Call' && kind !== 'Put')) {
+  if (!proposalId || !/^\d+$/.test(positionId) || (kind !== 'Call' && kind !== 'Put')) {
     throw new Error('Agent proposal approval payload is incomplete or invalid.');
   }
   const methodName = kind === 'Call' ? 'create_call' : 'create_put';
@@ -267,7 +267,7 @@ async function approveAndFundAgentProposal(args: Record<string, unknown>): Promi
     premium_amount_usdc: String(args.premium_amount_usdc),
     agent_tx_hash: String(args.agent_tx_hash || ''),
   };
-  if (Object.values(optionArgs).slice(0, 3).some((value) => !/^\\d+$/.test(value))) {
+  if (Object.values(optionArgs).slice(0, 3).some((value) => !/^\d+$/.test(value))) {
     throw new Error('Agent proposal contains invalid option amounts.');
   }
   const accountId = await currentNearAccount();
@@ -275,7 +275,7 @@ async function approveAndFundAgentProposal(args: Record<string, unknown>): Promi
   const proposal = await view<{ state?: string } | null>(OPTIONS_CONTRACT, 'get_agent_proposal', { proposal_id: proposalId });
   if (!proposal) throw new Error('The on-chain agent proposal could not be found.');
   let initialHash: string | undefined;
-  let initialLabel = 'Principal approval';
+  const initialLabel = 'Principal approval';
   if (proposal.state === 'PendingApproval') {
     const approvalTx = await send(OPTIONS_CONTRACT, 'approve_agent_proposal', { proposal_id: proposalId });
     initialHash = approvalTx.transactionHash;
