@@ -9,6 +9,7 @@ import type { Proposal, ProposalStatus } from '../data/types';
 import { go, useRoute } from '../router';
 import { executeProposal, proposalChecks, rejectProposal, useStore } from '../state/store';
 import { overall } from '../lib/policy';
+import { createAdvisoryProposal } from '../lib/handel-api';
 import { CONTRACT_SIZE, breakeven, usd, usd0 } from '../lib/pricing';
 
 const ST: Record<ProposalStatus, { l: string; t: 'gold' | 'green' | 'red' | 'blue' | 'amber' }> = { pending: { l: 'Awaiting approval', t: 'amber' }, approved: { l: 'Approved', t: 'blue' }, executed: { l: 'Executed', t: 'green' }, rejected: { l: 'Rejected', t: 'red' }, blocked: { l: 'Blocked by policy', t: 'red' } };
@@ -23,6 +24,39 @@ export default function Proposals() {
   const [rej, setRej] = useState(false);
   const [reason, setReason] = useState(REASONS[0]);
   const [section, setSection] = useState<'reasoning' | 'evidence' | 'risks' | 'alts'>('reasoning');
+  const [preparedCall, setPreparedCall] = useState<{ method: 'create_call' | 'create_put'; args: Record<string, string> } | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const [prepareError, setPrepareError] = useState('');
+
+  const prepareApproval = async (proposal: Proposal) => {
+    if (!s.wallet.connected || !s.wallet.account) { setPrepareError('Connect your NEAR Testnet wallet first.'); return; }
+    setPreparing(true);
+    setPrepareError('');
+    try {
+      const quantity = (BigInt(proposal.qty) * 100n * 10n ** 18n).toString();
+      const strike = (BigInt(Math.round(proposal.strike * 100)) * BigInt(proposal.qty) * 1_000_000n).toString();
+      const expiryNs = (BigInt(Date.parse(proposal.expiry + 'T23:59:59Z')) * 1_000_000n).toString();
+      const reply = await createAdvisoryProposal({
+        holder: s.wallet.account,
+        request: {
+          type: proposal.side === 'call' ? 'Call' : 'Put',
+          // All demo equity symbols map to verified Tidepool wNEAR test token.
+          // This is a synthetic testnet underlying, not a tokenized stock.
+          assetId: 'nep141:wnear.tidepool-sandbox.testnet',
+          quantity,
+          strike,
+          expiryNs,
+          objective: `Create a simulated ${proposal.strategy} on ${proposal.sym}. Demo-only equity reference; underlying token is testnet wNEAR. Thesis: ${proposal.headline}. ${proposal.reasoning.join(' ')}`,
+        },
+      });
+      setPreparedCall(reply.prepared);
+      setSign(true);
+    } catch (error) {
+      setPrepareError(error instanceof Error ? error.message : 'Could not prepare the AI proposal.');
+    } finally {
+      setPreparing(false);
+    }
+  };
 
   const pending = s.proposals.filter((p) => p.status === 'pending');
   const history = s.proposals.filter((p) => p.status !== 'pending');
@@ -50,12 +84,14 @@ export default function Proposals() {
               );
             })}
           </div>
-          <div className="proposal-pane">{p && <Detail p={p} section={section} setSection={setSection} onApprove={() => setSign(true)} onReject={() => setRej(true)} />}</div>
+          <div className="proposal-pane">{p && <Detail p={p} section={section} setSection={setSection} onApprove={() => { void prepareApproval(p); }} onReject={() => setRej(true)} />}</div>
         </div>
       )}
       <style>{`@media (max-width: 900px){ .page .grid[style*="340px"]{ grid-template-columns: minmax(0,1fr) !important; } }`}</style>
 
-      {p && <SignModal open={sign} onClose={() => setSign(false)} onSigned={async (transactionHash) => { const result = executeProposal(p.id, transactionHash); if (result.ok) { setSign(false); setTab('history'); } }} methodName="approve_agent_proposal" args={{ proposal_id: p.id }} action={`Approve ${p.strategy.toLowerCase()} on ${p.sym}`} rows={[{ k: 'Contract', v: `${p.strike} ${p.side} · ${fmtDate(p.expiry)}` }, { k: 'Quantity', v: String(p.qty) }, { k: 'Total premium', v: usd0(p.premium * CONTRACT_SIZE * p.qty) }]} />}
+      {prepareError && <Banner tone="danger">{prepareError}</Banner>}
+      {p && preparedCall && <SignModal open={sign} onClose={() => { setSign(false); setPreparedCall(null); }} onSigned={async (transactionHash) => { const result = executeProposal(p.id, transactionHash); if (result.ok) { setSign(false); setPreparedCall(null); setTab('history'); } }} methodName={preparedCall.method} args={preparedCall.args} action={`Create and approve ${p.strategy.toLowerCase()} on ${p.sym}`} rows={[{ k: 'Underlying', v: 'Tidepool Testnet wNEAR (demo proxy)' }, { k: 'Contract', v: `${p.strike} ${p.side} · ${fmtDate(p.expiry)}` }, { k: 'Quantity', v: String(p.qty) }, { k: 'Premium', v: 'Configured demo fixture' }]} />}
+      {preparing && <div className="small muted">Preparing AI proposal and demo pricing…</div>}
       <Modal open={rej} onClose={() => setRej(false)} title="Reject this proposal?">
         <div className="col gap16">
           <div className="field"><span className="label">Reason (kept in your journal)</span><select className="select" value={reason} onChange={(e) => setReason(e.target.value)}>{REASONS.map((x) => <option key={x}>{x}</option>)}</select></div>
