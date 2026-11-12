@@ -8,6 +8,7 @@ import type { Mode } from '../data/types';
 import { go } from '../router';
 import { connectWallet, enterReadOnly, startMode, useStore } from '../state/store';
 import { usd } from '../lib/pricing';
+import { connectNearWallet } from '../lib/near-wallet';
 
 const STEPS = ['How it works', 'Connect', 'Account', 'Start'];
 
@@ -16,10 +17,20 @@ export default function Onboarding() {
   const [step, setStep] = useState(s.wallet.connected ? 2 : 0);
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<Mode>('approval');
+  const [walletError, setWalletError] = useState('');
 
-  const connect = () => {
+  const connect = async () => {
     setBusy(true);
-    setTimeout(() => { connectWallet(); setBusy(false); setStep(2); }, 1000);
+    setWalletError('');
+    try {
+      const account = await connectNearWallet();
+      connectWallet(account.accountId, account.network);
+      setStep(2);
+    } catch (error) {
+      setWalletError(error instanceof Error ? error.message : 'Wallet connection failed.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -79,10 +90,11 @@ export default function Onboarding() {
             <button className="big-select" onClick={connect} disabled={busy}>
               <span className="row gap12">
                 <span className="tl-ic ai"><LuWallet size={18} /></span>
-                <span><div className="semi">NEAR wallet</div><div className="small muted">Mock connection for this prototype</div></span>
+                <span><div className="semi">NEAR wallet</div><div className="small muted">Connect a NEAR Testnet wallet to sign transactions</div></span>
               </span>
               {busy ? <LuLoader size={18} className="spin" /> : <Badge tone="gold">Connect</Badge>}
             </button>
+            {walletError && <Banner tone="danger">{walletError}</Banner>}
             <Button variant="soft" onClick={() => { enterReadOnly(); go('/app'); }}>Explore read-only without a wallet</Button>
             <Accordion title="What does connecting allow?">
               <div className="col gap8 small">
@@ -100,9 +112,9 @@ export default function Onboarding() {
             <h1 className="display" style={{ fontSize: 32, fontWeight: 700, lineHeight: 1.1 }}>Your account is ready</h1>
             <div className="card" style={{ padding: 6 }}>
               {[
-                { l: 'Wallet detected', v: s.wallet.account || 'handel-demo.testnet', ok: true },
+                { l: 'Wallet detected', v: s.wallet.account || 'Not connected', ok: s.wallet.connected },
                 { l: 'Network verified', v: NETWORK, ok: true },
-                { l: 'Collateral balance', v: `${usd(s.balance)} USDC (demo)`, ok: true },
+                { l: 'Collateral balance', v: 'Testnet token balance checked on-chain before trade', ok: false },
                 { l: 'AI trading permission', v: 'None granted', ok: false },
               ].map((r) => (
                 <div key={r.l} className="row between gap12" style={{ padding: '12px 14px', borderBottom: '1px solid var(--line)' }}>
