@@ -404,8 +404,9 @@ export async function authorizeDelegatedCollateralFunding(
   expectedEscrowPositionId: string,
 ): Promise<WalletTransactionResult> {
   if (!OPTIONS_CONTRACT || !ESCROW_CONTRACT) throw new Error('Handel Testnet contracts are not configured.');
-  if (!/^\d+$/.test(positionId) || !/^\d+$/.test(expectedEscrowPositionId)) {
-    throw new Error('Position identifiers must be unsigned integers.');
+  if (!/^\d+$/.test(positionId) || !/^\d+$/.test(expectedEscrowPositionId) ||
+      !Number.isSafeInteger(Number(positionId)) || !Number.isSafeInteger(Number(expectedEscrowPositionId))) {
+    throw new Error('Position identifiers must be safe unsigned integers.');
   }
   const principal = await currentNearAccount();
   if (!principal) throw new Error('Connect the principal wallet to authorize collateral funding.');

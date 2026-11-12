@@ -68,7 +68,9 @@ function positionIdFrom(result: AgentFunctionCallResult): string {
   if (!result.successValue) throw new Error("OptionsContract did not return a position ID");
   const value = JSON.parse(Buffer.from(result.successValue, "base64").toString("utf8")) as unknown;
   if (!(typeof value === "number" && Number.isSafeInteger(value) && value >= 0) &&
-      !(typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value))) throw new Error("OptionsContract returned an invalid position ID");
+      !(typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value) && BigInt(value) <= BigInt(Number.MAX_SAFE_INTEGER))) {
+    throw new Error("OptionsContract returned an invalid or unsafe position ID");
+  }
   return String(value);
 }
 

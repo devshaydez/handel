@@ -52,6 +52,9 @@ jobs:
           bash scripts/test-deploy-safety.sh
           bash scripts/test-escrow-deploy-safety.sh
           node --check scripts/check-testnet-deployment-readiness.mjs
+          node --check lib/handel-api.js
+          node --check lib/delegated-agent.js
+          node --check api/v1/delegated/trades.js
           node --test scripts/test-testnet-deployment-readiness.mjs
 
       - name: Install system dependencies for cargo-near
