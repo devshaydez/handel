@@ -108,8 +108,8 @@ export async function createRestrictedAgentFunctionCallSigner(input: {
   if (!input.privateKey?.trim()) throw new Error("HANDEL_AGENT_PRIVATE_KEY is required");
   const rpcUrl = input.rpcUrl ?? "https://rpc.testnet.fastnear.com";
   if (!rpcUrl.startsWith("https://")) throw new Error("agent signer RPC must use HTTPS");
-  const keyPair = KeyPair.fromString(input.privateKey.trim());
-  const nearAccount = new Account(input.agentAccountId, new JsonRpcProvider({ url: rpcUrl }), input.privateKey.trim());
+  const keyPair = KeyPair.fromString(input.privateKey.trim() as never);
+  const nearAccount = new Account(input.agentAccountId, new JsonRpcProvider({ url: rpcUrl }), input.privateKey.trim() as never);
   const account: AccessKeyAccount = {
     async getAccessKeys() {
       const response = await fetch(rpcUrl, {

@@ -44,6 +44,6 @@ test("restricted signer rejects full-access keys and any receiver/method expansi
 test("restricted signer refuses methods outside the OptionsContract allowlist", async () => {
   const a = account();
   const signer = new RestrictedAgentFunctionCallSigner("handel-agent.shaydez.testnet", "options.shaydez.testnet", key, a);
-  await assert.rejects(() => signer.call("agent_create_call;ft_transfer", {}));
+  await assert.rejects(() => signer.call("agent_create_call;ft_transfer" as never, {}));
   assert.equal(a.calls.length, 0);
 });
