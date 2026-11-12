@@ -1,4 +1,4 @@
-import { handleHandelApi } from "../../../../lib/handel-api.js";
+import { handleHandelApi } from "../../../lib/handel-api.js";
 
 export const config = { api: { bodyParser: false } };
 
