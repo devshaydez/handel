@@ -8,7 +8,7 @@ import { assetBySym, EXPIRIES, fmtDate, getChain, isoAgo, makeContract, MIN, par
 import { go, useRoute } from '../router';
 import { lockedCollateral, recordManualOpen, useStore } from '../state/store';
 import { createAdvisoryProposal } from '../lib/handel-api';
-import { signNearContractCall, type WalletTransactionResult } from '../lib/near-wallet';
+import { signAgentProposalIntent, signNearContractCall, type WalletTransactionResult } from '../lib/near-wallet';
 import { runChecks, overall } from '../lib/policy';
 import { CONTRACT_SIZE, breakeven, usd, usd0 } from '../lib/pricing';
 
@@ -25,7 +25,7 @@ export default function TradeBuilder() {
   const [step, setStep] = useState<'build' | 'review' | 'track'>('build');
   const [sign, setSign] = useState(false);
   const [tracked, setTracked] = useState<{ hash: string; posId: string } | null>(null);
-  const [preparedCall, setPreparedCall] = useState<{ method: 'create_call' | 'create_put'; args: Record<string, string> } | null>(null);
+  const [preparedCall, setPreparedCall] = useState<{ method: 'approve_agent_proposal'; args: Record<string, string> } | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [prepareError, setPrepareError] = useState('');
   const [aiPreview, setAiPreview] = useState<{ rationale: string; risks: string[]; model: string } | null>(null);
@@ -174,8 +174,13 @@ export default function TradeBuilder() {
       const quantity = (BigInt(qty) * 100n * 10n ** 24n).toString();
       const strikeAmount = (BigInt(Math.round(k * 100)) * BigInt(qty) * 1_000_000n).toString();
       const expiryNs = (BigInt(Date.parse(expiry + 'T23:59:59Z')) * 1_000_000n).toString();
+      const authorization = await signAgentProposalIntent({
+        holder: s.wallet.account, kind: side === 'call' ? 'Call' : 'Put',
+        assetId: 'nep141:wnear.tidepool-sandbox.testnet', quantity, strike: strikeAmount, premium: '5000000', expiryNs,
+      });
       const reply = await createAdvisoryProposal({
         holder: s.wallet.account,
+        authorization,
         request: {
           type: side === 'call' ? 'Call' : 'Put',
           assetId: 'nep141:wnear.tidepool-sandbox.testnet',

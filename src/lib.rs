@@ -1,6 +1,6 @@
 use near_sdk::{
-    env, near, store::UnorderedMap, AccountId, Gas, NearToken, PanicOnDefault, Promise,
-    PromiseResult,
+    env, json_types::U64, near, store::UnorderedMap, AccountId, Gas, NearToken, PanicOnDefault,
+    Promise, PromiseResult,
 };
 
 /// Holders get a 24-hour post-maturity window to submit exercise transactions.
@@ -1159,6 +1159,29 @@ impl OptionsContract {
         );
         // Safe default: a newly granted agent must receive explicit delegated authority.
         self.store_agent_execution_mode(&agent_id, AgentExecutionMode::ManualApproval);
+    }
+
+    /// Precision-safe policy setter for JavaScript clients. NEAR's U64 JSON wrapper
+    /// encodes the nanosecond timestamp as a decimal string, avoiding IEEE-754 loss.
+    pub fn set_agent_policy_exact(
+        &mut self,
+        agent_id: AccountId,
+        allowed_assets: Vec<String>,
+        max_underlying_amount: u128,
+        max_premium_usdc: u128,
+        max_collateral_usdc: u128,
+        max_open_positions: u32,
+        expires_at_ns: U64,
+    ) {
+        self.set_agent_policy(
+            agent_id,
+            allowed_assets,
+            max_underlying_amount,
+            max_premium_usdc,
+            max_collateral_usdc,
+            max_open_positions,
+            expires_at_ns.0,
+        );
     }
 
     /// Change the authority mode for an existing agent. Only its principal can do this.

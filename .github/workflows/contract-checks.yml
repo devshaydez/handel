@@ -86,6 +86,7 @@ jobs:
         run: |
           cargo near build non-reproducible-wasm --no-abi
           (cd contracts/escrow && cargo near build non-reproducible-wasm --no-abi)
+          cp target/near/handel_escrow/handel_escrow.wasm target/near/handel_escrow_default.wasm
           (cd contracts/mock-ft && cargo near build non-reproducible-wasm --no-abi)
           ls -lh target/near/*.wasm target/near/*/*.wasm
 

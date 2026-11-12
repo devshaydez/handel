@@ -55,6 +55,7 @@ export function checkHandelHealth(): Promise<{ ok: boolean; service: string; mod
 
 export interface AdvisoryProposalRequest {
   holder: string;
+  authorization: { message: string; nonce: string; recipient: string; callbackUrl: string; issuedAtMs: string; publicKey: string; signature: string };
   request: {
     type: 'Call' | 'Put';
     assetId: string;
@@ -81,29 +82,33 @@ export interface AdvisoryProposalReply {
     createdAt: string;
   };
   prepared: {
-    method: 'create_call' | 'create_put';
+    method: 'approve_agent_proposal';
     args: Record<string, string>;
   };
+  agentSubmission: { accountId: string; transactionHash: string };
   approvalRequired: true;
   pricingMode: 'demo_fixture';
   ai: { provider: string; model: string; responseVerified: boolean };
-  executionEligible: true;
-  transactionSubmitted: false;
+  executionEligible: false;
+  transactionSubmitted: true;
   walletSignatureRequested: false;
   policySource: string;
-  approvalMode: 'principal_wallet_signed_offer';
+  approvalMode: 'agent_submitted_principal_approval';
 }
-
 export async function createAdvisoryProposal(input: AdvisoryProposalRequest): Promise<AdvisoryProposalReply> {
   const reply = await post<AdvisoryProposalReply>('/v1/advisory/proposals', input);
   if (!reply.proposal?.proposalId ||
-      (reply.prepared?.method !== 'create_call' && reply.prepared?.method !== 'create_put') ||
+      reply.prepared?.method !== 'approve_agent_proposal' ||
       reply.approvalRequired !== true ||
-      reply.executionEligible !== true ||
-      reply.transactionSubmitted !== false ||
+      reply.executionEligible !== false ||
+      reply.transactionSubmitted !== true ||
       reply.walletSignatureRequested !== false ||
       reply.pricingMode !== 'demo_fixture' ||
-      reply.ai?.responseVerified !== true) {
+      reply.ai?.responseVerified !== true ||
+      reply.approvalMode !== 'agent_submitted_principal_approval' ||
+      !reply.agentSubmission?.accountId || !reply.agentSubmission?.transactionHash ||
+      reply.prepared.args?.proposal_id !== reply.proposal.proposalId ||
+      !/^\d+$/.test(reply.prepared.args?.position_id ?? '')) {
     throw new HandelApiError('Handel backend returned an invalid proposal response.');
   }
   return reply;

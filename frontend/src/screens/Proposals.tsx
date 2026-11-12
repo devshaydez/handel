@@ -10,7 +10,7 @@ import { go, useRoute } from '../router';
 import { executeProposal, proposalChecks, rejectProposal, useStore } from '../state/store';
 import { overall } from '../lib/policy';
 import { createAdvisoryProposal } from '../lib/handel-api';
-import { signNearContractCall } from '../lib/near-wallet';
+import { signAgentProposalIntent, signNearContractCall } from '../lib/near-wallet';
 import { CONTRACT_SIZE, breakeven, usd, usd0 } from '../lib/pricing';
 
 const ST: Record<ProposalStatus, { l: string; t: 'gold' | 'green' | 'red' | 'blue' | 'amber' }> = { pending: { l: 'Awaiting approval', t: 'amber' }, approved: { l: 'Approved', t: 'blue' }, executed: { l: 'Executed', t: 'green' }, rejected: { l: 'Rejected', t: 'red' }, blocked: { l: 'Blocked by policy', t: 'red' } };
@@ -25,7 +25,7 @@ export default function Proposals() {
   const [rej, setRej] = useState(false);
   const [reason, setReason] = useState(REASONS[0]);
   const [section, setSection] = useState<'reasoning' | 'evidence' | 'risks' | 'alts'>('reasoning');
-  const [preparedCall, setPreparedCall] = useState<{ method: 'create_call' | 'create_put'; args: Record<string, string>; rationale: string; risks: string[]; aiModel: string } | null>(null);
+  const [preparedCall, setPreparedCall] = useState<{ method: 'approve_agent_proposal'; args: Record<string, string>; rationale: string; risks: string[]; aiModel: string } | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [prepareError, setPrepareError] = useState('');
 
@@ -37,8 +37,13 @@ export default function Proposals() {
       const quantity = (BigInt(proposal.qty) * 100n * 10n ** 24n).toString();
       const strike = (BigInt(Math.round(proposal.strike * 100)) * BigInt(proposal.qty) * 1_000_000n).toString();
       const expiryNs = (BigInt(Date.parse(proposal.expiry + 'T23:59:59Z')) * 1_000_000n).toString();
+      const authorization = await signAgentProposalIntent({
+        holder: s.wallet.account, kind: proposal.side === 'call' ? 'Call' : 'Put',
+        assetId: 'nep141:wnear.tidepool-sandbox.testnet', quantity, strike, premium: '5000000', expiryNs,
+      });
       const reply = await createAdvisoryProposal({
         holder: s.wallet.account,
+        authorization,
         request: {
           type: proposal.side === 'call' ? 'Call' : 'Put',
           // All demo equity symbols map to verified Tidepool wNEAR test token.

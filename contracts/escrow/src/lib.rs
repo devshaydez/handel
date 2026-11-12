@@ -7,9 +7,8 @@ use near_sdk::{
 
 #[cfg(not(feature = "expiry-fast-forward"))]
 const EXERCISE_GRACE_NS: u64 = 24 * 60 * 60 * 1_000_000_000;
-// Only the expiry-specific Sandbox artifact shortens the grace period. The
-// payment-callback fault artifact retains production timing so exercise payment
-// can be accepted after maturity during its normal grace window.
+// The expiry fault-injection artifact is used only by the expiry payout test,
+// which advances Sandbox beyond maturity before requesting collateral release.
 #[cfg(feature = "expiry-fast-forward")]
 const EXERCISE_GRACE_NS: u64 = 0;
 const FT_TRANSFER_GAS: Gas = Gas::from_tgas(10);

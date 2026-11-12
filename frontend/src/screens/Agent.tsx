@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LuBan, LuCheck, LuLock, LuPause, LuPlay, LuKeyRound } from 'react-icons/lu';
 import { ChecksList, SegBars } from '../components/status';
 import { AgentPill } from '../components/status';
@@ -8,12 +8,26 @@ import type { Mode, Policy } from '../data/types';
 import { go } from '../router';
 import { agentStatus, pauseAgent, resumeAgent, revokeAgent, reauthorize, runAgentCycle, setMode, updatePolicy, useStore } from '../state/store';
 import { usd0 } from '../lib/pricing';
+import { getOnChainAgentPolicy, saveOnChainAgentPolicy } from '../lib/near-wallet';
 
 const MODES: { m: Mode; t: string; tag: string; pts: string[] }[] = [
   { m: 'advisory', t: 'Advisory', tag: 'AI recommends', pts: ['Analyses markets and explains options', 'Recommends or rejects opportunities', 'Never executes. You act yourself'] },
   { m: 'approval', t: 'Approval', tag: 'You approve each trade', pts: ['Writes structured trade proposals', 'You approve or reject each one', 'Approved trades still pass every check'] },
   { m: 'auto', t: 'Automatic', tag: 'Within your limits', pts: ['Executes only what your policy allows', 'Every trade passes the policy engine', 'You can pause or revoke at any time'] },
-];
+];;
+function formatBaseUnits(value: string | number, decimals: number): string {
+  const amount = BigInt(value);
+  const scale = 10n ** BigInt(decimals);
+  const whole = amount / scale;
+  const fraction = (amount % scale).toString().padStart(decimals, '0').replace(/0+$/, '');
+  return fraction ? whole.toString() + '.' + fraction : whole.toString();
+}
+function parseBaseUnits(value: string, decimals: number): string {
+  if (!/^\d+(?:\.\d+)?$/.test(value)) throw new Error('Enter a valid positive decimal amount.');
+  const [whole, fraction = ''] = value.split('.');
+  if (fraction.length > decimals) throw new Error('This token supports at most ' + decimals + ' decimal places.');
+  return (BigInt(whole) * (10n ** BigInt(decimals)) + BigInt((fraction + '0'.repeat(decimals)).slice(0, decimals) || '0')).toString();
+}
 
 export default function Agent() {
   const s = useStore();
@@ -21,6 +35,49 @@ export default function Agent() {
   const [draft, setDraft] = useState<Policy>(s.policy);
   const [confirmAuto, setConfirmAuto] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const [chainPolicy, setChainPolicy] = useState<Awaited<ReturnType<typeof getOnChainAgentPolicy>>>(null);
+  const [chainDraft, setChainDraft] = useState({ maxUnderlyingWnear: '', maxPremiumUsdc: '', maxCollateralUsdc: '', maxOpenPositions: '', validityDays: '' });
+  const [chainLoading, setChainLoading] = useState(true);
+  const [chainSaving, setChainSaving] = useState(false);
+  const [chainError, setChainError] = useState('');
+  const [chainSuccess, setChainSuccess] = useState('');
+  useEffect(() => {
+    let active = true;
+    getOnChainAgentPolicy().then((policy) => {
+      if (!active) return;
+      setChainPolicy(policy);
+      if (policy) {
+        const remaining = (BigInt(policy.expires_at_ns) - BigInt(Date.now()) * 1_000_000n + 86_400_000_000_000n - 1n) / 86_400_000_000_000n;
+        setChainDraft({
+          maxUnderlyingWnear: formatBaseUnits(policy.max_underlying_amount, 24),
+          maxPremiumUsdc: formatBaseUnits(policy.max_premium_usdc, 6),
+          maxCollateralUsdc: formatBaseUnits(policy.max_collateral_usdc, 6),
+          maxOpenPositions: String(policy.max_open_positions),
+          validityDays: String(remaining > 0n ? remaining : 1n),
+        });
+      }
+    }).catch((error) => {
+      if (active) setChainError(error instanceof Error ? error.message : 'Could not read the on-chain agent policy.');
+    }).finally(() => { if (active) setChainLoading(false); });
+    return () => { active = false; };
+  }, []);
+  const saveChainPolicy = async () => {
+    setChainSaving(true); setChainError(''); setChainSuccess('');
+    try {
+      const result = await saveOnChainAgentPolicy({
+        allowedAssets: ['nep141:wnear.tidepool-sandbox.testnet'],
+        maxUnderlyingAmount: parseBaseUnits(chainDraft.maxUnderlyingWnear, 24),
+        maxPremiumUsdc: parseBaseUnits(chainDraft.maxPremiumUsdc, 6),
+        maxCollateralUsdc: parseBaseUnits(chainDraft.maxCollateralUsdc, 6),
+        maxOpenPositions: Number(chainDraft.maxOpenPositions),
+        validityDays: Number(chainDraft.validityDays),
+      });
+      setChainPolicy(result.policy);
+      setChainSuccess('On-chain policy verified. Transaction: ' + result.transactionHash);
+    } catch (error) {
+      setChainError(error instanceof Error ? error.message : 'Could not save the on-chain agent policy.');
+    } finally { setChainSaving(false); }
+  };
   const dirty = JSON.stringify(draft) !== JSON.stringify(s.policy);
   const tgl = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const perm = s.activity.filter((a) => a.kind === 'permission_change').slice(0, 4);
@@ -104,6 +161,29 @@ export default function Agent() {
           </Card>
         </div>
       </div>
+
+      <Card>
+        <CardHead title="On-chain Testnet permissions" sub="These exact limits are enforced by OptionsContract for handel-agent.shaydez.testnet. Only your connected principal wallet can create or update them." right={chainPolicy ? <Badge tone={chainPolicy.enabled ? 'green' : 'red'}>{chainPolicy.enabled ? 'On-chain policy active' : 'Disabled'}</Badge> : <Badge tone="outline">Not configured</Badge>} />
+        {chainLoading ? <p className="small muted">Reading policy from NEAR Testnet…</p> : (
+          <>
+            {chainPolicy && <div className="small muted mb12">Principal: <b>{chainPolicy.principal}</b> · Allowed asset: wNEAR · Current policy expiry: {new Date(Number(chainPolicy.expires_at_ns) / 1_000_000).toLocaleString()}</div>}
+            <div className="banner info mb12">All demo market symbols currently use the same Tidepool Testnet wNEAR token. The contract policy therefore authorizes that token, not real NVDA/AAPL/MSFT shares.</div>
+            <div className="grid g2">
+              <div className="field"><span className="label">Maximum underlying per proposal (wNEAR)</span><input className="input" type="number" min="0" step="0.000000000000000000000001" value={chainDraft.maxUnderlyingWnear} onChange={(e) => setChainDraft({ ...chainDraft, maxUnderlyingWnear: e.target.value })} placeholder="Set your wNEAR limit" /></div>
+              <div className="field"><span className="label">Maximum premium per proposal (USDC)</span><input className="input" type="number" min="0" step="0.000001" value={chainDraft.maxPremiumUsdc} onChange={(e) => setChainDraft({ ...chainDraft, maxPremiumUsdc: e.target.value })} placeholder="Set your USDC limit" /></div>
+              <div className="field"><span className="label">Maximum put collateral per proposal (USDC)</span><input className="input" type="number" min="0" step="0.000001" value={chainDraft.maxCollateralUsdc} onChange={(e) => setChainDraft({ ...chainDraft, maxCollateralUsdc: e.target.value })} placeholder="Set your USDC limit" /></div>
+              <div className="field"><span className="label">Maximum open positions</span><input className="input" type="number" min="1" step="1" value={chainDraft.maxOpenPositions} onChange={(e) => setChainDraft({ ...chainDraft, maxOpenPositions: e.target.value })} placeholder="Set your position cap" /></div>
+              <div className="field"><span className="label">Policy validity (days)</span><input className="input" type="number" min="1" max="365" step="1" value={chainDraft.validityDays} onChange={(e) => setChainDraft({ ...chainDraft, validityDays: e.target.value })} placeholder="1–365 days" /></div>
+            </div>
+            {chainError && <Banner tone="danger">{chainError}</Banner>}
+            {chainSuccess && <Banner tone="info">{chainSuccess}</Banner>}
+            <div className="row gap8 wrap mt12">
+              <Button variant="gold" disabled={chainSaving || !chainDraft.maxUnderlyingWnear || !chainDraft.maxPremiumUsdc || !chainDraft.maxCollateralUsdc || !chainDraft.maxOpenPositions || !chainDraft.validityDays} onClick={() => void saveChainPolicy()}>{chainSaving ? 'Waiting for wallet…' : chainPolicy ? 'Update on-chain policy' : 'Create on-chain policy'}</Button>
+              <span className="tiny muted">This submits one wallet-signed transaction. New policies default to Manual Approval.</span>
+            </div>
+          </>
+        )}
+      </Card>
 
       <Modal open={confirmAuto} onClose={() => setConfirmAuto(false)} title="Enable automatic execution?">
         <div className="col gap16">

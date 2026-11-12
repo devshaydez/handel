@@ -13,6 +13,60 @@ const RPCS = ['https://rpc.testnet.near.org', 'https://rpc.testnet.fastnear.com'
 const USDC_TOKEN = import.meta.env.VITE_HANDEL_TESTNET_USDC_ACCOUNT || 'usdc.tidepool-sandbox.testnet';
 const UNDERLYING_TOKEN = import.meta.env.VITE_HANDEL_TESTNET_UNDERLYING_ACCOUNT || 'wnear.tidepool-sandbox.testnet';
 
+export interface AgentProposalAuthorization {
+  message: string;
+  nonce: string;
+  recipient: string;
+  callbackUrl: string;
+  issuedAtMs: string;
+  publicKey: string;
+  signature: string;
+}
+export async function signAgentProposalIntent(input: {
+  holder: string;
+  kind: 'Call' | 'Put';
+  assetId: string;
+  quantity: string;
+  strike: string;
+  premium: string;
+  expiryNs: string;
+}): Promise<AgentProposalAuthorization> {
+  const accountId = await currentNearAccount();
+  if (!accountId || accountId !== input.holder) throw new Error('Connect the principal wallet that owns this agent before requesting a proposal.');
+  const s = await selector();
+  const wallet = await s.wallet();
+  if (typeof wallet.signMessage !== 'function') {
+    throw new Error('The selected wallet does not support NEP-413 message signing. Use a connected wallet that supports signMessage.');
+  }
+  const nonceBytes = crypto.getRandomValues(new Uint8Array(32));
+  const nonce = btoa(Array.from(nonceBytes, (byte) => String.fromCharCode(byte)).join(''));
+  const issuedAtMs = String(Date.now());
+  const recipient = 'handel-live.vercel.app';
+  const callbackUrl = window.location.href;
+  const message = [
+    'Handel agent proposal authorization',
+    'Action: submit one pending options proposal for principal approval',
+    'Version: 1',
+    'Principal: ' + input.holder,
+    'Option type: ' + input.kind,
+    'Asset ID: ' + input.assetId,
+    'Underlying amount (base units): ' + input.quantity,
+    'Strike amount (USDC base units): ' + input.strike,
+    'Premium amount (USDC base units): ' + input.premium,
+    'Expiry (nanoseconds): ' + input.expiryNs,
+    'Issued at (milliseconds): ' + issuedAtMs,
+  ].join('\n');
+  const signed = await wallet.signMessage({ message, recipient, nonce: nonceBytes as never, callbackUrl });
+  if (!signed || !signed.signature || !signed.publicKey || signed.accountId !== input.holder) {
+    throw new Error('The wallet did not return a verifiable NEP-413 signature. No proposal was submitted.');
+  }
+  const signatureValue = signed.signature as unknown;
+  const signature = typeof signatureValue === 'string'
+    ? signatureValue
+    : btoa(Array.from(new Uint8Array(signatureValue as ArrayLike<number>), (byte) => String.fromCharCode(byte)).join(''));
+  return { message, nonce, recipient, callbackUrl, issuedAtMs, publicKey: signed.publicKey.toString(), signature };
+}
+
 export interface WalletTransactionResult {
   transactionHash: string;
   accountId: string;
@@ -99,6 +153,66 @@ async function view<T>(accountId: string, methodName: string, args: Record<strin
   }
   return responses[0]!;
 }
+export interface OnChainAgentPolicy {
+  principal: string;
+  allowed_assets: string[];
+  max_underlying_amount: string;
+  max_premium_usdc: string;
+  max_collateral_usdc: string;
+  max_open_positions: number;
+  expires_at_ns: number | string;
+  enabled: boolean;
+}
+const AGENT_ACCOUNT = (import.meta.env.VITE_HANDEL_AGENT_ACCOUNT_ID as string | undefined) || 'handel-agent.shaydez.testnet';
+export async function getOnChainAgentPolicy(): Promise<OnChainAgentPolicy | null> {
+  return view<OnChainAgentPolicy | null>(OPTIONS_CONTRACT, 'get_agent_policy', { agent_id: AGENT_ACCOUNT });
+}
+export async function saveOnChainAgentPolicy(input: {
+  allowedAssets: string[];
+  maxUnderlyingAmount: string;
+  maxPremiumUsdc: string;
+  maxCollateralUsdc: string;
+  maxOpenPositions: number;
+  validityDays: number;
+}): Promise<{ transactionHash: string; policy: OnChainAgentPolicy }> {
+  const principal = await currentNearAccount();
+  if (!principal) throw new Error('Connect the principal NEAR Testnet wallet before saving agent permissions.');
+  if (!input.allowedAssets.length) throw new Error('Select at least one enabled asset.');
+  for (const [label, value] of [['underlying', input.maxUnderlyingAmount], ['premium', input.maxPremiumUsdc], ['collateral', input.maxCollateralUsdc]] as const) {
+    if (!/^\d+$/.test(value) || BigInt(value) <= 0n) throw new Error('The maximum ' + label + ' amount must be a positive integer in base units.');
+  }
+  if (!Number.isInteger(input.maxOpenPositions) || input.maxOpenPositions < 1) throw new Error('Maximum open positions must be a positive whole number.');
+  if (!Number.isInteger(input.validityDays) || input.validityDays < 1 || input.validityDays > 365) throw new Error('Policy validity must be between 1 and 365 days.');
+  const expiresAtNs = (BigInt(Date.now()) + BigInt(input.validityDays) * 86_400_000n) * 1_000_000n;
+  const tx = await send(OPTIONS_CONTRACT, 'set_agent_policy_exact', {
+    agent_id: AGENT_ACCOUNT,
+    allowed_assets: input.allowedAssets,
+    max_underlying_amount: input.maxUnderlyingAmount,
+    max_premium_usdc: input.maxPremiumUsdc,
+    max_collateral_usdc: input.maxCollateralUsdc,
+    max_open_positions: input.maxOpenPositions,
+    expires_at_ns: expiresAtNs.toString(),
+  });
+  const policy = await getOnChainAgentPolicy();
+  const policyExpiryNs = policy ? BigInt(policy.expires_at_ns) : 0n;
+  const expiryDifferenceNs = policyExpiryNs >= expiresAtNs
+    ? policyExpiryNs - expiresAtNs
+    : expiresAtNs - policyExpiryNs;
+  const expectedAssets = [...input.allowedAssets].sort();
+  const actualAssets = policy ? [...policy.allowed_assets].sort() : [];
+  if (!policy || policy.principal !== principal || policy.enabled !== true ||
+      policy.max_underlying_amount !== input.maxUnderlyingAmount ||
+      policy.max_premium_usdc !== input.maxPremiumUsdc ||
+      policy.max_collateral_usdc !== input.maxCollateralUsdc ||
+      policy.max_open_positions !== input.maxOpenPositions ||
+      actualAssets.length !== expectedAssets.length ||
+      actualAssets.some((asset, index) => asset !== expectedAssets[index]) ||
+      policyExpiryNs <= BigInt(Date.now()) * 1_000_000n ||
+      expiryDifferenceNs > 1_000n) {
+    throw new Error('The wallet transaction was submitted, but the on-chain agent policy could not be independently verified. Transaction: ' + tx.transactionHash);
+  }
+  return { transactionHash: tx.transactionHash, policy };
+}
 function returnedId(outcome: { status?: { SuccessValue?: string } }): string {
   const encoded = outcome.status?.SuccessValue;
   if (!encoded) throw new Error('OptionsContract did not return a position ID.');
@@ -134,17 +248,15 @@ async function transferCall(token: string, escrowPositionId: string, leg: 'colla
  * collateral and premium using NEP-141 transfer_call, then pay the premium
  * through the escrow's callback-verified NEP-141 transfer.
  */
-async function createAndFundEscrowOption(methodName: 'create_call' | 'create_put', args: Record<string, unknown>) {
-  if (!OPTIONS_CONTRACT || !ESCROW_CONTRACT) {
-    throw new Error('Set VITE_HANDEL_OPTIONS_CONTRACT_ID and VITE_HANDEL_ESCROW_CONTRACT_ID before trading.');
-  }
-  const positionTx = await send(OPTIONS_CONTRACT, methodName, args);
-  let lastHash = positionTx.transactionHash;
+async function fundExistingEscrowPosition(positionId: string, methodName: 'create_call' | 'create_put', args: Record<string, unknown>, accountId: string, initialHash: string | undefined, initialLabel: string) {
+  let lastHash = initialHash || '';
   try {
-    const positionId = returnedId(positionTx.outcome);
-    const registerTx = await send(OPTIONS_CONTRACT, 'register_escrow_position', { position_id: Number(positionId) });
-    lastHash = registerTx.transactionHash;
-    const option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT, 'get_position', { position_id: Number(positionId) });
+    let option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT!, 'get_position', { position_id: Number(positionId) });
+    if (option.escrow_position_id === undefined || option.escrow_position_id === null) {
+      const registerTx = await send(OPTIONS_CONTRACT!, 'register_escrow_position', { position_id: Number(positionId) });
+      lastHash = registerTx.transactionHash;
+      option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT!, 'get_position', { position_id: Number(positionId) });
+    }
     if (option.escrow_position_id === undefined || option.escrow_position_id === null) {
       throw new Error('Escrow registration is not confirmed by OptionsContract yet.');
     }
@@ -152,41 +264,93 @@ async function createAndFundEscrowOption(methodName: 'create_call' | 'create_put
     const isCall = methodName === 'create_call';
     const collateralToken = isCall ? UNDERLYING_TOKEN : USDC_TOKEN;
     const collateralAmount = String(isCall ? args.underlying_amount : args.strike_amount_usdc);
-    const collateralTx = await transferCall(collateralToken, escrowPositionId, 'collateral', collateralAmount);
-    lastHash = collateralTx.transactionHash;
-    const escrowState = await view<{ collateral_received?: boolean }>(ESCROW_CONTRACT, 'get_position', { position_id: Number(escrowPositionId) });
-    if (escrowState.collateral_received !== true) {
+    let escrowState = await view<{ collateral_received?: boolean } | null>(ESCROW_CONTRACT!, 'get_position', { position_id: Number(escrowPositionId) });
+    if (escrowState?.collateral_received !== true) {
+      const collateralTx = await transferCall(collateralToken, escrowPositionId, 'collateral', collateralAmount);
+      lastHash = collateralTx.transactionHash;
+      escrowState = await view<{ collateral_received?: boolean } | null>(ESCROW_CONTRACT!, 'get_position', { position_id: Number(escrowPositionId) });
+    }
+    if (escrowState?.collateral_received !== true) {
       throw new Error('Escrow has not confirmed collateral receipt. Position remains pending; transaction ' + lastHash);
     }
     const premiumAmount = String(args.premium_amount_usdc);
-    const premiumTx = await transferCall(USDC_TOKEN, escrowPositionId, 'premium', premiumAmount);
-    lastHash = premiumTx.transactionHash;
-    const premiumReceived = await view<{ received?: boolean } | null>(ESCROW_CONTRACT, 'get_premium_status', { position_id: Number(escrowPositionId) });
-    if (!premiumReceived || premiumReceived.received !== true) {
+    let premiumStatus = await view<{ received?: boolean; paid?: boolean } | null>(ESCROW_CONTRACT!, 'get_premium_status', { position_id: Number(escrowPositionId) });
+    if (!premiumStatus?.received) {
+      const premiumTx = await transferCall(USDC_TOKEN, escrowPositionId, 'premium', premiumAmount);
+      lastHash = premiumTx.transactionHash;
+      premiumStatus = await view<{ received?: boolean; paid?: boolean } | null>(ESCROW_CONTRACT!, 'get_premium_status', { position_id: Number(escrowPositionId) });
+    }
+    if (!premiumStatus?.received) {
       throw new Error('Escrow has not confirmed the premium transfer. Transaction ' + lastHash);
     }
-    const settleTx = await send(ESCROW_CONTRACT, 'settle_premium', { position_id: Number(escrowPositionId) });
-    lastHash = settleTx.transactionHash;
-    const premium = await view<{ paid?: boolean } | null>(ESCROW_CONTRACT, 'get_premium_status', { position_id: Number(escrowPositionId) });
-    if (!premium || premium.paid !== true) {
+    if (!premiumStatus.paid) {
+      const settleTx = await send(ESCROW_CONTRACT!, 'settle_premium', { position_id: Number(escrowPositionId) });
+      lastHash = settleTx.transactionHash;
+      premiumStatus = await view<{ received?: boolean; paid?: boolean } | null>(ESCROW_CONTRACT!, 'get_premium_status', { position_id: Number(escrowPositionId) });
+    }
+    if (!premiumStatus?.paid) {
       throw new Error('Escrow premium payout is not confirmed. Position remains pending; transaction ' + lastHash);
     }
-    const optionState = await view<{ state?: string | Record<string, unknown> }>(OPTIONS_CONTRACT, 'get_position', { position_id: Number(positionId) });
+    const optionState = await view<{ state?: string | Record<string, unknown> }>(OPTIONS_CONTRACT!, 'get_position', { position_id: Number(positionId) });
     const stateName = typeof optionState.state === 'string' ? optionState.state :
       optionState.state && typeof optionState.state === 'object' ? Object.keys(optionState.state)[0] : '';
     if (stateName !== 'Open') {
       throw new Error('Escrow reports premium paid but OptionsContract has not confirmed the Open state. Transaction ' + lastHash);
     }
-    return { transactionHash: lastHash, accountId: positionTx.accountId, positionId, escrowPositionId };
+    return { transactionHash: lastHash || String(args.agent_tx_hash || ''), accountId, positionId, escrowPositionId };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Escrow lifecycle failed.';
-    throw new Error(message + ' Initial offer transaction: ' + positionTx.transactionHash);
+    const prior = initialHash ? ' ' + initialLabel + ' transaction: ' + initialHash : '';
+    throw new Error(message + prior);
   }
 }
-
+async function createAndFundEscrowOption(methodName: 'create_call' | 'create_put', args: Record<string, unknown>) {
+  if (!OPTIONS_CONTRACT || !ESCROW_CONTRACT) {
+    throw new Error('Set VITE_HANDEL_OPTIONS_CONTRACT_ID and VITE_HANDEL_ESCROW_CONTRACT_ID before trading.');
+  }
+  const positionTx = await send(OPTIONS_CONTRACT, methodName, args);
+  const positionId = returnedId(positionTx.outcome);
+  return fundExistingEscrowPosition(positionId, methodName, args, positionTx.accountId, positionTx.transactionHash, 'Initial offer');
+}
+async function approveAndFundAgentProposal(args: Record<string, unknown>): Promise<WalletTransactionResult> {
+  if (!OPTIONS_CONTRACT || !ESCROW_CONTRACT) throw new Error('Handel Testnet contracts are not configured.');
+  const proposalId = String(args.proposal_id || '');
+  const positionId = String(args.position_id || '');
+  const kind = String(args.kind || '');
+  if (!proposalId || !/^\d+$/.test(positionId) || (kind !== 'Call' && kind !== 'Put')) {
+    throw new Error('Agent proposal approval payload is incomplete or invalid.');
+  }
+  const methodName = kind === 'Call' ? 'create_call' : 'create_put';
+  const optionArgs = {
+    underlying_amount: String(args.underlying_amount),
+    strike_amount_usdc: String(args.strike_amount_usdc),
+    premium_amount_usdc: String(args.premium_amount_usdc),
+    agent_tx_hash: String(args.agent_tx_hash || ''),
+  };
+  if (Object.values(optionArgs).slice(0, 3).some((value) => !/^\d+$/.test(value))) {
+    throw new Error('Agent proposal contains invalid option amounts.');
+  }
+  const accountId = await currentNearAccount();
+  if (!accountId) throw new Error('Connect the principal wallet to approve this agent proposal.');
+  const proposal = await view<{ state?: string; principal?: string } | null>(OPTIONS_CONTRACT, 'get_agent_proposal', { proposal_id: proposalId });
+  if (!proposal) throw new Error('The on-chain agent proposal could not be found.');
+  if (proposal.principal !== accountId) throw new Error('Only the proposal principal can approve and fund this agent proposal.');
+  let initialHash: string | undefined;
+  const initialLabel = 'Principal approval';
+  if (proposal.state === 'PendingApproval') {
+    const approvalTx = await send(OPTIONS_CONTRACT, 'approve_agent_proposal', { proposal_id: proposalId });
+    initialHash = approvalTx.transactionHash;
+  } else if (proposal.state !== 'Approved') {
+    throw new Error('This agent proposal is no longer pending approval.');
+  }
+  return fundExistingEscrowPosition(positionId, methodName, optionArgs, accountId, initialHash, initialLabel);
+}
 export async function signNearContractCall(methodName: string, args: Record<string, unknown>): Promise<WalletTransactionResult> {
   if (methodName === 'create_call' || methodName === 'create_put') {
     return createAndFundEscrowOption(methodName, args);
+  }
+  if (methodName === 'approve_agent_proposal') {
+    return approveAndFundAgentProposal(args);
   }
   if (!OPTIONS_CONTRACT) throw new Error('VITE_HANDEL_OPTIONS_CONTRACT_ID is not configured.');
   const result = await send(OPTIONS_CONTRACT, methodName, args);
