@@ -16,8 +16,11 @@ function rpcResponse(value: unknown, blockHeight = 123) {
 }
 
 test("reads agent permission and ManualApproval mode from the same finalized block", async () => {
-  const queue = [
-    rpcResponse({
+  const calls: Array<Record<string, unknown>> = [];
+  const fetcher = async (_input: string | URL, init?: RequestInit) => {
+    const request = JSON.parse(String(init?.body)) as { params: Record<string, unknown> };
+    calls.push(request.params);
+    const value = request.params.method_name === "get_agent_policy" ? {
       principal: "principal.testnet",
       allowed_assets: ["ondo:test-stock"],
       max_underlying_amount: "1000000",
@@ -26,15 +29,19 @@ test("reads agent permission and ManualApproval mode from the same finalized blo
       max_open_positions: 2,
       expires_at_ns: "999999999999999999",
       enabled: true,
-    }),
-    rpcResponse("ManualApproval"),
-  ];
+    } : "ManualApproval";
+    return new Response(JSON.stringify(rpcResponse(value)), { status: 200 });
+  };
   const result = await readOnChainAgentPermission({
     rpcUrl: "https://rpc.testnet.fastnear.com",
     contractId: "options.testnet",
     agentId: "agent.testnet",
-    fetcher: async () => new Response(JSON.stringify(queue.shift()), { status: 200 }),
+    fetcher,
   });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].finality, "final");
+  assert.equal(calls[1].block_id, "sandbox-block");
+  assert.equal(calls[1].finality, undefined);
   assert.equal(result.blockHeight, 123);
   assert.equal(result.permission.agent, "agent.testnet");
   assert.equal(result.permission.owner, "principal.testnet");
@@ -65,13 +72,20 @@ test("rejects disabled, absent, malformed or non-manual on-chain policies", asyn
     fetcher: async () => new Response(JSON.stringify(policy), { status: 200 }),
   }), /ManualApproval/);
 
-  const responses = [policy, rpcResponse("ManualApproval", 124)];
-  await assert.rejects(() => readOnChainAgentPermission({
+  const pinnedCalls: Array<Record<string, unknown>> = [];
+  const result = await readOnChainAgentPermission({
     rpcUrl: "https://rpc.testnet.fastnear.com",
     contractId: "options.testnet",
     agentId: "agent.testnet",
-    fetcher: async () => new Response(JSON.stringify(responses.shift()), { status: 200 }),
-  }), /different final blocks/);
+    fetcher: async (_input, init) => {
+      const request = JSON.parse(String(init?.body)) as { params: Record<string, unknown> };
+      pinnedCalls.push(request.params);
+      const value = request.params.method_name === "get_agent_policy" ? policy.result.result : rpcResponse("ManualApproval", 124).result.result;
+      return new Response(JSON.stringify({ result: { result: value, block_height: 123, block_hash: "sandbox-block" } }), { status: 200 });
+    },
+  });
+  assert.equal(result.permission.enabled, true);
+  assert.equal(pinnedCalls[1].block_id, "sandbox-block");
 });
 
 test("HTTP service exposes health and returns advisory-only proposals without wallet or transaction calls", async () => {
