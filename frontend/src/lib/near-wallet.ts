@@ -153,6 +153,56 @@ async function view<T>(accountId: string, methodName: string, args: Record<strin
   }
   return responses[0]!;
 }
+export interface OnChainAgentPolicy {
+  principal: string;
+  allowed_assets: string[];
+  max_underlying_amount: string;
+  max_premium_usdc: string;
+  max_collateral_usdc: string;
+  max_open_positions: number;
+  expires_at_ns: number | string;
+  enabled: boolean;
+}
+const AGENT_ACCOUNT = (import.meta.env.VITE_HANDEL_AGENT_ACCOUNT_ID as string | undefined) || 'handel-agent.shaydez.testnet';
+export async function getOnChainAgentPolicy(): Promise<OnChainAgentPolicy | null> {
+  return view<OnChainAgentPolicy | null>(OPTIONS_CONTRACT, 'get_agent_policy', { agent_id: AGENT_ACCOUNT });
+}
+export async function saveOnChainAgentPolicy(input: {
+  allowedAssets: string[];
+  maxUnderlyingAmount: string;
+  maxPremiumUsdc: string;
+  maxCollateralUsdc: string;
+  maxOpenPositions: number;
+  validityDays: number;
+}): Promise<{ transactionHash: string; policy: OnChainAgentPolicy }> {
+  const principal = await currentNearAccount();
+  if (!principal) throw new Error('Connect the principal NEAR Testnet wallet before saving agent permissions.');
+  if (!input.allowedAssets.length) throw new Error('Select at least one enabled asset.');
+  for (const [label, value] of [['underlying', input.maxUnderlyingAmount], ['premium', input.maxPremiumUsdc], ['collateral', input.maxCollateralUsdc]] as const) {
+    if (!/^\\d+$/.test(value) || BigInt(value) <= 0n) throw new Error('The maximum ' + label + ' amount must be a positive integer in base units.');
+  }
+  if (!Number.isInteger(input.maxOpenPositions) || input.maxOpenPositions < 1) throw new Error('Maximum open positions must be a positive whole number.');
+  if (!Number.isInteger(input.validityDays) || input.validityDays < 1 || input.validityDays > 365) throw new Error('Policy validity must be between 1 and 365 days.');
+  const expiresAtNs = (BigInt(Date.now()) + BigInt(input.validityDays) * 86_400_000n) * 1_000_000n;
+  const tx = await send(OPTIONS_CONTRACT, 'set_agent_policy', {
+    agent_id: AGENT_ACCOUNT,
+    allowed_assets: input.allowedAssets,
+    max_underlying_amount: input.maxUnderlyingAmount,
+    max_premium_usdc: input.maxPremiumUsdc,
+    max_collateral_usdc: input.maxCollateralUsdc,
+    max_open_positions: input.maxOpenPositions,
+    expires_at_ns: Number(expiresAtNs),
+  });
+  const policy = await getOnChainAgentPolicy();
+  if (!policy || policy.principal !== principal || policy.enabled !== true ||
+      policy.max_underlying_amount !== input.maxUnderlyingAmount ||
+      policy.max_premium_usdc !== input.maxPremiumUsdc ||
+      policy.max_collateral_usdc !== input.maxCollateralUsdc ||
+      policy.max_open_positions !== input.maxOpenPositions) {
+    throw new Error('The wallet transaction was submitted, but the on-chain agent policy could not be independently verified. Transaction: ' + tx.transactionHash);
+  }
+  return { transactionHash: tx.transactionHash, policy };
+}
 function returnedId(outcome: { status?: { SuccessValue?: string } }): string {
   const encoded = outcome.status?.SuccessValue;
   if (!encoded) throw new Error('OptionsContract did not return a position ID.');
