@@ -14,7 +14,7 @@ import { overall, runChecks } from '../lib/policy';
 import { CONTRACT_SIZE, usd0 } from '../lib/pricing';
 import { markPosition } from '../lib/valuation';
 import { askHandelEducation } from '../lib/handel-api';
-import { disconnectNearWallet } from '../lib/near-wallet';
+import { disconnectNearWallet, type WalletTransactionResult } from '../lib/near-wallet';
 
 export interface AgentRun {
   id: string;
@@ -290,6 +290,27 @@ function startPipeline(tx: Omit<Tx, 'stage' | 'startedAt' | 'updatedAt' | 'reche
   }, 4200);
 }
 
+export function recordManualOpen(spec: TradeSpec, result: WalletTransactionResult, premiumPerShare: number): { hash: string; positionId: string } {
+  if (!result.positionId || !result.escrowPositionId) throw new Error('Escrow position identifiers were not returned.');
+  const hash = result.transactionHash;
+  const positionId = `NEAR-${hash.slice(0, 10)}`;
+  const label = `${spec.sym} ${spec.strike} ${spec.side} ×${spec.qty}`;
+  const position: Position = {
+    id: positionId,
+    contractId: `${spec.sym}-${spec.expiry.replace(/-/g, '')}-${spec.side === 'call' ? 'C' : 'P'}-${spec.strike}`,
+    sym: spec.sym, side: spec.side, strike: spec.strike, expiry: spec.expiry, qty: spec.qty,
+    entryPremium: premiumPerShare, status: 'open', openedAt: nowIso(), source: 'manual',
+    txHashes: [hash], chainPositionId: result.positionId, escrowPositionId: result.escrowPositionId,
+  };
+  set((s) => ({
+    positions: [position, ...s.positions],
+    txs: { ...s.txs, [hash]: { hash, kind: 'open', title: `Open ${label}`, positionId, stage: 'confirmed', outcome: 'success', delegated: false, startedAt: nowIso(), updatedAt: nowIso(), rechecks: 0, note: 'NEAR Testnet escrow and OptionsContract state verified through two independent RPCs.' } },
+  }));
+  log({ kind: 'tx_confirmed', actor: 'user', title: `Escrow confirmed: opened ${label}`, summary: 'Testnet offer, collateral receipt, premium payout and OptionsContract Open state were verified. This is a self-traded demo position using synthetic prices and a wNEAR proxy.', stage: 'confirmed', sym: spec.sym, positionId, txHash: hash });
+  toast('success', `Testnet escrow position opened: ${label}`);
+  return { hash, positionId };
+}
+
 export function submitOpen(spec: TradeSpec): { hash: string; positionId: string } {
   const hash = mockHash(counter * 7 + 3);
   counter++;
@@ -413,11 +434,12 @@ export function proposalChecks(p: Proposal, s: State = state): Check[] {
   );
 }
 
-export function executeProposal(id: string, transactionHash?: string, premiumPerShare?: number): { ok: boolean; reason?: string } {
+export function executeProposal(id: string, result: WalletTransactionResult, premiumPerShare?: number): { ok: boolean; reason?: string } {
   const p = state.proposals.find((x) => x.id === id);
   if (!p) return { ok: false, reason: 'Proposal not found' };
-  if (!transactionHash?.trim()) return { ok: false, reason: 'A verified escrow lifecycle transaction hash is required.' };
+  if (!result.transactionHash?.trim() || !result.positionId || !result.escrowPositionId) return { ok: false, reason: 'Verified OptionsContract and escrow position identifiers are required.' };
   const checks = proposalChecks(p);
+  const transactionHash = result.transactionHash;
   const positionId = `NEAR-${transactionHash.slice(0, 10)}`;
   const contract = makeContract(p.sym, p.expiry, p.side, p.strike, state.demo.feed);
   const position: Position = {
@@ -434,8 +456,10 @@ export function executeProposal(id: string, transactionHash?: string, premiumPer
     source: 'ai-approved',
     txHashes: [transactionHash],
     proposalId: p.id,
+    chainPositionId: result.positionId,
+    escrowPositionId: result.escrowPositionId,
   };
-  set((s) => ({ positions: [position, ...s.positions] }));
+  set((s) => ({ positions: [position, ...s.positions], txs: { ...s.txs, [transactionHash]: { hash: transactionHash, kind: 'open', title: `Open ${p.sym} ${p.strike} ${p.side}`, positionId, stage: 'confirmed', outcome: 'success', delegated: false, startedAt: nowIso(), updatedAt: nowIso(), rechecks: 0, note: 'NEAR Testnet escrow and OptionsContract state verified through two independent RPCs.' } } }));
   patchProposal(id, { status: 'executed', decidedAt: nowIso(), txHash: transactionHash, decisionNote: 'Created and funded through the NEAR Testnet NEP-141 escrow. This is a self-traded demo position: the connected account is both writer and holder. Collateral, premium payout, and OptionsContract Open state were verified on-chain.' });
   log({ kind: 'tx_confirmed', actor: 'system', title: `Escrow confirmed: ${p.strategy.toLowerCase()} on ${p.sym} ${p.strike}`, summary: 'NEAR Testnet offer, escrow collateral receipt, premium payout callback, and OptionsContract Open state were verified. The connected account is both writer and holder; there is no external counterparty. Underlying and option pricing are synthetic demo data.', stage: 'confirmed', sym: p.sym, positionId, proposalId: p.id, txHash: transactionHash, record: { action: p.headline, strategy: p.strategy, evidence: p.evidence, risks: p.risks, alternatives: p.alternatives.map((a) => a.title), confidence: p.confidence, uncertainty: p.uncertainty, checks, authorization: 'Principal wallet signed all Testnet transactions', result: 'Escrow-backed Testnet position opened.' } });
   toast('success', 'Testnet escrow position opened');
