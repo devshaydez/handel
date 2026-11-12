@@ -1,7 +1,6 @@
 # Handel frontend
 
-React + TypeScript + Vite. Everything is **mocked**: auth, market data, pricing, transactions and the AI.
-Nothing here talks to a network. The backend wiring points are listed below.
+React + TypeScript + Vite. The AI education assistant calls Handel's backend at `/v1/education/answer` through `src/lib/handel-api.ts`. Market data, option pricing, wallet authentication, portfolio balances, proposals, and transaction lifecycle are still demo/mock data; they are not live chain functionality.
 
 ## Run
 
@@ -36,7 +35,7 @@ Landing page (`#/`), onboarding and mock wallet (`#/connect`), and the 13 produc
 Use the **Demo controls** button (bottom left) to switch between populated and empty accounts, normal, stale and
 down market data, and whether the next transaction confirms, fails or stays unresolved.
 
-## Where the backend plugs in
+## Backend connection status
 
 | Concern | File | What to replace |
 |---|---|---|
@@ -46,8 +45,15 @@ down market data, and whether the next transaction confirms, fails or stays unre
 | Submit / track transactions | `src/state/store.ts` → `submitOpen`, `submitAction`, `recheckTx` | execution route and receipt tracking |
 | Policy and risk checks | `src/lib/policy.ts` → `runChecks` | backend policy engine result (UI only renders it) |
 | AI proposals and agent cycle | `src/state/store.ts` → `runAgentCycle`, `src/lib/proposals.ts` | agent service |
-| Assistant replies | `src/lib/assistant.ts` → `respond` | AI backend |
+| Assistant replies | `src/lib/handel-api.ts` → `askHandelEducation` (called by `src/state/store.ts` → `sendChat`) | Connected to `/v1/education/answer`; server must be running |
 | Seed data | `src/data/seed.ts` | remove once real history exists |
+
+## Remaining integration work
+
+- Configure `VITE_HANDEL_API_BASE_URL` for the backend gateway. The default `/api` path is proxied to `http://127.0.0.1:8787` by Vite during local development.
+- The bundled SDK API is localhost-only and must not be exposed directly to the public internet. Remote hosting requires a separately authenticated gateway with explicit CORS origins, rate limits, and server-side secrets.
+- A real NEAR wallet-selector adapter and chain transaction implementation are not yet present. The current connect/sign/submit flows remain demo-only; no live transaction is signed or submitted by this frontend.
+- No production market-data feed, options pricing oracle, or portfolio indexer is configured. Do not treat displayed market figures or seeded balances as live data.
 
 ## Design rules baked in
 
