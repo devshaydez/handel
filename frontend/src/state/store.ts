@@ -214,14 +214,11 @@ export function setMode(m: Mode) {
   set({
     mode: m,
     revoked: false,
-    authorization:
-      m === 'auto'
-        ? { status: 'delegated', id: 'AUTH-' + mockHash(counter).slice(0, 4).toUpperCase(), grantedAt, expiresAt: new Date(nowMs() + 30 * DAY).toISOString() }
-        : { status: m === 'approval' ? 'per-proposal' : 'none', id: state.authorization.id },
+    authorization: { status: m === 'approval' ? 'per-proposal' : 'none', id: state.authorization.id },
   });
-  log({ kind: 'permission_change', actor: 'user', title: `Mode changed to ${m === 'auto' ? 'Automatic execution' : m === 'approval' ? 'Approval' : 'Advisory'}`, summary: m === 'auto' ? 'The agent may execute eligible trades within your policy. You can pause or revoke at any time.' : m === 'approval' ? 'The agent creates proposals. Nothing executes without your approval.' : 'The agent analyses and recommends only.' });
+  log({ kind: 'permission_change', actor: 'user', title: `Mode changed to ${m === 'approval' ? 'Approval' : 'Advisory'}`, summary: m === 'approval' ? 'The agent creates proposals. Nothing is funded until you approve it in your wallet.' : 'The agent analyses and recommends only.' });
   notify('info', 'Agent mode updated', `Now in ${m} mode.`, '/app/agent', 'restrictions');
-  toast('success', `Agent mode: ${m === 'auto' ? 'Automatic execution' : m === 'approval' ? 'Approval' : 'Advisory'}`);
+  toast('success', `Agent mode: ${m === 'approval' ? 'Approval' : 'Advisory'}`);
 }
 export function pauseAgent() {
   set({ paused: true });
