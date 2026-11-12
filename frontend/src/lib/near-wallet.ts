@@ -7,7 +7,7 @@ const NETWORK_ID = 'testnet';
 const CONTRACT_ID = import.meta.env.VITE_HANDEL_OPTIONS_CONTRACT_ID as string | undefined;
 
 let selectorPromise: ReturnType<typeof setupWalletSelector> | undefined;
-let modalPromise: ReturnType<typeof setupModal> | undefined;
+let modalPromise: Promise<ReturnType<typeof setupModal>> | undefined;
 
 async function selector() {
   if (!selectorPromise) {
@@ -31,10 +31,11 @@ export async function connectNearWallet(): Promise<{ accountId: string; network:
   if (!s.isSignedIn()) (await modal()).show();
   // The modal completes asynchronously after the user selects a wallet.
   const accountId = await new Promise<string>((resolve, reject) => {
-    const timeout = window.setTimeout(() => { unsubscribe(); reject(new Error('Wallet connection timed out. Please try connecting again.')); }, 120_000);
-    const unsubscribe = s.store.observable.subscribe((state) => {
+    let subscription: { unsubscribe: () => void } | undefined;
+    const timeout = window.setTimeout(() => { subscription?.unsubscribe(); reject(new Error('Wallet connection timed out. Please try connecting again.')); }, 120_000);
+    subscription = s.store.observable.subscribe((state) => {
       const account = state.accounts.find((item) => item.active)?.accountId ?? state.accounts[0]?.accountId;
-      if (account) { window.clearTimeout(timeout); unsubscribe(); resolve(account); }
+      if (account) { window.clearTimeout(timeout); subscription?.unsubscribe(); resolve(account); }
     });
   });
   return { accountId, network: NETWORK_ID };
