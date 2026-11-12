@@ -65,8 +65,11 @@ function json(res: ServerResponse, status: number, body: unknown): void {
 
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const originalUrl = req.url ?? "/";
-  const path = originalUrl.split("?", 1)[0].replace(/^\\/api(?=\\/|$)/, "") || "/";
-  if (path !== "/health" && path !== "/v1/education/answer") {
+  const queryIndex = originalUrl.indexOf("?");
+  const pathname = queryIndex < 0 ? originalUrl : originalUrl.slice(0, queryIndex);
+  const normalizedPath = pathname === "/api" ? "/" : pathname.startsWith("/api/") ? pathname.slice(4) : pathname;
+  const query = queryIndex < 0 ? "" : originalUrl.slice(queryIndex);
+  if (normalizedPath !== "/health" && normalizedPath !== "/v1/education/answer") {
     json(res, 404, { error: "not_found" });
     return;
   }
@@ -78,7 +81,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       res.once("finish", resolve);
       res.once("close", resolve);
     });
-    req.url = originalUrl.replace(/^\\/api(?=\\/|$)/, "") || "/";
+    req.url = normalizedPath + query;
     api.emit("request", req, res);
     await finished;
   } catch {
