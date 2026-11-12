@@ -39,7 +39,7 @@ export default function Proposals() {
       const expiryNs = (BigInt(Date.parse(proposal.expiry + 'T23:59:59Z')) * 1_000_000n).toString();
       const authorization = await signAgentProposalIntent({
         holder: s.wallet.account, kind: proposal.side === 'call' ? 'Call' : 'Put',
-        assetId: 'nep141:wnear.tidepool-sandbox.testnet', quantity, strike, expiryNs,
+        assetId: 'nep141:wnear.tidepool-sandbox.testnet', quantity, strike, premium: '5000000', expiryNs,
       });
       const reply = await createAdvisoryProposal({
         holder: s.wallet.account,
