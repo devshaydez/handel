@@ -73,17 +73,12 @@ try {
 
   $nearArgs = @("contract", "deploy", $ContractAccount, "use-file", $wasm)
   if ($Initialize) {
-    Write-Warning "One-time initializer requested. Do not use -Initialize for an account with existing contract state."
-    $nearArgs += @(
-      "with-init-call", "new",
-      "json-args", "{}",
-      "prepaid-gas", "100 TGas",
-      "attached-deposit", "0 NEAR"
-    )
-  } else {
-    Write-Host "Deploy only: no initializer will be called."
+    throw "The initializer command path has not been verified for this near-cli-rs version. Refusing to initialize or alter existing contract state."
   }
-  $nearArgs += @("network-config", "testnet", "sign-with-keychain", "send")
+
+  # near-cli-rs 0.31.x requires the explicit without-init-call subcommand.
+  $nearArgs += @("without-init-call", "network-config", "testnet", "sign-with-keychain", "send")
+
 
   & near @nearArgs
   if ($LASTEXITCODE -ne 0) { throw "NEAR Testnet deployment failed." }
