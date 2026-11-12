@@ -72,6 +72,7 @@ export interface WalletTransactionResult {
   accountId: string;
   positionId?: string;
   escrowPositionId?: string;
+  transactionSteps?: { hash: string; label: string }[];
 }
 
 let selectorPromise: ReturnType<typeof setupWalletSelector> | undefined;
@@ -222,25 +223,30 @@ function returnedId(outcome: { status?: { SuccessValue?: string } }): string {
   }
   return String(value);
 }
-async function ensureTokenStorage(token: string, accountId: string) {
+async function ensureTokenStorage(token: string, accountId: string): Promise<string | null> {
   const existing = await view<unknown | null>(token, 'storage_balance_of', { account_id: accountId });
-  if (existing) return;
+  if (existing) return null;
   const bounds = await view<{ min?: string }>(token, 'storage_balance_bounds', {});
   if (!bounds.min || !/^\d+$/.test(bounds.min)) throw new Error('Token returned invalid NEP-145 storage bounds: ' + token);
-  await send(token, 'storage_deposit', { account_id: accountId, registration_only: true }, bounds.min);
+  const registration = await send(token, 'storage_deposit', { account_id: accountId, registration_only: true }, bounds.min);
+  return registration.transactionHash;
 }
 async function transferCall(token: string, escrowPositionId: string, leg: 'collateral' | 'premium' | 'exercise_payment', amount: string) {
   const accountId = await currentNearAccount();
   if (!accountId) throw new Error('Wallet disconnected before escrow funding.');
-  await ensureTokenStorage(token, accountId);
-  await ensureTokenStorage(token, ESCROW_CONTRACT!);
+  const preparatoryTransactions: string[] = [];
+  const accountRegistration = await ensureTokenStorage(token, accountId);
+  if (accountRegistration) preparatoryTransactions.push(accountRegistration);
+  const escrowRegistration = await ensureTokenStorage(token, ESCROW_CONTRACT!);
+  if (escrowRegistration) preparatoryTransactions.push(escrowRegistration);
   const balance = await view<string>(token, 'ft_balance_of', { account_id: accountId });
   if (BigInt(balance) < BigInt(amount)) throw new Error(`Insufficient ${token} balance for ${leg}. Need ${amount} base units; wallet has ${balance}.`);
-  return send(token, 'ft_transfer_call', {
+  const transfer = await send(token, 'ft_transfer_call', {
     receiver_id: ESCROW_CONTRACT,
     amount,
     msg: JSON.stringify({ position_id: Number(escrowPositionId), leg }),
   }, '1', '100000000000000');
+  return { ...transfer, preparatoryTransactions };
 }
 
 /**
@@ -248,13 +254,15 @@ async function transferCall(token: string, escrowPositionId: string, leg: 'colla
  * collateral and premium using NEP-141 transfer_call, then pay the premium
  * through the escrow's callback-verified NEP-141 transfer.
  */
-async function fundExistingEscrowPosition(positionId: string, methodName: 'create_call' | 'create_put', args: Record<string, unknown>, accountId: string, initialHash: string | undefined, initialLabel: string) {
-  let lastHash = initialHash || '';
+async function fundExistingEscrowPosition(positionId: string, methodName: 'create_call' | 'create_put', args: Record<string, unknown>, accountId: string, initialSteps: { hash: string; label: string }[]) {
+  let lastHash = initialSteps.at(-1)?.hash || '';
+  const transactionSteps = [...initialSteps];
   try {
     let option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT!, 'get_position', { position_id: Number(positionId) });
     if (option.escrow_position_id === undefined || option.escrow_position_id === null) {
       const registerTx = await send(OPTIONS_CONTRACT!, 'register_escrow_position', { position_id: Number(positionId) });
       lastHash = registerTx.transactionHash;
+      transactionSteps.push({ hash: registerTx.transactionHash, label: 'Escrow registration' });
       option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT!, 'get_position', { position_id: Number(positionId) });
     }
     if (option.escrow_position_id === undefined || option.escrow_position_id === null) {
@@ -267,7 +275,9 @@ async function fundExistingEscrowPosition(positionId: string, methodName: 'creat
     let escrowState = await view<{ collateral_received?: boolean } | null>(ESCROW_CONTRACT!, 'get_position', { position_id: Number(escrowPositionId) });
     if (escrowState?.collateral_received !== true) {
       const collateralTx = await transferCall(collateralToken, escrowPositionId, 'collateral', collateralAmount);
+      for (const hash of collateralTx.preparatoryTransactions) transactionSteps.push({ hash, label: 'Token storage registration' });
       lastHash = collateralTx.transactionHash;
+      transactionSteps.push({ hash: collateralTx.transactionHash, label: 'Collateral transfer' });
       escrowState = await view<{ collateral_received?: boolean } | null>(ESCROW_CONTRACT!, 'get_position', { position_id: Number(escrowPositionId) });
     }
     if (escrowState?.collateral_received !== true) {
@@ -277,7 +287,9 @@ async function fundExistingEscrowPosition(positionId: string, methodName: 'creat
     let premiumStatus = await view<{ received?: boolean; paid?: boolean } | null>(ESCROW_CONTRACT!, 'get_premium_status', { position_id: Number(escrowPositionId) });
     if (!premiumStatus?.received) {
       const premiumTx = await transferCall(USDC_TOKEN, escrowPositionId, 'premium', premiumAmount);
+      for (const hash of premiumTx.preparatoryTransactions) transactionSteps.push({ hash, label: 'Token storage registration' });
       lastHash = premiumTx.transactionHash;
+      transactionSteps.push({ hash: premiumTx.transactionHash, label: 'Premium transfer' });
       premiumStatus = await view<{ received?: boolean; paid?: boolean } | null>(ESCROW_CONTRACT!, 'get_premium_status', { position_id: Number(escrowPositionId) });
     }
     if (!premiumStatus?.received) {
@@ -286,6 +298,7 @@ async function fundExistingEscrowPosition(positionId: string, methodName: 'creat
     if (!premiumStatus.paid) {
       const settleTx = await send(ESCROW_CONTRACT!, 'settle_premium', { position_id: Number(escrowPositionId) });
       lastHash = settleTx.transactionHash;
+      transactionSteps.push({ hash: settleTx.transactionHash, label: 'Premium settlement' });
       premiumStatus = await view<{ received?: boolean; paid?: boolean } | null>(ESCROW_CONTRACT!, 'get_premium_status', { position_id: Number(escrowPositionId) });
     }
     if (!premiumStatus?.paid) {
@@ -297,10 +310,10 @@ async function fundExistingEscrowPosition(positionId: string, methodName: 'creat
     if (stateName !== 'Open') {
       throw new Error('Escrow reports premium paid but OptionsContract has not confirmed the Open state. Transaction ' + lastHash);
     }
-    return { transactionHash: lastHash || String(args.agent_tx_hash || ''), accountId, positionId, escrowPositionId };
+    return { transactionHash: lastHash || String(args.agent_tx_hash || ''), transactionSteps, accountId, positionId, escrowPositionId };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Escrow lifecycle failed.';
-    const prior = initialHash ? ' ' + initialLabel + ' transaction: ' + initialHash : '';
+    const prior = transactionSteps.length ? ' Transactions submitted: ' + transactionSteps.map((step) => step.hash).join(', ') : '';
     throw new Error(message + prior);
   }
 }
@@ -310,7 +323,7 @@ async function createAndFundEscrowOption(methodName: 'create_call' | 'create_put
   }
   const positionTx = await send(OPTIONS_CONTRACT, methodName, args);
   const positionId = returnedId(positionTx.outcome);
-  return fundExistingEscrowPosition(positionId, methodName, args, positionTx.accountId, positionTx.transactionHash, 'Initial offer');
+  return fundExistingEscrowPosition(positionId, methodName, args, positionTx.accountId, [{ hash: positionTx.transactionHash, label: 'Option creation' }]);
 }
 async function approveAndFundAgentProposal(args: Record<string, unknown>): Promise<WalletTransactionResult> {
   if (!OPTIONS_CONTRACT || !ESCROW_CONTRACT) throw new Error('Handel Testnet contracts are not configured.');
@@ -335,15 +348,16 @@ async function approveAndFundAgentProposal(args: Record<string, unknown>): Promi
   const proposal = await view<{ state?: string; principal?: string } | null>(OPTIONS_CONTRACT, 'get_agent_proposal', { proposal_id: proposalId });
   if (!proposal) throw new Error('The on-chain agent proposal could not be found.');
   if (proposal.principal !== accountId) throw new Error('Only the proposal principal can approve and fund this agent proposal.');
-  let initialHash: string | undefined;
-  const initialLabel = 'Principal approval';
+  const initialSteps: { hash: string; label: string }[] = [];
+  const agentSubmissionHash = String(args.agent_tx_hash || '');
+  if (agentSubmissionHash) initialSteps.push({ hash: agentSubmissionHash, label: 'Agent proposal submission' });
   if (proposal.state === 'PendingApproval') {
     const approvalTx = await send(OPTIONS_CONTRACT, 'approve_agent_proposal', { proposal_id: proposalId });
-    initialHash = approvalTx.transactionHash;
+    initialSteps.push({ hash: approvalTx.transactionHash, label: 'Principal approval' });
   } else if (proposal.state !== 'Approved') {
     throw new Error('This agent proposal is no longer pending approval.');
   }
-  return fundExistingEscrowPosition(positionId, methodName, optionArgs, accountId, initialHash, initialLabel);
+  return fundExistingEscrowPosition(positionId, methodName, optionArgs, accountId, initialSteps);
 }
 export async function signNearContractCall(methodName: string, args: Record<string, unknown>): Promise<WalletTransactionResult> {
   if (methodName === 'create_call' || methodName === 'create_put') {
@@ -354,7 +368,7 @@ export async function signNearContractCall(methodName: string, args: Record<stri
   }
   if (!OPTIONS_CONTRACT) throw new Error('VITE_HANDEL_OPTIONS_CONTRACT_ID is not configured.');
   const result = await send(OPTIONS_CONTRACT, methodName, args);
-  return { transactionHash: result.transactionHash, accountId: result.accountId };
+  return { transactionHash: result.transactionHash, transactionSteps: [{ hash: result.transactionHash, label: methodName }], accountId: result.accountId };
 }
 export async function configureTestnetEscrow(): Promise<void> {
   if (!OPTIONS_CONTRACT || !ESCROW_CONTRACT) throw new Error('Set both Testnet contract IDs before configuring escrow.');
@@ -389,7 +403,11 @@ export async function exerciseEscrowPosition(positionId: string, escrowPositionI
   const optionState = typeof option.state === 'string' ? option.state :
     option.state && typeof option.state === 'object' ? Object.keys(option.state)[0] : '';
   if (optionState !== 'Settled') throw new Error('Escrow settled, but OptionsContract callback has not confirmed Settled. Transaction ' + settleTx.transactionHash);
-  return { transactionHash: settleTx.transactionHash, accountId, positionId, escrowPositionId };
+  return { transactionHash: settleTx.transactionHash, transactionSteps: [
+    ...paymentTx.preparatoryTransactions.map((hash) => ({ hash, label: 'Token storage registration' })),
+    { hash: paymentTx.transactionHash, label: 'Exercise payment' },
+    { hash: settleTx.transactionHash, label: 'Exercise settlement' },
+  ], accountId, positionId, escrowPositionId };
 }
 
 export async function releaseExpiredEscrowPosition(positionId: string, escrowPositionId: string): Promise<WalletTransactionResult> {
@@ -407,7 +425,7 @@ export async function releaseExpiredEscrowPosition(positionId: string, escrowPos
   const optionState = typeof option.state === 'string' ? option.state :
     option.state && typeof option.state === 'object' ? Object.keys(option.state)[0] : '';
   if (optionState !== 'Expired') throw new Error('Escrow returned collateral, but OptionsContract callback has not confirmed Expired. Transaction ' + releaseTx.transactionHash);
-  return { transactionHash: releaseTx.transactionHash, accountId, positionId, escrowPositionId };
+  return { transactionHash: releaseTx.transactionHash, transactionSteps: [{ hash: releaseTx.transactionHash, label: 'Expiry collateral release' }], accountId, positionId, escrowPositionId };
 }
 
 export async function disconnectNearWallet(): Promise<void> {
