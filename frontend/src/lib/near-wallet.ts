@@ -141,6 +141,10 @@ async function createAndFundEscrowOption(methodName: 'create_call' | 'create_put
     const premiumAmount = String(args.premium_amount_usdc);
     const premiumTx = await transferCall(USDC_TOKEN, escrowPositionId, 'premium', premiumAmount);
     lastHash = premiumTx.transactionHash;
+    const premiumReceived = await view<{ received?: boolean } | null>(ESCROW_CONTRACT, 'get_premium_status', { position_id: Number(escrowPositionId) });
+    if (!premiumReceived || premiumReceived.received !== true) {
+      throw new Error('Escrow has not confirmed the premium transfer. Transaction ' + lastHash);
+    }
     const settleTx = await send(ESCROW_CONTRACT, 'settle_premium', { position_id: Number(escrowPositionId) });
     lastHash = settleTx.transactionHash;
     const premium = await view<{ paid?: boolean } | null>(ESCROW_CONTRACT, 'get_premium_status', { position_id: Number(escrowPositionId) });
