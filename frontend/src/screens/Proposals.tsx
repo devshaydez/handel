@@ -55,7 +55,7 @@ export default function Proposals() {
       )}
       <style>{`@media (max-width: 900px){ .page .grid[style*="340px"]{ grid-template-columns: minmax(0,1fr) !important; } }`}</style>
 
-      {p && <SignModal open={sign} onClose={() => setSign(false)} onSigned={() => { setSign(false); executeProposal(p.id); setTab('history'); }} action={`Approve ${p.strategy.toLowerCase()} on ${p.sym}`} rows={[{ k: 'Contract', v: `${p.strike} ${p.side} · ${fmtDate(p.expiry)}` }, { k: 'Quantity', v: String(p.qty) }, { k: 'Total premium', v: usd0(p.premium * CONTRACT_SIZE * p.qty) }]} />}
+      {p && <SignModal open={sign} onClose={() => setSign(false)} onSigned={async (transactionHash) => { const result = executeProposal(p.id, transactionHash); if (result.ok) { setSign(false); setTab('history'); } }} methodName="approve_agent_proposal" args={{ proposal_id: p.id }} action={`Approve ${p.strategy.toLowerCase()} on ${p.sym}`} rows={[{ k: 'Contract', v: `${p.strike} ${p.side} · ${fmtDate(p.expiry)}` }, { k: 'Quantity', v: String(p.qty) }, { k: 'Total premium', v: usd0(p.premium * CONTRACT_SIZE * p.qty) }]} />}
       <Modal open={rej} onClose={() => setRej(false)} title="Reject this proposal?">
         <div className="col gap16">
           <div className="field"><span className="label">Reason (kept in your journal)</span><select className="select" value={reason} onChange={(e) => setReason(e.target.value)}>{REASONS.map((x) => <option key={x}>{x}</option>)}</select></div>
