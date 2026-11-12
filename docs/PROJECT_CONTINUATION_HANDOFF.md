@@ -18,7 +18,7 @@
 5. SDK executor: reads policy and Delegated mode from the same finalized block, submits create Call/Put, re-reads policy before Escrow registration, verifies the resulting position and returns `awaiting_principal_collateral`.
 6. Vercel API route `POST /api/v1/delegated/trades`, guarded by server-only `HANDEL_AGENT_API_TOKEN`, with dedicated restricted key env var. It uses a fixed Testnet demo premium fixture.
 7. Separate frontend wallet helpers: principal signs collateral transfer; holder signs premium transfer. The agent key never calls NEP-141 token contracts.
-8. SDK tests for restricted-key rejection, policy caps, revocation/mode rejection, successful create/register and partial registration failure.
+8. SDK tests for restricted-key rejection, policy caps, revocation/mode rejection, successful create/register and partial registration failure. Rust adversarial tests cover size, premium, Put collateral, allowlist, expiry, open-position cap, post-revocation creation/lifecycle denial, cross-agent attribution and holder-only premium initiation.
 
 ### Required server environment / key authority
 - `NEAR_AGENT_ACCOUNT_ID`: dedicated agent account, distinct from principal.
