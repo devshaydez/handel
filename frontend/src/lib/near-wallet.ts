@@ -9,7 +9,7 @@ import '@near-wallet-selector/modal-ui/styles.css';
 const NETWORK_ID = 'testnet';
 const OPTIONS_CONTRACT = (import.meta.env.VITE_HANDEL_OPTIONS_CONTRACT_ID as string | undefined) || 'options.shaydez.testnet';
 const ESCROW_CONTRACT = (import.meta.env.VITE_HANDEL_ESCROW_CONTRACT_ID as string | undefined) || 'escrow.shaydez.testnet';
-const RPC = 'https://rpc.testnet.near.org';
+const RPCS = ['https://rpc.testnet.near.org', 'https://rpc.testnet.fastnear.com'];
 const USDC_TOKEN = import.meta.env.VITE_HANDEL_TESTNET_USDC_ACCOUNT || 'usdc.tidepool-sandbox.testnet';
 const UNDERLYING_TOKEN = import.meta.env.VITE_HANDEL_TESTNET_UNDERLYING_ACCOUNT || 'wnear.tidepool-sandbox.testnet';
 
@@ -64,20 +64,33 @@ async function send(receiverId: string, methodName: string, args: Record<string,
   if (!transactionHash) throw new Error('Wallet returned without a transaction hash.');
   return { transactionHash, accountId, outcome };
 }
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return '[' + value.map(stableJson).join(',') + ']';
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return '{' + Object.keys(record).sort().map((key) => JSON.stringify(key) + ':' + stableJson(record[key])).join(',') + '}';
+  }
+  return JSON.stringify(value);
+}
 async function view<T>(accountId: string, methodName: string, args: Record<string, unknown>): Promise<T> {
   const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(args))));
-  const response = await fetch(RPC, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 'handel-view', method: 'query',
-      params: { request_type: 'call_function', finality: 'final', account_id: accountId,
-        method_name: methodName, args_base64: encoded } }),
-  });
-  if (!response.ok) throw new Error('NEAR RPC returned HTTP ' + response.status);
-  const body = await response.json() as { result?: { result?: number[] }; error?: { message?: string } };
-  if (body.error || !body.result?.result) throw new Error('NEAR view call failed: ' + (body.error?.message ?? methodName));
-  const bytes = new Uint8Array(body.result.result);
-  return JSON.parse(new TextDecoder().decode(bytes)) as T;
+  const responses = await Promise.all(RPCS.map(async (rpc) => {
+    const response = await fetch(rpc, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 'handel-view', method: 'query',
+        params: { request_type: 'call_function', finality: 'final', account_id: accountId,
+          method_name: methodName, args_base64: encoded } }),
+    });
+    if (!response.ok) throw new Error(rpc + ' returned HTTP ' + response.status);
+    const body = await response.json() as { result?: { result?: number[] }; error?: { message?: string } };
+    if (body.error || !body.result?.result) throw new Error(rpc + ' view failed: ' + (body.error?.message ?? methodName));
+    return JSON.parse(new TextDecoder().decode(new Uint8Array(body.result.result))) as T;
+  }));
+  if (stableJson(responses[0]) !== stableJson(responses[1])) {
+    throw new Error('Independent Testnet RPCs disagree on ' + accountId + '.' + methodName + '; settlement remains unconfirmed.');
+  }
+  return responses[0]!;
 }
 function returnedId(outcome: { status?: { SuccessValue?: string } }): string {
   const encoded = outcome.status?.SuccessValue;
