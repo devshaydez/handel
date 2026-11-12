@@ -2,11 +2,11 @@
 
 ## Status
 
-This is the backend integration contract for the future AI adapter. No API key or vendor has been selected or configured, and no AI network request is made by the Rust contract. The model is advisory only. On-chain policy and explicit principal approval remain authoritative.
+The hosted backend uses the NEAR AI inference SDK and verifies the provider response before treating the model output as advisory rationale. No AI network request is made by the Rust contract. The model cannot set execution authority or move assets; on-chain policy and explicit principal approval remain authoritative.
 
 ## Required manual setup
 
-Choose an AI provider that supports JSON-schema constrained output. Create a project-scoped API key in that provider's console and store it in the backend runtime secret manager as `AI_API_KEY` (or the provider-specific equivalent). Also configure the provider endpoint/model, request timeout, and rate limit as deployment secrets/config. Do not send keys in chat, commit them, expose them to the client, or place them in contract state. Use a local `.env` only for local development and ensure it is ignored by Git. The app should start in deterministic no-AI mode when the key is absent.
+Store `NEARAI_API_KEY` as an encrypted Vercel environment secret and configure `NEARAI_MODEL` as a non-secret deployment variable if a non-default model is needed. The backend verifies completed responses with the NEAR AI SDK. Do not send keys in chat, commit them, expose them to the client, or place them in contract state. Use a local `.env` only for local development and ensure it is ignored by Git.
 
 ## Proposal JSON schema
 
