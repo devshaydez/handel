@@ -154,6 +154,17 @@ async function view<T>(accountId: string, methodName: string, args: Record<strin
   }
   return responses[0]!;
 }
+
+export async function getTestnetUsdcBalance(accountId?: string): Promise<number> {
+  const owner = accountId ?? await currentNearAccount();
+  if (!owner) return 0;
+  const raw = await view<string>(USDC_TOKEN, 'ft_balance_of', { account_id: owner });
+  if (!/^\d+$/.test(raw)) throw new Error('Testnet USDC returned an invalid balance.');
+  const balance = Number(BigInt(raw)) / 1_000_000;
+  if (!Number.isFinite(balance)) throw new Error('Testnet USDC balance is outside the supported display range.');
+  return balance;
+}
+
 export interface OnChainAgentPolicy {
   principal: string;
   allowed_assets: string[];
