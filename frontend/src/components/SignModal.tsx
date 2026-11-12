@@ -1,19 +1,18 @@
 import { useEffect, useState } from 'react';
 import { LuLoader, LuFingerprint, LuWallet } from 'react-icons/lu';
 import { useStore } from '../state/store';
-import { signNearContractCall } from '../lib/near-wallet';
+import type { WalletTransactionResult } from '../lib/near-wallet';
 import { Button, Modal } from './ui';
 
 export function SignModal({
-  open, onClose, onSigned, action, rows, methodName, args,
+  open, onClose, onSigned, action, rows, execute,
 }: {
   open: boolean;
   onClose: () => void;
-  onSigned: (transactionHash: string) => void | Promise<void>;
+  onSigned: (result: WalletTransactionResult) => void | Promise<void>;
   action: string;
   rows: { k: string; v: string }[];
-  methodName: string;
-  args: Record<string, unknown>;
+  execute: () => Promise<WalletTransactionResult>;
 }) {
   const s = useStore();
   const [busy, setBusy] = useState(false);
@@ -23,8 +22,8 @@ export function SignModal({
     setBusy(true);
     setError('');
     try {
-      const result = await signNearContractCall(methodName, args);
-      await onSigned(result.transactionHash);
+      const result = await execute();
+      await onSigned(result);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Wallet transaction failed.');
     } finally {
@@ -43,7 +42,7 @@ export function SignModal({
           <div className="big bold">{action}</div>
         </div>
         <div>
-          {[{ k: 'Account', v: s.wallet.account || 'Not connected' }, { k: 'Network', v: s.wallet.network }, { k: 'Contract method', v: methodName }, ...rows].map((r) => (
+          {[{ k: 'Account', v: s.wallet.account || 'Not connected' }, { k: 'Network', v: s.wallet.network }, ...rows].map((r) => (
             <div className="kv" key={r.k}>
               <span className="k">{r.k}</span>
               <span className="v">{r.v}</span>
