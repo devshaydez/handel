@@ -192,7 +192,11 @@ export function enterReadOnly() {
   set({ wallet: { connected: false, readOnly: true, account: '', network: NETWORK }, balance: 0 });
 }
 export function startMode(m: Mode) {
-  set({ mode: m, authorization: { status: m === 'approval' ? 'per-proposal' : 'none', id: 'AUTH-7F3A' } });
+  if (m === 'auto') {
+    toast('warn', 'Automatic execution is not enabled. On-chain proposals require your approval.');
+    return;
+  }
+  set({ mode: m, authorization: { status: m === 'approval' ? 'per-proposal' : 'none', id: '' } });
 }
 export const dismissGuide = () => set({ guideDismissed: true });
 export const setNotifPref = (k: string, v: boolean) => set((s) => ({ notifPrefs: { ...s.notifPrefs, [k]: v } }));
@@ -200,6 +204,10 @@ export const setTxPref = (p: Partial<State['txPrefs']>) => set((s) => ({ txPrefs
 
 // ── agent permissions ────────────────────────────────────────
 export function setMode(m: Mode) {
+  if (m === 'auto') {
+    toast('warn', 'Automatic execution is not enabled. OptionsContract enforces ManualApproval.');
+    return;
+  }
   const prev = state.mode;
   if (prev === m) return;
   const grantedAt = nowIso();
@@ -546,6 +554,10 @@ const SCENARIOS = [
 
 export function runAgentCycle() {
   if (state.agentActivity !== 'idle') return;
+  if (state.mode === 'auto') {
+    toast('warn', 'Automatic execution is disabled on Testnet. Use principal-approved proposals.');
+    return;
+  }
   if (state.demo.agentError) {
     set({ agentActivity: 'analysing' });
     setTimeout(() => {
