@@ -1,4 +1,4 @@
-import { actionCreators, setupWalletSelector } from '@near-wallet-selector/core';
+import { actionCreators, setupWalletSelector, type WalletModuleFactory } from '@near-wallet-selector/core';
 import { setupModal } from '@near-wallet-selector/modal-ui';
 import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet';
 import { setupMeteorWallet } from '@near-wallet-selector/meteor-wallet';
@@ -20,7 +20,7 @@ async function selector() {
   if (!selectorPromise) {
     selectorPromise = setupWalletSelector({
       network: NETWORK_ID,
-      modules: [setupMyNearWallet(), setupMeteorWallet(), setupSender(), setupBitteWallet()],
+      modules: [setupMyNearWallet(), setupMeteorWallet(), setupSender(), setupBitteWallet()] as WalletModuleFactory[],
     });
   }
   return selectorPromise;
