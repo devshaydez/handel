@@ -43,7 +43,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         &worker,
         concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../target/near/handel_escrow/handel_escrow.wasm"
+            "/../../target/near/handel_escrow_default.wasm"
         ),
     )
     .await?;
