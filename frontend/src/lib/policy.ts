@@ -52,16 +52,20 @@ export function runChecks(i: CheckInput, c: CheckCtx): Check[] {
       : C('strategy', 'Supported strategy', 'fail', `${i.strategy} is not implemented yet.`, 'platform'),
   );
 
-  const simulated = i.quality === 'estimated';
-  const pricingOk = i.quality === 'verified' || (i.demoMode === true && simulated) || (!p.requireVerified && i.quality === 'estimated');
+  const demoEstimate = i.demoMode === true && i.quality === 'estimated';
+  const pricingOk = i.quality === 'verified' || demoEstimate || (!p.requireVerified && i.quality === 'estimated');
   out.push(
     i.quality === 'unavailable' || i.premium == null
       ? C('pricing', 'Pricing evidence', 'fail', 'No pricing evidence for this contract.', 'platform')
-      : simulated
+      : demoEstimate
         ? C('pricing', 'Pricing evidence', 'warn', 'Synthetic Testnet demo price. It is not a live market quote and is not suitable for real-money execution.', 'platform')
-          : i.pricingAgeMin > p.maxPricingAgeMin
-            ? C('pricing', 'Pricing evidence', 'fail', `Quote is ${i.pricingAgeMin} min old. Maximum allowed is ${p.maxPricingAgeMin} min.`, 'platform')
-            : C('pricing', 'Pricing evidence', pricingOk ? 'pass' : 'warn', `Verified quote, ${i.pricingAgeMin} min old.`, 'platform'),
+        : i.quality === 'estimated' && agent && p.requireVerified
+          ? C('pricing', 'Pricing evidence', 'fail', 'Only an estimate is available. Your policy requires verified pricing.', 'policy')
+          : i.quality === 'estimated'
+            ? C('pricing', 'Pricing evidence', 'warn', 'Price is an estimate, not a verified quote. Fills may differ.', 'platform')
+            : i.pricingAgeMin > p.maxPricingAgeMin
+              ? C('pricing', 'Pricing evidence', 'fail', `Quote is ${i.pricingAgeMin} min old. Maximum allowed is ${p.maxPricingAgeMin} min.`, 'platform')
+              : C('pricing', 'Pricing evidence', pricingOk ? 'pass' : 'warn', `Verified quote, ${i.pricingAgeMin} min old.`, 'platform'),
   );
 
   out.push(
