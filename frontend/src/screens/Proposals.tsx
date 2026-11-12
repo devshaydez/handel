@@ -10,6 +10,7 @@ import { go, useRoute } from '../router';
 import { executeProposal, proposalChecks, rejectProposal, useStore } from '../state/store';
 import { overall } from '../lib/policy';
 import { createAdvisoryProposal } from '../lib/handel-api';
+import { signNearContractCall } from '../lib/near-wallet';
 import { CONTRACT_SIZE, breakeven, usd, usd0 } from '../lib/pricing';
 
 const ST: Record<ProposalStatus, { l: string; t: 'gold' | 'green' | 'red' | 'blue' | 'amber' }> = { pending: { l: 'Awaiting approval', t: 'amber' }, approved: { l: 'Approved', t: 'blue' }, executed: { l: 'Executed', t: 'green' }, rejected: { l: 'Rejected', t: 'red' }, blocked: { l: 'Blocked by policy', t: 'red' } };
@@ -90,7 +91,7 @@ export default function Proposals() {
       <style>{`@media (max-width: 900px){ .page .grid[style*="340px"]{ grid-template-columns: minmax(0,1fr) !important; } }`}</style>
 
       {prepareError && <Banner tone="danger">{prepareError}</Banner>}
-      {p && preparedCall && <SignModal open={sign} onClose={() => { setSign(false); setPreparedCall(null); }} onSigned={async (transactionHash) => { const premiumPerShare = Number(preparedCall.args.premium_amount_usdc) / 1_000_000 / (100 * p.qty); const result = executeProposal(p.id, transactionHash, premiumPerShare); if (result.ok) { setSign(false); setPreparedCall(null); setTab('history'); } }} methodName={preparedCall.method} args={preparedCall.args} action={`Create and approve ${p.strategy.toLowerCase()} on ${p.sym}`} rows={[{ k: 'Underlying', v: 'Tidepool Testnet wNEAR (demo proxy)' }, { k: 'Contract', v: `${p.strike} ${p.side} · ${fmtDate(p.expiry)}` }, { k: 'Quantity', v: String(p.qty) }, { k: 'Premium', v: 'Configured demo fixture' }]} />}
+      {p && preparedCall && <SignModal open={sign} onClose={() => { setSign(false); setPreparedCall(null); }} execute={() => signNearContractCall(preparedCall.method, preparedCall.args)} onSigned={async (result) => { const premiumPerShare = Number(preparedCall.args.premium_amount_usdc) / 1_000_000 / (100 * p.qty); const recorded = executeProposal(p.id, result, premiumPerShare); if (recorded.ok) { setSign(false); setPreparedCall(null); setTab('history'); } }} action={`Create and approve ${p.strategy.toLowerCase()} on ${p.sym}`} rows={[{ k: 'Underlying', v: 'Tidepool Testnet wNEAR (demo proxy)' }, { k: 'Contract', v: `${p.strike} ${p.side} · ${fmtDate(p.expiry)}` }, { k: 'Quantity', v: String(p.qty) }, { k: 'Premium', v: 'Configured demo fixture' }]} />}
       {preparing && <div className="small muted">Preparing AI proposal and demo pricing…</div>}
       <Modal open={rej} onClose={() => setRej(false)} title="Reject this proposal?">
         <div className="col gap16">
