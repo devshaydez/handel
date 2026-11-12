@@ -174,7 +174,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         })
         .map(str::parse::<u64>)
         .transpose()?
-        .unwrap_or(now_ns + 60_000_000_000);
+        .unwrap_or(now_ns + 10 * 60 * 1_000_000_000);
     let underlying_amount = prepared_args
         .and_then(|args| args["underlying_amount"].as_str())
         .or_else(|| {
@@ -583,16 +583,21 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         assert_eq!(opened["state"], "Open");
     }
 
-    // Exercise both options at maturity. Advance by the minimum number of
-    // Sandbox blocks needed to reach the contract's actual expiry timestamp;
-    // a fixed 10,000-block jump can make this test depend on Sandbox timing.
-    let timestamp_before_exercise = worker.view_block().await?.header().timestamp_nanosec();
-    if timestamp_before_exercise < expiry {
-        let remaining_ns = expiry - timestamp_before_exercise;
-        let blocks_to_maturity = remaining_ns.div_ceil(1_000_000_000).saturating_add(2);
-        worker.fast_forward(blocks_to_maturity).await?;
+    // Exercise both options at maturity. Sandbox block timestamps do not have
+    // a guaranteed one-second cadence, so advance in bounded batches and poll
+    // the actual chain timestamp after every batch instead of estimating blocks.
+    let mut exercise_timestamp = worker.view_block().await?.header().timestamp_nanosec();
+    let mut fast_forward_batches = 0u32;
+    while exercise_timestamp < expiry && fast_forward_batches < 1_000 {
+        worker.fast_forward(1_000).await?;
+        exercise_timestamp = worker.view_block().await?.header().timestamp_nanosec();
+        fast_forward_batches += 1;
     }
-    let exercise_timestamp = worker.view_block().await?.header().timestamp_nanosec();
+    assert!(
+        exercise_timestamp >= expiry,
+        "Sandbox did not reach option expiry {expiry} after {} fast-forwarded blocks; current timestamp is {exercise_timestamp}",
+        fast_forward_batches * 1_000
+    );
     let exercise_deadline = expiry
         .checked_add(24 * 60 * 60 * 1_000_000_000)
         .expect("exercise deadline overflow");
