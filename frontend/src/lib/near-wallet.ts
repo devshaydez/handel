@@ -13,6 +13,13 @@ const RPCS = ['https://rpc.testnet.near.org', 'https://rpc.testnet.fastnear.com'
 const USDC_TOKEN = import.meta.env.VITE_HANDEL_TESTNET_USDC_ACCOUNT || 'usdc.tidepool-sandbox.testnet';
 const UNDERLYING_TOKEN = import.meta.env.VITE_HANDEL_TESTNET_UNDERLYING_ACCOUNT || 'wnear.tidepool-sandbox.testnet';
 
+export interface WalletTransactionResult {
+  transactionHash: string;
+  accountId: string;
+  positionId?: string;
+  escrowPositionId?: string;
+}
+
 let selectorPromise: ReturnType<typeof setupWalletSelector> | undefined;
 let modalPromise: Promise<ReturnType<typeof setupModal>> | undefined;
 
@@ -108,7 +115,7 @@ async function ensureTokenStorage(token: string, accountId: string) {
   if (!bounds.min || !/^\d+$/.test(bounds.min)) throw new Error('Token returned invalid NEP-145 storage bounds: ' + token);
   await send(token, 'storage_deposit', { account_id: accountId, registration_only: true }, bounds.min);
 }
-async function transferCall(token: string, escrowPositionId: string, leg: 'collateral' | 'premium', amount: string) {
+async function transferCall(token: string, escrowPositionId: string, leg: 'collateral' | 'premium' | 'exercise_payment', amount: string) {
   const accountId = await currentNearAccount();
   if (!accountId) throw new Error('Wallet disconnected before escrow funding.');
   await ensureTokenStorage(token, accountId);
@@ -170,14 +177,14 @@ async function createAndFundEscrowOption(methodName: 'create_call' | 'create_put
     if (stateName !== 'Open') {
       throw new Error('Escrow reports premium paid but OptionsContract has not confirmed the Open state. Transaction ' + lastHash);
     }
-    return { transactionHash: lastHash, accountId: positionTx.accountId };
+    return { transactionHash: lastHash, accountId: positionTx.accountId, positionId, escrowPositionId };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Escrow lifecycle failed.';
     throw new Error(message + ' Initial offer transaction: ' + positionTx.transactionHash);
   }
 }
 
-export async function signNearContractCall(methodName: string, args: Record<string, unknown>): Promise<{ transactionHash: string; accountId: string }> {
+export async function signNearContractCall(methodName: string, args: Record<string, unknown>): Promise<WalletTransactionResult> {
   if (methodName === 'create_call' || methodName === 'create_put') {
     return createAndFundEscrowOption(methodName, args);
   }
@@ -199,6 +206,46 @@ export async function configureTestnetEscrow(): Promise<void> {
   await send(ESCROW_CONTRACT, 'propose_controller', { controller: OPTIONS_CONTRACT });
   await send(OPTIONS_CONTRACT, 'accept_escrow_controller', {});
 }
+export async function exerciseEscrowPosition(positionId: string, escrowPositionId: string): Promise<WalletTransactionResult> {
+  if (!OPTIONS_CONTRACT || !ESCROW_CONTRACT) throw new Error('Handel Testnet contracts are not configured.');
+  const accountId = await currentNearAccount();
+  if (!accountId) throw new Error('Connect your NEAR Testnet wallet first.');
+  const position = await view<{ payment_token: string; payment_amount: string | number }>(ESCROW_CONTRACT, 'get_position', { position_id: Number(escrowPositionId) });
+  const paymentTx = await transferCall(position.payment_token, escrowPositionId, 'exercise_payment', String(position.payment_amount));
+  const received = await view<{ exercise_payment_received?: boolean }>(ESCROW_CONTRACT, 'get_position', { position_id: Number(escrowPositionId) });
+  if (received.exercise_payment_received !== true) throw new Error('Escrow has not confirmed exercise payment. Transaction ' + paymentTx.transactionHash);
+  const settleTx = await send(ESCROW_CONTRACT, 'settle_exercise', { position_id: Number(escrowPositionId) });
+  const escrowState = await view<{ state?: string | Record<string, unknown>; payment_paid?: boolean; collateral_delivered_to_holder?: boolean }>(ESCROW_CONTRACT, 'get_position', { position_id: Number(escrowPositionId) });
+  const stateName = typeof escrowState.state === 'string' ? escrowState.state :
+    escrowState.state && typeof escrowState.state === 'object' ? Object.keys(escrowState.state)[0] : '';
+  if (stateName !== 'Settled' || escrowState.payment_paid !== true || escrowState.collateral_delivered_to_holder !== true) {
+    throw new Error('Escrow has not verified both exercise payout legs. Transaction ' + settleTx.transactionHash);
+  }
+  const option = await view<{ state?: string | Record<string, unknown> }>(OPTIONS_CONTRACT, 'get_position', { position_id: Number(positionId) });
+  const optionState = typeof option.state === 'string' ? option.state :
+    option.state && typeof option.state === 'object' ? Object.keys(option.state)[0] : '';
+  if (optionState !== 'Settled') throw new Error('Escrow settled, but OptionsContract callback has not confirmed Settled. Transaction ' + settleTx.transactionHash);
+  return { transactionHash: settleTx.transactionHash, accountId, positionId, escrowPositionId };
+}
+
+export async function releaseExpiredEscrowPosition(positionId: string, escrowPositionId: string): Promise<WalletTransactionResult> {
+  if (!OPTIONS_CONTRACT || !ESCROW_CONTRACT) throw new Error('Handel Testnet contracts are not configured.');
+  const accountId = await currentNearAccount();
+  if (!accountId) throw new Error('Connect your NEAR Testnet wallet first.');
+  const releaseTx = await send(ESCROW_CONTRACT, 'release_expired_collateral', { position_id: Number(escrowPositionId) });
+  const escrowState = await view<{ state?: string | Record<string, unknown>; collateral_returned_to_writer?: boolean }>(ESCROW_CONTRACT, 'get_position', { position_id: Number(escrowPositionId) });
+  const stateName = typeof escrowState.state === 'string' ? escrowState.state :
+    escrowState.state && typeof escrowState.state === 'object' ? Object.keys(escrowState.state)[0] : '';
+  if (stateName !== 'Expired' || escrowState.collateral_returned_to_writer !== true) {
+    throw new Error('Escrow has not verified the collateral return. Transaction ' + releaseTx.transactionHash);
+  }
+  const option = await view<{ state?: string | Record<string, unknown> }>(OPTIONS_CONTRACT, 'get_position', { position_id: Number(positionId) });
+  const optionState = typeof option.state === 'string' ? option.state :
+    option.state && typeof option.state === 'object' ? Object.keys(option.state)[0] : '';
+  if (optionState !== 'Expired') throw new Error('Escrow returned collateral, but OptionsContract callback has not confirmed Expired. Transaction ' + releaseTx.transactionHash);
+  return { transactionHash: releaseTx.transactionHash, accountId, positionId, escrowPositionId };
+}
+
 export async function disconnectNearWallet(): Promise<void> {
   const s = await selector();
   await (await s.wallet()).signOut();
