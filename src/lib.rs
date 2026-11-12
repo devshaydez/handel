@@ -3522,7 +3522,10 @@ mod tests {
         let denied = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.agent_begin_collateral_lock(id, "revoked-agent-collateral".into())
         }));
-        assert!(denied.is_err(), "revocation must block lifecycle initiation immediately");
+        assert!(
+            denied.is_err(),
+            "revocation must block lifecycle initiation immediately"
+        );
     }
 
     #[test]
@@ -3541,23 +3544,58 @@ mod tests {
         c.set_agent_execution_mode(account("agent.testnet"), AgentExecutionMode::Delegated);
         context("agent.testnet");
         let over_size = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            c.agent_create_call(account("holder.testnet"), "nep141:stock.testnet".into(), 6, 10, 80, 5)
+            c.agent_create_call(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                6,
+                10,
+                80,
+                5,
+            )
         }));
         assert!(over_size.is_err());
         let over_premium = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            c.agent_create_call(account("holder.testnet"), "nep141:stock.testnet".into(), 5, 10, 80, 11)
+            c.agent_create_call(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                10,
+                80,
+                11,
+            )
         }));
         assert!(over_premium.is_err());
         let over_put_collateral = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            c.agent_create_put(account("holder.testnet"), "nep141:stock.testnet".into(), 5, 101, 80, 5)
+            c.agent_create_put(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                101,
+                80,
+                5,
+            )
         }));
         assert!(over_put_collateral.is_err());
         let disallowed_asset = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            c.agent_create_call(account("holder.testnet"), "nep141:other.testnet".into(), 5, 10, 80, 5)
+            c.agent_create_call(
+                account("holder.testnet"),
+                "nep141:other.testnet".into(),
+                5,
+                10,
+                80,
+                5,
+            )
         }));
         assert!(disallowed_asset.is_err());
         let beyond_policy_expiry = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            c.agent_create_call(account("holder.testnet"), "nep141:stock.testnet".into(), 5, 10, 91, 5)
+            c.agent_create_call(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                10,
+                91,
+                5,
+            )
         }));
         assert!(beyond_policy_expiry.is_err());
         let first = c.agent_create_call(
@@ -3570,7 +3608,14 @@ mod tests {
         );
         assert!(c.get_position(first).is_some());
         let over_open_positions = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            c.agent_create_call(account("holder.testnet"), "nep141:stock.testnet".into(), 5, 10, 80, 5)
+            c.agent_create_call(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                10,
+                80,
+                5,
+            )
         }));
         assert!(over_open_positions.is_err());
         context("writer.testnet");
@@ -3609,7 +3654,10 @@ mod tests {
         let denied = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.begin_premium_payment(id, "agent-premium-attempt".into())
         }));
-        assert!(denied.is_err(), "writer agent must never authorize holder premium payment");
+        assert!(
+            denied.is_err(),
+            "writer agent must never authorize holder premium payment"
+        );
     }
 
     #[test]
