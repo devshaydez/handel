@@ -1,5 +1,14 @@
 # Final backend readiness — frontend excluded
 
+## Status update — 2026-11-12
+
+The latest integrated CI run is [#43300087425](https://github.com/devshaydez/handel/actions/runs/43300087425): all seven jobs passed, including Rust/Sandbox integration, SDK tests, frontend typecheck + production build, dual-RPC Testnet asset checks, live NEAR AI inference, and the approval-gated AI → SDK → Sandbox proof. The frontend transaction-evidence changes were merged into `feat/handel-frontend-integration` by PR [#22](https://github.com/devshaydez/handel/pull/22), merge commit `2fdfb34edc3eef15e988c48a4ddb938c6783851a`.
+
+This green CI result proves the automated Sandbox lifecycle only. It does not prove a real user-wallet transaction, real-asset collateral custody, live Ondo routing, or Mainnet settlement.
+
+The OptionsContract and Escrow have been deployed/configured on NEAR Testnet. The public health endpoint currently reports `network=testnet`, `pricingMode=demo_fixture`; it is not a live pricing service. The final frontend code passed the CI production build but has not yet been deployed to the public production alias. Vercel's latest failed build referenced an intermediate commit from before the USDC-balance export was added; later deployment attempts were blocked by the Hobby daily deployment cap. Deployment must be rechecked against the exact merged commit before this gate is closed.
+
+
 **Scope:** backend, SDK, AI, contracts, Testnet preparation, proof automation and release evidence. The frontend implementation is intentionally excluded.
 
 This document separates code that exists from the external setup needed to run the UI against a deployed Testnet contract. A green Sandbox proof is not a live Testnet trade.
