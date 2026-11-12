@@ -25,7 +25,7 @@ export default function Proposals() {
   const [rej, setRej] = useState(false);
   const [reason, setReason] = useState(REASONS[0]);
   const [section, setSection] = useState<'reasoning' | 'evidence' | 'risks' | 'alts'>('reasoning');
-  const [preparedCall, setPreparedCall] = useState<{ method: 'create_call' | 'create_put'; args: Record<string, string> } | null>(null);
+  const [preparedCall, setPreparedCall] = useState<{ method: 'create_call' | 'create_put'; args: Record<string, string>; rationale: string; risks: string[]; aiModel: string } | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [prepareError, setPrepareError] = useState('');
 
@@ -50,7 +50,7 @@ export default function Proposals() {
           objective: `Create a simulated ${proposal.strategy} on ${proposal.sym}. Demo-only equity reference; underlying token is testnet wNEAR. Thesis: ${proposal.headline}. ${proposal.reasoning.join(' ')}`,
         },
       });
-      setPreparedCall(reply.prepared);
+      setPreparedCall({ ...reply.prepared, rationale: reply.proposal.rationale, risks: reply.proposal.risks, aiModel: reply.ai.model });
       setSign(true);
     } catch (error) {
       setPrepareError(error instanceof Error ? error.message : 'Could not prepare the AI proposal.');
@@ -91,7 +91,7 @@ export default function Proposals() {
       <style>{`@media (max-width: 900px){ .page .grid[style*="340px"]{ grid-template-columns: minmax(0,1fr) !important; } }`}</style>
 
       {prepareError && <Banner tone="danger">{prepareError}</Banner>}
-      {p && preparedCall && <SignModal open={sign} onClose={() => { setSign(false); setPreparedCall(null); }} execute={() => signNearContractCall(preparedCall.method, preparedCall.args)} onSigned={async (result) => { const premiumPerShare = Number(preparedCall.args.premium_amount_usdc) / 1_000_000 / (100 * p.qty); const recorded = executeProposal(p.id, result, premiumPerShare); if (recorded.ok) { setSign(false); setPreparedCall(null); setTab('history'); } }} action={`Create and approve ${p.strategy.toLowerCase()} on ${p.sym}`} rows={[{ k: 'Underlying', v: 'Tidepool Testnet wNEAR (demo proxy)' }, { k: 'Contract', v: `${p.strike} ${p.side} · ${fmtDate(p.expiry)}` }, { k: 'Quantity', v: String(p.qty) }, { k: 'Premium', v: 'Configured demo fixture' }]} />}
+      {p && preparedCall && <SignModal open={sign} onClose={() => { setSign(false); setPreparedCall(null); }} execute={() => signNearContractCall(preparedCall.method, preparedCall.args)} onSigned={async (result) => { const premiumPerShare = Number(preparedCall.args.premium_amount_usdc) / 1_000_000 / (100 * p.qty); const recorded = executeProposal(p.id, result, premiumPerShare); if (recorded.ok) { setSign(false); setPreparedCall(null); setTab('history'); } }} action={`Create and approve ${p.strategy.toLowerCase()} on ${p.sym}`} rows={[{ k: 'Underlying', v: 'Tidepool Testnet wNEAR (demo proxy)' }, { k: 'Contract', v: `${p.strike} ${p.side} · ${fmtDate(p.expiry)}` }, { k: 'Quantity', v: String(p.qty) }, { k: 'Premium', v: 'Configured demo fixture' }, { k: 'AI model', v: preparedCall.aiModel + ' · response verified' }, { k: 'AI rationale', v: preparedCall.rationale }, { k: 'AI risks', v: preparedCall.risks.join(' · ') }]} />}
       {preparing && <div className="small muted">Preparing AI proposal and demo pricing…</div>}
       <Modal open={rej} onClose={() => setRej(false)} title="Reject this proposal?">
         <div className="col gap16">
