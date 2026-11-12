@@ -7,8 +7,8 @@ import { setupBitteWallet } from '@near-wallet-selector/bitte-wallet';
 import '@near-wallet-selector/modal-ui/styles.css';
 
 const NETWORK_ID = 'testnet';
-const OPTIONS_CONTRACT = import.meta.env.VITE_HANDEL_OPTIONS_CONTRACT_ID as string | undefined;
-const ESCROW_CONTRACT = import.meta.env.VITE_HANDEL_ESCROW_CONTRACT_ID as string | undefined;
+const OPTIONS_CONTRACT = (import.meta.env.VITE_HANDEL_OPTIONS_CONTRACT_ID as string | undefined) || 'options.shaydez.testnet';
+const ESCROW_CONTRACT = (import.meta.env.VITE_HANDEL_ESCROW_CONTRACT_ID as string | undefined) || 'escrow.shaydez.testnet';
 const RPC = 'https://rpc.testnet.near.org';
 const USDC_TOKEN = import.meta.env.VITE_HANDEL_TESTNET_USDC_ACCOUNT || 'usdc.tidepool-sandbox.testnet';
 const UNDERLYING_TOKEN = import.meta.env.VITE_HANDEL_TESTNET_UNDERLYING_ACCOUNT || 'wnear.tidepool-sandbox.testnet';
