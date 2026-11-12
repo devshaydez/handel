@@ -171,8 +171,9 @@ export const markAllRead = () => set((s) => ({ notices: s.notices.map((n) => ({ 
 export const markRead = (id: string) => set((s) => ({ notices: s.notices.map((n) => (n.id === id ? { ...n, read: true } : n)) }));
 
 // ── wallet and onboarding ────────────────────────────────────
-export function connectWallet() {
-  set({ wallet: { connected: true, readOnly: false, account: 'handel-demo.testnet', network: NETWORK } });
+export function connectWallet(account: string, network = NETWORK) {
+  if (!account.trim()) throw new Error('A connected NEAR account is required.');
+  set({ wallet: { connected: true, readOnly: false, account, network } });
 }
 export function disconnectWallet() {
   set({ wallet: { connected: false, readOnly: false, account: '', network: NETWORK } });
