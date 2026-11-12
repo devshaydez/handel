@@ -36,7 +36,7 @@ export function SignModal({
       <div className="col gap12">
         <div className="banner gold">
           <LuFingerprint size={16} />
-          <div>Real NEAR Testnet transaction. Review the method and arguments in your wallet before signing. Handel never receives your private key.</div>
+          <div>Real NEAR Testnet escrow workflow. Your wallet will request separate approvals for the offer, escrow funding and premium payout. Review every transaction; Handel never receives your private key.</div>
         </div>
         <div>
           <div className="small muted">Handel requests approval to</div>
@@ -51,7 +51,7 @@ export function SignModal({
           ))}
         </div>
         {error && <div className="banner red">{error}</div>}
-        <div className="small muted">This sends only the displayed contract call. It does not grant the agent ongoing trading permission.</div>
+        <div className="small muted">This creates a Testnet option and funds its escrow using test tokens. It does not grant the agent ongoing trading permission.</div>
         <div className="row gap8">
           <Button block onClick={onClose} disabled={busy}>Reject</Button>
           <Button block variant="gold" onClick={sign} disabled={busy || !s.wallet.connected} icon={busy ? <LuLoader size={15} className="spin" /> : undefined}>
