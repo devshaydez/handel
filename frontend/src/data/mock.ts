@@ -15,8 +15,8 @@ export const MIN = 60000;
 export const NETWORK = 'NEAR Testnet (demo)';
 export const ROUTE = {
   name: 'Handel options contract · NEAR Testnet',
-  settlement: 'USDC settlement via NEAR Intents (simulated)',
-  note: 'Testnet and simulated settlement. This does not demonstrate real-asset custody.',
+  settlement: 'NEP-141 Testnet escrow using Tidepool wNEAR and USDC test tokens',
+  note: 'Synthetic pricing and a self-traded Testnet position using valueless demo tokens. No real stock token or external counterparty is involved.',
 };
 
 function mulberry32(a: number) {
