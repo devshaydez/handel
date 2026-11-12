@@ -413,7 +413,7 @@ export function proposalChecks(p: Proposal, s: State = state): Check[] {
   );
 }
 
-export function executeProposal(id: string, transactionHash?: string): { ok: boolean; reason?: string } {
+export function executeProposal(id: string, transactionHash?: string, premiumPerShare?: number): { ok: boolean; reason?: string } {
   const p = state.proposals.find((x) => x.id === id);
   if (!p) return { ok: false, reason: 'Proposal not found' };
   if (!transactionHash?.trim()) return { ok: false, reason: 'A verified escrow lifecycle transaction hash is required.' };
@@ -428,7 +428,7 @@ export function executeProposal(id: string, transactionHash?: string): { ok: boo
     strike: p.strike,
     expiry: p.expiry,
     qty: p.qty,
-    entryPremium: contract.ask ?? p.premium,
+    entryPremium: premiumPerShare && Number.isFinite(premiumPerShare) && premiumPerShare > 0 ? premiumPerShare : contract.ask ?? p.premium,
     status: 'open',
     openedAt: nowIso(),
     source: 'ai-approved',
