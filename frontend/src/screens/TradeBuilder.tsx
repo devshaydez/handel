@@ -28,6 +28,7 @@ export default function TradeBuilder() {
   const [preparedCall, setPreparedCall] = useState<{ method: 'create_call' | 'create_put'; args: Record<string, string> } | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [prepareError, setPrepareError] = useState('');
+  const [aiPreview, setAiPreview] = useState<{ rationale: string; risks: string[]; model: string } | null>(null);
 
   const a = assetBySym(sym)!;
   const strikes = useMemo(() => getChain(sym, expiry, s.demo.feed).map((x) => x.strike), [sym, expiry, s.demo.feed]);
@@ -157,12 +158,12 @@ export default function TradeBuilder() {
         </div>
       )}
 
-      {preparedCall && <SignModal open={sign} onClose={() => { setSign(false); setPreparedCall(null); }} execute={() => signNearContractCall(preparedCall.method, preparedCall.args)} onSigned={async (result: WalletTransactionResult) => {
+      {preparedCall && <SignModal open={sign} onClose={() => { setSign(false); setPreparedCall(null); setAiPreview(null); }} execute={() => signNearContractCall(preparedCall.method, preparedCall.args)} onSigned={async (result: WalletTransactionResult) => {
         const premiumPerShare = Number(preparedCall.args.premium_amount_usdc) / 1_000_000 / (100 * qty);
         const recorded = recordManualOpen({ sym, side, strike: k, expiry, qty, premium: premiumPerShare, source: 'manual' }, result, premiumPerShare);
         setTracked({ hash: recorded.hash, posId: recorded.positionId });
-        setSign(false); setPreparedCall(null); setStep('track');
-      }} action={`Open ${strategy.toLowerCase()} on ${sym}`} rows={[{ k: 'Underlying', v: 'Tidepool Testnet wNEAR (demo proxy)' }, { k: 'Contract', v: `${k} ${side} · ${fmtDate(expiry)}` }, { k: 'Quantity', v: String(qty) }, { k: 'Premium', v: 'Configured demo fixture' }]} />}
+        setSign(false); setPreparedCall(null); setAiPreview(null); setStep('track');
+      }} action={`Open ${strategy.toLowerCase()} on ${sym}`} rows={[{ k: 'Underlying', v: 'Tidepool Testnet wNEAR (demo proxy)' }, { k: 'Contract', v: `${k} ${side} · ${fmtDate(expiry)}` }, { k: 'Quantity', v: String(qty) }, { k: 'Premium', v: 'Configured demo fixture' }, { k: 'AI model', v: (aiPreview?.model ?? 'NEAR AI') + ' · response verified' }, { k: 'AI rationale', v: aiPreview?.rationale ?? '' }, { k: 'AI risks', v: (aiPreview?.risks ?? []).join(' · ') }]} />}
     </div>
   );
 
@@ -185,6 +186,7 @@ export default function TradeBuilder() {
         },
       });
       setPreparedCall(reply.prepared);
+      setAiPreview({ rationale: reply.proposal.rationale, risks: reply.proposal.risks, model: reply.ai.model });
       setSign(true);
     } catch (error) {
       setPrepareError(error instanceof Error ? error.message : 'Could not prepare the Testnet trade.');
