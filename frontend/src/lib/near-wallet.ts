@@ -60,8 +60,10 @@ export async function signAgentProposalIntent(input: {
   if (!signed || !signed.signature || !signed.publicKey || signed.accountId !== input.holder) {
     throw new Error('The wallet did not return a verifiable NEP-413 signature. No proposal was submitted.');
   }
-  const signatureBytes = signed.signature instanceof Uint8Array ? signed.signature : new Uint8Array(signed.signature as unknown as ArrayLike<number>);
-  const signature = btoa(Array.from(signatureBytes, (byte) => String.fromCharCode(byte)).join(''));
+  const signatureValue = signed.signature as unknown;
+  const signature = typeof signatureValue === 'string'
+    ? signatureValue
+    : btoa(Array.from(new Uint8Array(signatureValue as ArrayLike<number>), (byte) => String.fromCharCode(byte)).join(''));
   return { message, nonce, recipient, callbackUrl, issuedAtMs, publicKey: signed.publicKey.toString(), signature };
 }
 
