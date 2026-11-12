@@ -2,7 +2,8 @@ import { Fragment, useEffect } from 'react';
 import { initFx } from './fx';
 import { go, useRoute } from './router';
 import { Shell, Toasts } from './components/Shell';
-import { useStore } from './state/store';
+import { connectWallet, useStore } from './state/store';
+import { currentNearAccount } from './lib/near-wallet';
 import Landing from './screens/Landing';
 import Onboarding from './screens/Onboarding';
 import Dashboard from './screens/Dashboard';
@@ -25,6 +26,13 @@ export default function App() {
   const allowed = s.wallet.connected || s.wallet.readOnly;
 
   useEffect(() => initFx(), []);
+  useEffect(() => {
+    let active = true;
+    currentNearAccount().then((account) => {
+      if (active && account) connectWallet(account, 'testnet');
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   useEffect(() => {
     if (inApp && !allowed) go('/connect', { replace: true });
   }, [inApp, allowed]);
