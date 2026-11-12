@@ -27,6 +27,7 @@ export async function signAgentProposalIntent(input: {
   assetId: string;
   quantity: string;
   strike: string;
+  premium: string;
   expiryNs: string;
 }): Promise<AgentProposalAuthorization> {
   const accountId = await currentNearAccount();
@@ -49,9 +50,10 @@ export async function signAgentProposalIntent(input: {
     'Asset ID: ' + input.assetId,
     'Underlying amount (base units): ' + input.quantity,
     'Strike amount (USDC base units): ' + input.strike,
+    'Premium amount (USDC base units): ' + input.premium,
     'Expiry (nanoseconds): ' + input.expiryNs,
     'Issued at (milliseconds): ' + issuedAtMs,
-  ].join('\\n');
+  ].join('\n');
   const signed = await wallet.signMessage({ message, recipient, nonce: nonceBytes as never });
   if (!signed || !signed.signature || !signed.publicKey || signed.accountId !== input.holder) {
     throw new Error('The wallet did not return a verifiable NEP-413 signature. No proposal was submitted.');
