@@ -184,21 +184,31 @@ export async function saveOnChainAgentPolicy(input: {
   if (!Number.isInteger(input.maxOpenPositions) || input.maxOpenPositions < 1) throw new Error('Maximum open positions must be a positive whole number.');
   if (!Number.isInteger(input.validityDays) || input.validityDays < 1 || input.validityDays > 365) throw new Error('Policy validity must be between 1 and 365 days.');
   const expiresAtNs = (BigInt(Date.now()) + BigInt(input.validityDays) * 86_400_000n) * 1_000_000n;
-  const tx = await send(OPTIONS_CONTRACT, 'set_agent_policy', {
+  const tx = await send(OPTIONS_CONTRACT, 'set_agent_policy_exact', {
     agent_id: AGENT_ACCOUNT,
     allowed_assets: input.allowedAssets,
     max_underlying_amount: input.maxUnderlyingAmount,
     max_premium_usdc: input.maxPremiumUsdc,
     max_collateral_usdc: input.maxCollateralUsdc,
     max_open_positions: input.maxOpenPositions,
-    expires_at_ns: Number(expiresAtNs),
+    expires_at_ns: expiresAtNs.toString(),
   });
   const policy = await getOnChainAgentPolicy();
+  const policyExpiryNs = policy ? BigInt(policy.expires_at_ns) : 0n;
+  const expiryDifferenceNs = policyExpiryNs >= expiresAtNs
+    ? policyExpiryNs - expiresAtNs
+    : expiresAtNs - policyExpiryNs;
+  const expectedAssets = [...input.allowedAssets].sort();
+  const actualAssets = policy ? [...policy.allowed_assets].sort() : [];
   if (!policy || policy.principal !== principal || policy.enabled !== true ||
       policy.max_underlying_amount !== input.maxUnderlyingAmount ||
       policy.max_premium_usdc !== input.maxPremiumUsdc ||
       policy.max_collateral_usdc !== input.maxCollateralUsdc ||
-      policy.max_open_positions !== input.maxOpenPositions) {
+      policy.max_open_positions !== input.maxOpenPositions ||
+      actualAssets.length !== expectedAssets.length ||
+      actualAssets.some((asset, index) => asset !== expectedAssets[index]) ||
+      policyExpiryNs <= BigInt(Date.now()) * 1_000_000n ||
+      expiryDifferenceNs > 1_000n) {
     throw new Error('The wallet transaction was submitted, but the on-chain agent policy could not be independently verified. Transaction: ' + tx.transactionHash);
   }
   return { transactionHash: tx.transactionHash, policy };
