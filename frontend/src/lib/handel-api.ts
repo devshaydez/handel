@@ -107,7 +107,7 @@ export async function createAdvisoryProposal(input: AdvisoryProposalRequest): Pr
       reply.approvalMode !== 'agent_submitted_principal_approval' ||
       !reply.agentSubmission?.accountId || !reply.agentSubmission?.transactionHash ||
       reply.prepared.args?.proposal_id !== reply.proposal.proposalId ||
-      !/^\\d+$/.test(reply.prepared.args?.position_id ?? '')) {
+      !/^\d+$/.test(reply.prepared.args?.position_id ?? '')) {
     throw new HandelApiError('Handel backend returned an invalid proposal response.');
   }
   return reply;
