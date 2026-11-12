@@ -54,7 +54,6 @@ export function checkHandelHealth(): Promise<{ ok: boolean; service: string; mod
 
 
 export interface AdvisoryProposalRequest {
-  agentId: string;
   holder: string;
   request: {
     type: 'Call' | 'Put';
@@ -67,51 +66,45 @@ export interface AdvisoryProposalRequest {
 }
 
 export interface AdvisoryProposalReply {
-  advisory: {
-    proposal: {
-      proposalId: string;
-      type: 'Call' | 'Put';
-      underlyingAssetId: string;
-      quantity: string;
-      strike: string;
-      premium: string;
-      expiryNs: string;
-      rationale: string;
-      risks: string[];
-    };
-    approvalRequired: true;
-    executionEligible: false;
-    mode: 'ADVISORY_ONLY';
-    limitations: string[];
+  proposal: {
+    proposalId: string;
+    type: 'Call' | 'Put';
+    underlyingAssetId: string;
+    strike: string;
+    quantity: string;
+    premium: string;
+    expiryNs: string;
+    estimatedPayoff: string;
+    risks: string[];
+    dataFreshness: string;
+    rationale: string;
+    createdAt: string;
   };
   prepared: {
-    method: 'create_agent_proposal';
+    method: 'create_call' | 'create_put';
     args: Record<string, string>;
   };
-  nextStep: 'agent_submits_pending_proposal_then_principal_approves';
-  executionEligible: false;
+  approvalRequired: true;
+  pricingMode: 'demo_fixture';
+  ai: { provider: string; model: string; responseVerified: boolean };
+  executionEligible: true;
   transactionSubmitted: false;
   walletSignatureRequested: false;
-  pricingMode: 'demo_fixture';
-  policyBlockHeight: number;
-  limitations: string[];
+  policySource: string;
+  approvalMode: 'principal_wallet_signed_offer';
 }
 
-/**
- * Generates an advisory-only proposal from the production AI gateway.
- * The response is never treated as a transaction or a live market quote.
- */
 export async function createAdvisoryProposal(input: AdvisoryProposalRequest): Promise<AdvisoryProposalReply> {
   const reply = await post<AdvisoryProposalReply>('/v1/advisory/proposals', input);
-  if (!reply.advisory?.proposal?.proposalId ||
-      reply.advisory.approvalRequired !== true ||
-      reply.advisory.executionEligible !== false ||
-      reply.executionEligible !== false ||
+  if (!reply.proposal?.proposalId ||
+      (reply.prepared?.method !== 'create_call' && reply.prepared?.method !== 'create_put') ||
+      reply.approvalRequired !== true ||
+      reply.executionEligible !== true ||
       reply.transactionSubmitted !== false ||
       reply.walletSignatureRequested !== false ||
       reply.pricingMode !== 'demo_fixture' ||
-      !Number.isSafeInteger(reply.policyBlockHeight)) {
-    throw new HandelApiError('Handel backend returned an invalid advisory proposal response.');
+      reply.ai?.responseVerified !== true) {
+    throw new HandelApiError('Handel backend returned an invalid proposal response.');
   }
   return reply;
 }
