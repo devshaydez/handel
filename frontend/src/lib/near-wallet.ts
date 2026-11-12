@@ -155,14 +155,22 @@ async function view<T>(accountId: string, methodName: string, args: Record<strin
   return responses[0]!;
 }
 
-export async function getTestnetUsdcBalance(accountId?: string): Promise<number> {
+async function getTestnetTokenBalance(tokenAccount: string, decimals: number, label: string, accountId?: string): Promise<number> {
   const owner = accountId ?? await currentNearAccount();
   if (!owner) return 0;
-  const raw = await view<string>(USDC_TOKEN, 'ft_balance_of', { account_id: owner });
-  if (!/^\d+$/.test(raw)) throw new Error('Testnet USDC returned an invalid balance.');
-  const balance = Number(BigInt(raw)) / 1_000_000;
-  if (!Number.isFinite(balance)) throw new Error('Testnet USDC balance is outside the supported display range.');
+  const raw = await view<string>(tokenAccount, 'ft_balance_of', { account_id: owner });
+  if (!/^\d+$/.test(raw)) throw new Error(`Testnet ${label} returned an invalid balance.`);
+  const balance = Number(BigInt(raw)) / 10 ** decimals;
+  if (!Number.isFinite(balance)) throw new Error(`Testnet ${label} balance is outside the supported display range.`);
   return balance;
+}
+
+export function getTestnetUsdcBalance(accountId?: string): Promise<number> {
+  return getTestnetTokenBalance(USDC_TOKEN, 6, 'USDC', accountId);
+}
+
+export function getTestnetWnearBalance(accountId?: string): Promise<number> {
+  return getTestnetTokenBalance(UNDERLYING_TOKEN, 24, 'wNEAR', accountId);
 }
 
 export interface OnChainAgentPolicy {
