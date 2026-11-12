@@ -583,12 +583,23 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         assert_eq!(opened["state"], "Open");
     }
 
-    // Exercise both options after maturity. The holder pays the exact exercise
-    // asset for each option, then escrow performs its two asynchronous payout legs.
-    // Sandbox block timestamps may advance more slowly than the local test wall clock.
-    // Advance well beyond the 60-second maturity offset while remaining inside
-    // the escrow's 24-hour exercise grace window.
-    worker.fast_forward(10_000).await?;
+    // Exercise both options at maturity. Advance by the minimum number of
+    // Sandbox blocks needed to reach the contract's actual expiry timestamp;
+    // a fixed 10,000-block jump can make this test depend on Sandbox timing.
+    let timestamp_before_exercise = worker.view_block().await?.header().timestamp_nanosec();
+    if timestamp_before_exercise < expiry {
+        let remaining_ns = expiry - timestamp_before_exercise;
+        let blocks_to_maturity = remaining_ns.div_ceil(1_000_000_000).saturating_add(2);
+        worker.fast_forward(blocks_to_maturity).await?;
+    }
+    let exercise_timestamp = worker.view_block().await?.header().timestamp_nanosec();
+    let exercise_deadline = expiry
+        .checked_add(24 * 60 * 60 * 1_000_000_000)
+        .expect("exercise deadline overflow");
+    assert!(
+        exercise_timestamp >= expiry && exercise_timestamp <= exercise_deadline,
+        "Sandbox timestamp {exercise_timestamp} is outside exercise window [{expiry}, {exercise_deadline}]"
+    );
     holder
         .call(usdc_token.id(), "ft_transfer_call")
         .args_json(json!({
@@ -615,6 +626,23 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .transact()
         .await?
         .into_result()?;
+
+    // Assert the NEP-141 receiver accepted both exercise legs before attempting
+    // settlement. ft_transfer_call itself succeeds even when the receiver
+    // returns the transferred amount as unused.
+    for position_id in [0u64, 1u64] {
+        let payment_received = root
+            .view(escrow.id(), "get_position")
+            .args_json(json!({"position_id": position_id}))
+            .await?
+            .json::<serde_json::Value>()?;
+        assert_eq!(
+            payment_received["state"],
+            "ExercisePaymentReceived",
+            "escrow rejected exercise payment for position {position_id} at Sandbox timestamp {exercise_timestamp}"
+        );
+        assert_eq!(payment_received["exercise_payment_received"], true);
+    }
 
     for position_id in [0u64, 1u64] {
         holder
