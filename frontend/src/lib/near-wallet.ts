@@ -195,6 +195,7 @@ export async function configureTestnetEscrow(): Promise<void> {
   await send(OPTIONS_CONTRACT, 'set_escrow_contract', { escrow_contract: ESCROW_CONTRACT });
   await send(OPTIONS_CONTRACT, 'set_escrow_token_account', { asset_id: usdcAsset, token_account: USDC_TOKEN });
   await send(OPTIONS_CONTRACT, 'set_escrow_token_account', { asset_id: wnearAsset, token_account: UNDERLYING_TOKEN });
+  await send(ESCROW_CONTRACT, 'set_demo_self_trade', { enabled: true });
   await send(ESCROW_CONTRACT, 'propose_controller', { controller: OPTIONS_CONTRACT });
   await send(OPTIONS_CONTRACT, 'accept_escrow_controller', {});
 }
