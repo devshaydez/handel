@@ -14,6 +14,7 @@ import { overall, runChecks } from '../lib/policy';
 import { CONTRACT_SIZE, usd0 } from '../lib/pricing';
 import { markPosition } from '../lib/valuation';
 import { askHandelEducation } from '../lib/handel-api';
+import { disconnectNearWallet } from '../lib/near-wallet';
 
 export interface AgentRun {
   id: string;
@@ -175,7 +176,8 @@ export function connectWallet(account: string, network = NETWORK) {
   if (!account.trim()) throw new Error('A connected NEAR account is required.');
   set({ wallet: { connected: true, readOnly: false, account, network } });
 }
-export function disconnectWallet() {
+export async function disconnectWallet() {
+  await disconnectNearWallet();
   set({ wallet: { connected: false, readOnly: false, account: '', network: NETWORK } });
 }
 export function enterReadOnly() {
