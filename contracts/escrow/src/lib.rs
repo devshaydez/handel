@@ -203,6 +203,20 @@ impl EscrowContract {
         env::storage_remove(b"handel:escrow:pending-owner:v1");
     }
 
+    pub fn set_demo_self_trade(&mut self, enabled: bool) {
+        self.assert_owner();
+        assert!(
+            env::current_account_id().as_str().ends_with(".testnet"),
+            "demo self-trading is Testnet-only"
+        );
+        env::storage_write(b"handel:escrow:demo-self-trade:v1", &[u8::from(enabled)]);
+    }
+
+    pub fn get_demo_self_trade(&self) -> bool {
+        env::storage_read(b"handel:escrow:demo-self-trade:v1")
+            .is_some_and(|value| value.as_slice() == [1])
+    }
+
     pub fn get_owner(&self) -> AccountId {
         self.owner.clone()
     }
@@ -450,7 +464,12 @@ impl EscrowContract {
             return existing_id;
         }
         assert!(!self.paused, "escrow paused");
-        assert_ne!(writer, holder, "writer and holder must differ");
+        let demo_self_trade_enabled = env::storage_read(b"handel:escrow:demo-self-trade:v1")
+            .is_some_and(|value| value.as_slice() == [1]);
+        assert!(
+            writer != holder || demo_self_trade_enabled,
+            "writer and holder must differ unless Testnet demo self-trading is enabled"
+        );
         assert_ne!(collateral_token, payment_token, "assets must differ");
         assert!(collateral_amount.0 > 0, "collateral must be positive");
         assert!(payment_amount.0 > 0, "payment must be positive");
@@ -2428,5 +2447,57 @@ mod tests {
         assert_eq!(c.get_position(64).id, 64);
         assert_eq!(c.get_position(128).id, 128);
         assert_eq!(c.get_position(128).state, EscrowState::AwaitingCollateral);
+    }
+}
+
+#[cfg(test)]
+mod demo_self_trade_tests {
+    use super::*;
+    use near_sdk::{test_utils::VMContextBuilder, testing_env};
+
+    #[test]
+    fn testnet_demo_mode_allows_only_explicit_self_trade() {
+        let owner: AccountId = "owner.testnet".parse().unwrap();
+        let escrow: AccountId = "escrow.testnet".parse().unwrap();
+        testing_env!(VMContextBuilder::new()
+            .current_account_id(escrow)
+            .predecessor_account_id(owner.clone())
+            .attached_deposit(NearToken::from_near(1))
+            .build());
+
+        let mut contract = EscrowContract::new();
+        contract.controller = Some(owner.clone());
+        assert!(!contract.get_demo_self_trade());
+
+        contract.set_demo_self_trade(true);
+        assert!(contract.get_demo_self_trade());
+
+        let id = contract.create_position(
+            7,
+            owner.clone(),
+            owner.clone(),
+            "wnear.testnet".parse().unwrap(),
+            U128(100),
+            "usdc.testnet".parse().unwrap(),
+            U128(50),
+            env::block_timestamp() + 1_000,
+        );
+        assert_eq!(id, 0);
+        let position = contract.position(id);
+        assert_eq!(position.writer, owner);
+        assert_eq!(position.holder, position.writer);
+    }
+
+    #[test]
+    #[should_panic(expected = "Testnet-only")]
+    fn demo_self_trade_cannot_be_enabled_on_mainnet_account_names() {
+        let owner: AccountId = "owner.near".parse().unwrap();
+        let escrow: AccountId = "escrow.near".parse().unwrap();
+        testing_env!(VMContextBuilder::new()
+            .current_account_id(escrow)
+            .predecessor_account_id(owner)
+            .build());
+        let mut contract = EscrowContract::new();
+        contract.set_demo_self_trade(true);
     }
 }

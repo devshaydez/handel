@@ -1,0 +1,17 @@
+// Handel mark, traced from the supplied logo and recoloured to the Handel gold palette.
+export function Logo({ size = 30, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 739 739" className={className} role="img" aria-label="Handel" fill="none">
+      <defs>
+        <linearGradient id="hl-tl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff3c9" /><stop offset="1" stopColor="#ffd98a" /></linearGradient>
+        <linearGradient id="hl-tr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffcf6a" /><stop offset="1" stopColor="#f2b24a" /></linearGradient>
+        <linearGradient id="hl-br" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#e79a2a" /><stop offset="1" stopColor="#b9740f" /></linearGradient>
+        <linearGradient id="hl-bl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#a9690d" /><stop offset="1" stopColor="#6b3f06" /></linearGradient>
+      </defs>
+      <path d="M379.0,74.5 L80.0,106.5 L61.0,113.5 L41.0,130.5 L31.0,144.5 L20.0,166.5 L11.0,196.5 L7.0,226.5 L6.0,562.5 L8.0,564.5 L11.0,388.5 L16.0,367.5 L24.0,349.5 L33.0,336.5 L47.0,324.5 L61.0,318.5 L75.0,317.5 L325.0,368.5 L335.0,368.5Z " fill="url(#hl-tl)" />
+      <path d="M157.0,37.5 L156.0,39.5 L343.0,39.5 L364.0,43.5 L386.0,51.5 L399.0,59.5 L412.0,72.5 L418.0,83.5 L420.0,98.5 L368.0,342.5 L682.0,381.5 L644.0,99.5 L633.0,78.5 L613.0,61.5 L592.0,50.5 L565.0,41.5 L518.0,34.5Z " fill="url(#hl-tr)" />
+      <path d="M731.0,171.5 L729.0,171.5 L729.0,332.5 L727.0,349.5 L721.0,372.5 L714.0,387.5 L707.0,397.5 L690.0,412.5 L677.0,417.5 L663.0,418.5 L404.0,366.5 L359.0,661.5 L661.0,629.5 L671.0,626.5 L683.0,619.5 L702.0,600.5 L716.0,576.5 L725.0,551.5 L732.0,507.5 L733.0,173.5Z " fill="url(#hl-br)" />
+      <path d="M53.0,357.5 L91.0,638.5 L100.0,657.5 L114.0,671.5 L124.0,678.5 L146.0,689.5 L167.0,696.5 L190.0,701.5 L218.0,704.5 L579.0,700.5 L395.0,699.5 L369.0,694.5 L348.0,686.5 L334.0,677.5 L322.0,664.5 L316.0,649.5 L316.0,636.5 L367.0,402.5 L367.0,395.5Z " fill="url(#hl-bl)" />
+    </svg>
+  );
+}
