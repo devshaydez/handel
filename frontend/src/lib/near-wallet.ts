@@ -28,7 +28,9 @@ async function modal() {
 
 export async function connectNearWallet(): Promise<{ accountId: string; network: string }> {
   const s = await selector();
-  if (!s.isSignedIn()) (await modal()).show();
+  const existing = s.store.getState().accounts.find((item) => item.active)?.accountId ?? s.store.getState().accounts[0]?.accountId;
+  if (existing) return { accountId: existing, network: NETWORK_ID };
+  (await modal()).show();
   // The modal completes asynchronously after the user selects a wallet.
   const accountId = await new Promise<string>((resolve, reject) => {
     let subscription: { unsubscribe: () => void } | undefined;
