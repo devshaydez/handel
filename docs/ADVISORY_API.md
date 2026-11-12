@@ -34,10 +34,12 @@ The proposal route calls the NEAR AI Chat provider and System One guard, applies
 
 ## Wallet handoff
 
-1. The configured **agent account** signs `create_agent_proposal` using the connected wallet.
+1. In ManualApproval mode, the configured agent account submits `create_agent_proposal` using a dedicated FunctionCall key scoped only to that method.
 2. The contract records the proposal as `PendingApproval`.
 3. The **principal account** separately reviews and signs `approve_agent_proposal`.
 4. The existing contract lifecycle then governs escrow registration, collateral, premium, exercise and settlement.
+
+The legacy proposal key must be set as `NEAR_AGENT_PROPOSAL_FUNCTION_CALL_PRIVATE_KEY`; unrestricted `NEAR_AGENT_PRIVATE_KEY` is refused. The separate Delegated mode uses `NEAR_AGENT_DELEGATED_FUNCTION_CALL_PRIVATE_KEY` and the four-method allowlist described below.
 
 The SDK enforces the agent/principal signer distinction. A proposal response is not an approval or trade.
 
@@ -50,3 +52,14 @@ The SDK enforces the agent/principal signer distinction. A proposal response is 
 - Tidepool Testnet assets are synthetic and do not prove Ondo stock-token support.
 - The service is an advisory proposal endpoint only. The wallet and on-chain contract remain the authority for signing and approval.
 - For public deployment, add wallet-based authentication/session handling, durable shared budgets/rate limits/audit storage, observability, and independent security review before exposing paid inference.
+
+
+## Delegated Testnet execution endpoint
+
+`POST /api/v1/delegated/trades` is a separate, explicitly Testnet-only route. It requires a server-side `HANDEL_AGENT_API_TOKEN` bearer token and `NEAR_AGENT_DELEGATED_FUNCTION_CALL_PRIVATE_KEY`. The backend verifies that the key is a FunctionCall key scoped to the configured OptionsContract, has exactly the four delegated methods, and has a finite allowance under the configured ceiling. FullAccess keys are refused.
+
+The route reads the current policy and Delegated mode from finalized chain state, checks asset/amount/premium/Put collateral/expiry caps, submits `agent_create_call` or `agent_create_put`, rechecks revocation, then calls `agent_register_escrow_position`. It returns the created option and escrow IDs with state `awaiting_principal_collateral`. The agent does not transfer collateral or premium.
+
+The principal must sign the collateral transfer through `authorizeDelegatedCollateralFunding`. The holder must separately sign premium payment through `authorizeDelegatedPremiumPayment`. These helpers validate wallet identity and on-chain position ownership before asking the connected wallet to sign.
+
+**Current limitations:** the endpoint uses a fixed demo premium fixture and synthetic Tidepool Testnet assets. The Assistant browser UI is not yet wired to this endpoint; the bearer token must never be exposed to browser code. No live delegated trade or deployed contract upgrade is claimed. The old unrestricted `NEAR_AGENT_PRIVATE_KEY` is not accepted for the ManualApproval proposal route; configure a separate `NEAR_AGENT_PROPOSAL_FUNCTION_CALL_PRIVATE_KEY` scoped only to `create_agent_proposal`.

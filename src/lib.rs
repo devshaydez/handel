@@ -11,6 +11,7 @@ const ESCROW_CALLBACK_GAS: Gas = Gas::from_tgas(10);
 const ESCROW_STORAGE_DEPOSIT: NearToken = NearToken::from_near(1);
 const USDC_ASSET_ID_STORAGE_KEY: &[u8] = b"handel:options:usdc-asset-id:v1";
 const AGENT_EXECUTION_MODE_STORAGE_PREFIX: &[u8] = b"handel:agent-execution-mode:v1:";
+const AGENT_POSITION_STORAGE_PREFIX: &[u8] = b"handel:agent-position:v1:";
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -330,7 +331,7 @@ impl OptionsContract {
     /// lifecycle. The writer must use the escrow's NEP-141 transfer_call flow separately.
     pub fn register_escrow_position(&mut self, position_id: u64) -> Promise {
         self.assert_not_paused();
-        let mut position = self.position_owned_by_writer(position_id);
+        let mut position = self.position_owned_by_writer_or_active_agent(position_id);
         assert_eq!(
             position.state,
             PositionState::PendingCollateral,
@@ -404,7 +405,16 @@ impl OptionsContract {
             "premium_amount": position.premium_amount_usdc.to_string()
         });
         position.escrow_registration_pending = true;
-        self.positions.insert(position_id, position);
+        self.positions.insert(position_id, position.clone());
+        if env::storage_read(&Self::agent_position_storage_key(position_id)).is_some() {
+            env::log_str(&format!(
+                "EVENT_JSON:{}",
+                near_sdk::serde_json::json!({
+                    "standard":"nep297","version":"1.0.0","event":"agent_escrow_registration_started",
+                    "data":[{"position_id":position_id.to_string(),"agent":env::predecessor_account_id(),"principal":position.writer}]
+                })
+            ));
+        }
         Promise::new(escrow)
             .function_call(
                 "create_position_v2".to_string(),
@@ -484,7 +494,7 @@ impl OptionsContract {
     /// Never accepts or stores a signature or signing key. Pending until explicit reconciliation.
     pub fn begin_collateral_lock(&mut self, position_id: u64, operation_id: String) {
         self.assert_not_paused();
-        let position = self.position_owned_by_writer(position_id);
+        let position = self.position_owned_by_writer_or_active_agent(position_id);
         assert!(
             position.escrow_position_id.is_none() && !position.escrow_registration_pending,
             "position belongs to escrow lifecycle"
@@ -525,6 +535,16 @@ impl OptionsContract {
         let position = self.positions.get_mut(&position_id).unwrap();
         position.state = PositionState::PendingCollateralReconciliation;
         position.collateral_operation_id = Some(operation_id);
+        if env::storage_read(&Self::agent_position_storage_key(position_id)).is_some() {
+            let p = self.position(position_id);
+            env::log_str(&format!(
+                "EVENT_JSON:{}",
+                near_sdk::serde_json::json!({
+                    "standard":"nep297","version":"1.0.0","event":"agent_collateral_initiated",
+                    "data":[{"position_id":position_id.to_string(),"agent":env::predecessor_account_id(),"principal":p.writer}]
+                })
+            ));
+        }
     }
 
     /// Accept a lifecycle event only from the escrow contract pinned to this position.
@@ -1147,8 +1167,8 @@ impl OptionsContract {
         self.agent_policies.insert(
             agent_id.clone(),
             AgentPolicy {
-                principal,
-                allowed_assets,
+                principal: principal.clone(),
+                allowed_assets: allowed_assets.clone(),
                 max_underlying_amount,
                 max_premium_usdc,
                 max_collateral_usdc,
@@ -1159,6 +1179,18 @@ impl OptionsContract {
         );
         // Safe default: a newly granted agent must receive explicit delegated authority.
         self.store_agent_execution_mode(&agent_id, AgentExecutionMode::ManualApproval);
+        env::log_str(&format!(
+            "EVENT_JSON:{}",
+            near_sdk::serde_json::json!({
+                "standard":"nep297","version":"1.0.0","event":"agent_policy_set",
+                "data":[{"agent":agent_id,"principal":principal,"allowed_assets":allowed_assets,
+                    "max_underlying_amount":max_underlying_amount.to_string(),
+                    "max_premium_usdc":max_premium_usdc.to_string(),
+                    "max_collateral_usdc":max_collateral_usdc.to_string(),
+                    "max_open_positions":max_open_positions,
+                    "expires_at_ns":expires_at_ns.to_string(),"enabled":true}]
+            })
+        ));
     }
 
     /// Precision-safe policy setter for JavaScript clients. NEAR's U64 JSON wrapper
@@ -1194,6 +1226,13 @@ impl OptionsContract {
             .expect("agent policy missing");
         assert_eq!(policy.principal, principal, "principal only");
         self.store_agent_execution_mode(&agent_id, mode);
+        env::log_str(&format!(
+            "EVENT_JSON:{}",
+            near_sdk::serde_json::json!({
+                "standard":"nep297","version":"1.0.0","event":"agent_execution_mode_changed",
+                "data":[{"agent":agent_id,"principal":principal,"mode":mode}]
+            })
+        ));
     }
 
     pub fn get_agent_execution_mode(&self, agent_id: AccountId) -> AgentExecutionMode {
@@ -1224,7 +1263,14 @@ impl OptionsContract {
         if let Some(mut policy) = self.agent_policies.get(&agent_id).cloned() {
             assert_eq!(policy.principal, principal, "principal only");
             policy.enabled = false;
-            self.agent_policies.insert(agent_id, policy);
+            self.agent_policies.insert(agent_id.clone(), policy);
+            env::log_str(&format!(
+                "EVENT_JSON:{}",
+                near_sdk::serde_json::json!({
+                    "standard":"nep297","version":"1.0.0","event":"agent_revoked",
+                    "data":[{"agent":agent_id,"principal":principal,"enabled":false}]
+                })
+            ));
         }
     }
 
@@ -1523,16 +1569,27 @@ impl OptionsContract {
             open_count < policy.max_open_positions as usize,
             "open position limit"
         );
-        self.create_offer(
+        let position_id = self.create_offer(
             OptionKind::Call,
-            policy.principal,
+            policy.principal.clone(),
             holder,
-            asset_id,
+            asset_id.clone(),
             underlying_amount,
             strike_amount_usdc,
             expiry_ns,
             premium_amount_usdc,
-        )
+        );
+        self.record_agent_position(
+            &agent,
+            position_id,
+            &policy.principal,
+            &asset_id,
+            OptionKind::Call,
+            underlying_amount,
+            strike_amount_usdc,
+            premium_amount_usdc,
+        );
+        position_id
     }
 
     /// Create a fully collateralized Put offer through the bounded delegated agent policy.
@@ -1595,16 +1652,37 @@ impl OptionsContract {
             open_count < policy.max_open_positions as usize,
             "open position limit"
         );
-        self.create_offer(
+        let position_id = self.create_offer(
             OptionKind::Put,
-            policy.principal,
+            policy.principal.clone(),
             holder,
-            asset_id,
+            asset_id.clone(),
             underlying_amount,
             strike_amount_usdc,
             expiry_ns,
             premium_amount_usdc,
-        )
+        );
+        self.record_agent_position(
+            &agent,
+            position_id,
+            &policy.principal,
+            &asset_id,
+            OptionKind::Put,
+            underlying_amount,
+            strike_amount_usdc,
+            premium_amount_usdc,
+        );
+        position_id
+    }
+
+    pub fn agent_begin_collateral_lock(&mut self, position_id: u64, operation_id: String) {
+        self.assert_agent_position(position_id);
+        self.begin_collateral_lock(position_id, operation_id);
+    }
+
+    pub fn agent_register_escrow_position(&mut self, position_id: u64) -> Promise {
+        self.assert_agent_position(position_id);
+        self.register_escrow_position(position_id)
     }
 
     pub fn set_paused(&mut self, paused: bool) {
@@ -1855,6 +1933,118 @@ impl OptionsContract {
             "writer only"
         );
         position
+    }
+
+    fn agent_position_storage_key(position_id: u64) -> Vec<u8> {
+        let mut key = AGENT_POSITION_STORAGE_PREFIX.to_vec();
+        key.extend_from_slice(&position_id.to_le_bytes());
+        key
+    }
+
+    fn assert_agent_policy_active(&self, agent: &AccountId) -> AgentPolicy {
+        let policy = self
+            .agent_policies
+            .get(agent)
+            .cloned()
+            .expect("agent not authorized");
+        assert!(policy.enabled, "agent revoked");
+        assert_eq!(
+            self.agent_execution_mode(agent),
+            AgentExecutionMode::Delegated,
+            "agent is not delegated"
+        );
+        assert!(
+            env::block_timestamp() < policy.expires_at_ns,
+            "agent policy expired"
+        );
+        policy
+    }
+
+    fn record_agent_position(
+        &mut self,
+        agent: &AccountId,
+        position_id: u64,
+        principal: &AccountId,
+        asset_id: &str,
+        kind: OptionKind,
+        underlying: u128,
+        strike: u128,
+        premium: u128,
+    ) {
+        env::storage_write(
+            &Self::agent_position_storage_key(position_id),
+            agent.as_bytes(),
+        );
+        env::log_str(&format!(
+            "EVENT_JSON:{}",
+            near_sdk::serde_json::json!({
+                "standard":"nep297","version":"1.0.0","event":"agent_trade_created",
+                "data":[{"agent":agent,"principal":principal,"position_id":position_id.to_string(),"kind":format!("{:?}",kind),"asset_id":asset_id,"underlying_amount":underlying.to_string(),"strike_amount_usdc":strike.to_string(),"premium_amount_usdc":premium.to_string()}]
+            })
+        ));
+    }
+
+    fn assert_agent_position(&self, position_id: u64) -> OptionPosition {
+        let position = self.position(position_id);
+        let agent = env::predecessor_account_id();
+        let attributed = env::storage_read(&Self::agent_position_storage_key(position_id))
+            .expect("position is not attributed to an agent");
+        assert_eq!(
+            attributed.as_slice(),
+            agent.as_bytes(),
+            "agent does not own this delegated position"
+        );
+        let policy = self.assert_agent_policy_active(&agent);
+        assert_eq!(
+            position.writer, policy.principal,
+            "agent principal mismatch"
+        );
+        assert!(
+            policy
+                .allowed_assets
+                .iter()
+                .any(|a| a == &position.asset_id),
+            "asset no longer allowed"
+        );
+        assert!(
+            position.underlying_amount <= policy.max_underlying_amount,
+            "size exceeds current limit"
+        );
+        assert!(
+            position.premium_amount_usdc <= policy.max_premium_usdc,
+            "premium exceeds current limit"
+        );
+        if position.kind == OptionKind::Put {
+            assert!(
+                position.strike_amount_usdc <= policy.max_collateral_usdc,
+                "USDC collateral exceeds current limit"
+            );
+        }
+        let open_count = self
+            .positions
+            .values()
+            .filter(|p| {
+                p.writer == policy.principal
+                    && !matches!(
+                        p.state,
+                        PositionState::Settled | PositionState::Cancelled | PositionState::Expired
+                    )
+            })
+            .count();
+        assert!(
+            open_count <= policy.max_open_positions as usize,
+            "open position limit"
+        );
+        position
+    }
+
+    fn position_owned_by_writer_or_active_agent(&self, position_id: u64) -> OptionPosition {
+        let position = self.position(position_id);
+        let caller = env::predecessor_account_id();
+        if caller == position.writer {
+            return position;
+        }
+        self.assert_agent_position(position_id)
     }
 
     fn required_collateral(position: &OptionPosition) -> u128 {
@@ -3265,6 +3455,246 @@ mod tests {
             c.get_position(allowed).unwrap().writer,
             account("writer.testnet")
         );
+    }
+
+    #[test]
+    fn delegated_agent_can_initiate_its_attributed_writer_collateral() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            1_500,
+            2,
+            90,
+        );
+        c.set_agent_execution_mode(account("agent.testnet"), AgentExecutionMode::Delegated);
+        context("agent.testnet");
+        let id = c.agent_create_call(
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            5,
+            1_000,
+            80,
+            75,
+        );
+        c.agent_begin_collateral_lock(id, "agent-collateral-1".into());
+        assert_eq!(
+            c.get_position(id).unwrap().state,
+            PositionState::PendingCollateralReconciliation
+        );
+        assert_eq!(
+            c.get_operation("agent-collateral-1".into())
+                .unwrap()
+                .requested_amount,
+            5
+        );
+    }
+
+    #[test]
+    fn delegated_agent_revocation_blocks_collateral_initiation_immediately() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            1_500,
+            2,
+            90,
+        );
+        c.set_agent_execution_mode(account("agent.testnet"), AgentExecutionMode::Delegated);
+        context("agent.testnet");
+        let id = c.agent_create_call(
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            5,
+            1_000,
+            80,
+            75,
+        );
+        context("writer.testnet");
+        c.revoke_agent(account("agent.testnet"));
+        context("agent.testnet");
+        let denied = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.agent_begin_collateral_lock(id, "revoked-agent-collateral".into())
+        }));
+        assert!(
+            denied.is_err(),
+            "revocation must block lifecycle initiation immediately"
+        );
+    }
+
+    #[test]
+    fn delegated_agent_rejects_every_trade_limit_and_revocation() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            5,
+            10,
+            100,
+            1,
+            90,
+        );
+        c.set_agent_execution_mode(account("agent.testnet"), AgentExecutionMode::Delegated);
+        context("agent.testnet");
+        let over_size = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.agent_create_call(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                6,
+                10,
+                80,
+                5,
+            )
+        }));
+        assert!(over_size.is_err());
+        let over_premium = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.agent_create_call(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                10,
+                80,
+                11,
+            )
+        }));
+        assert!(over_premium.is_err());
+        let over_put_collateral = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.agent_create_put(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                101,
+                80,
+                5,
+            )
+        }));
+        assert!(over_put_collateral.is_err());
+        let disallowed_asset = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.agent_create_call(
+                account("holder.testnet"),
+                "nep141:other.testnet".into(),
+                5,
+                10,
+                80,
+                5,
+            )
+        }));
+        assert!(disallowed_asset.is_err());
+        let beyond_policy_expiry = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.agent_create_call(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                10,
+                91,
+                5,
+            )
+        }));
+        assert!(beyond_policy_expiry.is_err());
+        let first = c.agent_create_call(
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            5,
+            10,
+            80,
+            10,
+        );
+        assert!(c.get_position(first).is_some());
+        let over_open_positions = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.agent_create_call(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                10,
+                80,
+                5,
+            )
+        }));
+        assert!(over_open_positions.is_err());
+        context("writer.testnet");
+        c.revoke_agent(account("agent.testnet"));
+        context("agent.testnet");
+        let revoked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.agent_create_call(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                10,
+                80,
+                5,
+            )
+        }));
+        assert!(revoked.is_err());
+    }
+
+    #[test]
+    fn delegated_agent_cannot_authorize_holder_premium_payment() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            1_500,
+            2,
+            90,
+        );
+        c.set_agent_execution_mode(account("agent.testnet"), AgentExecutionMode::Delegated);
+        context("agent.testnet");
+        let id = c.agent_create_call(
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            5,
+            1_000,
+            80,
+            75,
+        );
+        c.positions.get_mut(&id).unwrap().state = PositionState::CollateralLocked;
+        let denied = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.begin_premium_payment(id, "agent-premium-attempt".into())
+        }));
+        assert!(
+            denied.is_err(),
+            "writer agent must never authorize holder premium payment"
+        );
+    }
+
+    #[test]
+    fn delegated_agent_cannot_initiate_another_agents_position() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            1_500,
+            2,
+            90,
+        );
+        c.set_agent_execution_mode(account("agent.testnet"), AgentExecutionMode::Delegated);
+        context("agent.testnet");
+        let id = c.agent_create_call(
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            5,
+            1_000,
+            80,
+            75,
+        );
+        context("attacker.testnet");
+        let denied = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.begin_collateral_lock(id, "attacker-collateral".into())
+        }));
+        assert!(denied.is_err());
     }
 
     impl OptionsContract {

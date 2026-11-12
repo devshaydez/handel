@@ -1,5 +1,79 @@
 # Handel — Project Continuation Handoff
 
+## Current delegated-execution handoff — 2026-11-12 (supersedes older status snapshots)
+
+**Branch:** `feat/unified-agent-delegated-execution`  
+**PR:** [#25](https://github.com/devshaydez/handel/pull/25)  
+**Baseline CI:** [run #43310008665](https://github.com/devshaydez/handel/actions/runs/43310008665), all seven jobs passed at commit `9331688a6c6a1ff7ebf884a1e69e2a0467153291`. New SDK/Vercel integration commits added after that baseline need a fresh CI run.
+
+### Unified product model
+- There is exactly **one AI agent**. Assistant is its conversational interface; Agent is configuration for that same agent (policy, limits, execution mode, revocation). No second agent/runtime.
+- The Assistant's current browser implementation remains scripted/demo UI and is **not yet wired** to the delegated API. Do not claim browser-driven autonomous trading.
+
+### Implemented in this branch
+1. Contract delegated Call/Put entrypoints with on-chain allowlist, amount, premium, Put collateral, expiry, open-position and pause checks.
+2. Separate raw-storage agent-to-position attribution; root Borsh and OptionPosition layouts remain unchanged.
+3. Delegated writer-side lifecycle methods, with current policy/revocation checks on each call and NEP-297 events for policy set, mode change, revocation, trade creation and lifecycle initiation. Reverted calls use failed receipts as rejection evidence.
+4. SDK restricted FunctionCall signer: verifies public key, exact OptionsContract receiver, exact four-method allowlist and finite bounded NEAR allowance before each call; FullAccess keys rejected.
+5. SDK executor: reads policy and Delegated mode from the same finalized block, submits create Call/Put, re-reads policy before Escrow registration, verifies the resulting position and returns `awaiting_principal_collateral`.
+6. Vercel API route `POST /api/v1/delegated/trades`, guarded by server-only `HANDEL_AGENT_API_TOKEN`, with dedicated restricted key env var. It uses a fixed Testnet demo premium fixture.
+7. Separate frontend wallet helpers: principal signs collateral transfer; holder signs premium transfer. The agent key never calls NEP-141 token contracts.
+8. SDK tests for restricted-key rejection, policy caps, revocation/mode rejection, successful create/register and partial registration failure. Rust adversarial tests cover size, premium, Put collateral, allowlist, expiry, open-position cap, post-revocation creation/lifecycle denial, cross-agent attribution and holder-only premium initiation.
+
+### Current Vercel configuration snapshot — 2026-11-12
+- The Vercel project currently has `NEAR_AGENT_ACCOUNT_ID=handel-agent.shaydez.testnet` and a legacy encrypted `NEAR_AGENT_PRIVATE_KEY` variable. The secret value was not decrypted or inspected.
+- The new `NEAR_AGENT_DELEGATED_FUNCTION_CALL_PRIVATE_KEY`, `NEAR_AGENT_PROPOSAL_FUNCTION_CALL_PRIVATE_KEY`, and `HANDEL_AGENT_API_TOKEN` variables were not present in the environment inventory.
+- The new code refuses the legacy `NEAR_AGENT_PRIVATE_KEY`; after the replacement restricted keys are installed, remove/revoke the legacy key so the legacy signer is not retained.
+- Vercel's only branch preview observed was for commit `8005ab2e06325def47a3afb902af00e602800a10`; it failed at SDK TypeScript build due signer type errors. Those SDK errors were fixed afterward. No preview deployment for the latest branch head was observed at the time of this snapshot.
+
+### Required server environment / key authority
+- `NEAR_AGENT_ACCOUNT_ID`: dedicated agent account, distinct from principal.
+- `NEAR_AGENT_DELEGATED_FUNCTION_CALL_PRIVATE_KEY`: dedicated restricted key, not a full-access key.
+- `HANDEL_AGENT_API_TOKEN`: server-only bearer token.
+- `HANDEL_OPTIONS_CONTRACT_ID=options.shaydez.testnet`, `NEAR_RPC_URL=https://rpc.testnet.fastnear.com`.
+- Key receiver exactly `options.shaydez.testnet`; methods exactly `agent_create_call`, `agent_create_put`, `agent_begin_collateral_lock`, `agent_register_escrow_position`; finite allowance no more than configured ceiling (default 1 NEAR).
+- The ManualApproval proposal path now separately requires `NEAR_AGENT_PROPOSAL_FUNCTION_CALL_PRIVATE_KEY`, scoped only to `create_agent_proposal`. Do not reuse the old unrestricted `NEAR_AGENT_PRIVATE_KEY`.
+
+### Authority boundary
+- Agent creates/registers only the writer-side option and Escrow record.
+- Principal signs the actual collateral `ft_transfer_call`.
+- Holder signs the premium `ft_transfer_call` and settlement call.
+- No agent token-transfer permission. Contract policy and revocation are authoritative.
+
+### Remaining release blockers (do not hide these)
+1. Run fresh CI on the newest PR head after SDK signer/executor and Vercel route changes.
+2. Provision the dedicated Testnet agent account's restricted FunctionCall key using the agent account owner's wallet; set the server env variables. Never send the private key in chat.
+3. Upgrade `options.shaydez.testnet` to the PR Wasm with the principal's explicit wallet authorization; verify state preservation.
+4. Deploy the Vercel API changes and verify `/health` plus the delegated route using a test request.
+5. Wire the Assistant UI to a secure wallet-session mechanism. Never expose `HANDEL_AGENT_API_TOKEN` in frontend code. Agent tab remains configuration only.
+6. Execute one in-limit Testnet trade; capture create/register tx hashes and NEP-297 events; principal signs collateral; holder signs premium. Then verify over-limit and post-revocation rejection receipts.
+7. Do not claim mainnet, Ondo tokenized-stock support, live market pricing, or real-asset settlement. Current premium is a fixed demo fixture and Tidepool tokens are synthetic.
+
+
+## Approved delegated execution scope — 2026-11-12
+
+The user approved implementation of the minimal on-chain delegated execution path and confirmed the authority boundary:
+- **One agent only.** The Assistant is the single AI/trading interface. The Agent tab is configuration for that same agent (policy, limits, mode, revocation); it must not create a second model/runtime/identity.
+- The agent may create Call/Put positions and initiate/register writer-side collateral lifecycle actions, subject to current on-chain policy checks on every delegated method.
+- The principal must still authorize the actual collateral token transfer. The holder must still authorize premium payment. The agent must never receive token-transfer authority for either party.
+- Prefer a dedicated NEAR Testnet agent account with a restricted function-call access key scoped to options.shaydez.testnet and only the delegated contract methods. Never use or request the principal's full-access key or seed phrase.
+- Preserve serialized contract state. Agent-to-position attribution belongs in separate raw storage keys, not new fields in OptionsContract or OptionPosition.
+- Accepted agent actions emit NEP-297 events. Reverted calls cannot persist rejection events; failed transaction receipts are the rejection evidence.
+- Keep scope Testnet/Tidepool/mock only. No claim of mainnet, live Ondo routing, or real-asset settlement.
+
+### Current implementation branch
+feat/unified-agent-delegated-execution is the implementation branch. It adds raw-storage attribution, delegated lifecycle authorization and explicit agent_begin_collateral_lock / agent_register_escrow_position entrypoints, with policy checks including immediate revocation. The branch is not complete until CI, SDK/runtime signer integration, frontend unified wiring, and Testnet evidence are verified. Do not infer completion from code changes alone.
+
+### Required acceptance evidence
+1. Agent places an in-limit trade; confirm principal writer attribution and agent_trade_created event.
+2. Agent is rejected when any on-chain limit is exceeded.
+3. Agent is rejected immediately after principal revocation.
+4. Agent can initiate/register writer-side collateral but cannot transfer tokens.
+5. Holder-only premium payment remains inaccessible to the writer agent.
+6. Full Rust and SDK test suites plus offline lifecycle demo pass.
+7. README, docs/EVIDENCE.md, and this handoff report exact commit, CI run, and transaction evidence; distinguish unit/Sandbox mocks from Testnet receipts.
+
+
 ## Current release status — 2026-11-12
 
 > This dated status block supersedes stale branch, PR, CI, and release-gate snapshots in the historical notes below. Update this block first when the live repository state changes.

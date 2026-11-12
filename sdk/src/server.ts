@@ -13,9 +13,17 @@ export interface AdvisoryApiInput {
   request: Omit<AdvisoryAgentRequest, "demoPremiumFixture">;
 }
 export interface EducationApiInput { question: string; context?: unknown; }
+export interface DelegatedTradeApiInput {
+  agentId: string;
+  principal: string;
+  holder: string;
+  request: Omit<AdvisoryAgentRequest, "demoPremiumFixture">;
+}
 export interface AdvisoryApiDependencies {
   prepare(input: AdvisoryApiInput): Promise<PreparedAdvisoryApproval>;
   answerEducation?(input: EducationApiInput): Promise<Awaited<ReturnType<HandelEducationAgent["answer"]>>>;
+  /** Must run the verified market/premium/System-One runtime before calling the restricted agent signer. */
+  executeDelegated?(input: DelegatedTradeApiInput): Promise<Record<string, unknown>>;
 }
 export interface AdvisoryHttpOptions {
   allowedOrigins?: string[];
@@ -75,6 +83,36 @@ function validateInput(value: unknown): AdvisoryApiInput {
   };
 }
 
+function validateDelegatedTradeInput(value: unknown): DelegatedTradeApiInput {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new AdvisoryApiError("request must be an object", 400);
+  const x = value as Record<string, unknown>;
+  if (!isAccountId(String(x.agentId ?? "")) || !isAccountId(String(x.principal ?? "")) || !isAccountId(String(x.holder ?? ""))) {
+    throw new AdvisoryApiError("agentId, principal and holder must be valid NEAR account IDs", 400);
+  }
+  if (!x.request || typeof x.request !== "object" || Array.isArray(x.request)) throw new AdvisoryApiError("request terms are required", 400);
+  const r = x.request as Record<string, unknown>;
+  if (r.type !== "Call" && r.type !== "Put") throw new AdvisoryApiError("type must be Call or Put", 400);
+  for (const key of ["assetId", "quantity", "strike", "expiryNs", "objective"] as const) {
+    if (typeof r[key] !== "string" || !r[key].trim()) throw new AdvisoryApiError(key + " is required", 400);
+  }
+  if ((r.assetId as string).length > 256 || (r.quantity as string).length > 78 ||
+      (r.strike as string).length > 78 || (r.expiryNs as string).length > 24 ||
+      (r.objective as string).length > 2000) throw new AdvisoryApiError("one or more request fields exceed their size limit", 400);
+  return {
+    agentId: x.agentId as string,
+    principal: x.principal as string,
+    holder: x.holder as string,
+    request: {
+      type: r.type,
+      assetId: r.assetId as string,
+      quantity: r.quantity as string,
+      strike: r.strike as string,
+      expiryNs: r.expiryNs as string,
+      objective: r.objective as string,
+    },
+  };
+}
+
 function validateEducationInput(value: unknown): EducationApiInput {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new AdvisoryApiError("request must be an object", 400);
   const x = value as Record<string, unknown>;
@@ -113,10 +151,10 @@ export function createHandelAdvisoryHttpServer(
       }
       if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
       if (req.method === "GET" && req.url === "/health") {
-        send(res, 200, { ok: true, service: "handel-advisory-api", mode: "education-and-advisory", transactionSubmission: false });
+        send(res, 200, { ok: true, service: "handel-advisory-api", mode: dependencies.executeDelegated ? "delegated-execution-enabled" : "education-and-advisory", transactionSubmission: Boolean(dependencies.executeDelegated) });
         return;
       }
-      if (req.method !== "POST" || (req.url !== "/v1/advisory/proposals" && req.url !== "/v1/education/answer")) {
+      if (req.method !== "POST" || (req.url !== "/v1/advisory/proposals" && req.url !== "/v1/education/answer" && req.url !== "/v1/delegated/trades")) {
         send(res, 404, { error: "not_found" }); return;
       }
       if (options.requireAuth) {
@@ -131,6 +169,21 @@ export function createHandelAdvisoryHttpServer(
       recent.push(now); hits.set(ip, recent);
 
       const body = await readJson(req, maxBodyBytes);
+      if (req.url === "/v1/delegated/trades") {
+        if (!options.requireAuth || !options.bearerToken) {
+          throw new AdvisoryApiError("delegated execution requires explicit bearer authentication", 403);
+        }
+        if (!dependencies.executeDelegated) throw new AdvisoryApiError("delegated execution is not configured; no transaction was submitted", 503);
+        const result = await dependencies.executeDelegated(validateDelegatedTradeInput(body));
+        send(res, 200, {
+          ...result,
+          transactionSubmitted: true,
+          collateralTransferAuthorized: false,
+          premiumPaymentAuthorized: false,
+          note: "The agent submitted the trade and initiated writer-side escrow registration. The principal must separately sign collateral funding; the holder must separately sign premium payment.",
+        });
+        return;
+      }
       if (req.url === "/v1/education/answer") {
         if (!dependencies.answerEducation) throw new AdvisoryApiError("education service is unavailable", 503);
         const result = await dependencies.answerEducation(validateEducationInput(body));

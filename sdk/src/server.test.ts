@@ -196,3 +196,46 @@ test("HTTP education route returns a guarded education-only answer without walle
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }
 });
+
+
+test("delegated execution route requires bearer auth and reports the token-authority boundary", async () => {
+  let executed = 0;
+  const server = createHandelAdvisoryHttpServer({
+    prepare: async () => { throw new Error("not used"); },
+    executeDelegated: async input => {
+      executed++;
+      assert.equal(input.principal, "principal.testnet");
+      return { status: "awaiting_principal_collateral", positionId: "7", escrowPositionId: "12" };
+    },
+  }, { requireAuth: true, bearerToken: "local-agent-token" });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = "http://127.0.0.1:" + address.port;
+  const body = {
+    agentId: "handel-agent.shaydez.testnet",
+    principal: "principal.testnet",
+    holder: "holder.testnet",
+    request: { type: "Call", assetId: "nep141:wnear.tidepool-sandbox.testnet", quantity: "1000000",
+      strike: "1000000", expiryNs: "999999999999999999", objective: "test" },
+  };
+  try {
+    const denied = await fetch(base + "/v1/delegated/trades", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+    });
+    assert.equal(denied.status, 401);
+    assert.equal(executed, 0);
+    const response = await fetch(base + "/v1/delegated/trades", {
+      method: "POST", headers: { "content-type": "application/json", authorization: "Bearer local-agent-token" },
+      body: JSON.stringify(body),
+    });
+    assert.equal(response.status, 200);
+    const result = await response.json() as Record<string, unknown>;
+    assert.equal(result.transactionSubmitted, true);
+    assert.equal(result.collateralTransferAuthorized, false);
+    assert.equal(result.premiumPaymentAuthorized, false);
+    assert.equal(executed, 1);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+});

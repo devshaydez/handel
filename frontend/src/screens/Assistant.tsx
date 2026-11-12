@@ -78,7 +78,7 @@ export default function Assistant() {
   const send = (t: string) => { sendChat(t); setText(''); };
   return (
     <div className="page">
-      <PageHead title="AI assistant" sub="Ask about markets, options or your positions. It only uses the demo data shown in Handel and never invents prices." />
+      <PageHead title="AI assistant" sub="One Assistant for analysis and trade requests. The Agent tab only configures this same agent; current market examples are demo data and delegated submission is not yet activated in this deployment." />
       <div className="chat-wrap">
         <Card className="chat">
           <div className="chat-scroll" aria-live="polite">

@@ -6,14 +6,14 @@ import { Badge, Banner, Button, Card, CardHead, KV, Modal, PageHead, QtyStepper,
 import { ASSETS, DEFAULT_POLICY, fmtStamp, SUPPORTED_STRATEGIES, UNSUPPORTED_STRATEGIES } from '../data/mock';
 import type { Mode, Policy } from '../data/types';
 import { go } from '../router';
-import { agentStatus, pauseAgent, resumeAgent, revokeAgent, reauthorize, runAgentCycle, setMode, updatePolicy, useStore } from '../state/store';
+import { agentStatus, pauseAgent, resumeAgent, revokeAgent, reauthorize, setMode, updatePolicy, useStore } from '../state/store';
 import { usd0 } from '../lib/pricing';
 import { getOnChainAgentPolicy, saveOnChainAgentPolicy } from '../lib/near-wallet';
 
 const MODES: { m: Mode; t: string; tag: string; pts: string[]; disabled?: boolean }[] = [
   { m: 'advisory', t: 'Advisory', tag: 'AI recommends', pts: ['Analyses markets and explains options', 'Recommends or rejects opportunities', 'Never executes. You act yourself'] },
   { m: 'approval', t: 'Approval', tag: 'You approve each trade', pts: ['Writes structured trade proposals', 'You approve or reject each one', 'Approved trades still pass every check'] },
-  { m: 'auto', t: 'Automatic', tag: 'Not enabled on Testnet', pts: ['OptionsContract currently enforces ManualApproval', 'Every agent proposal still needs your wallet approval', 'Automatic execution requires a separately audited signer flow'], disabled: true },
+  { m: 'auto', t: 'Automatic', tag: 'Not activated yet', pts: ['Delegated Testnet executor is implemented but not deployed', 'A restricted agent FunctionCall key and secure Assistant session are still required', 'The principal signs collateral and the holder signs premium; the agent never moves tokens'], disabled: true },
 ];;
 function formatBaseUnits(value: string | number, decimals: number): string {
   const amount = BigInt(value);
@@ -87,7 +87,7 @@ export default function Agent() {
 
   return (
     <div className="page">
-      <PageHead title="Agent permissions" sub="Decide exactly what the AI may do. Wallet connection alone grants nothing, and you can stop the agent at any time." actions={<AgentPill />} />
+      <PageHead title="Agent permissions" sub="Configure the same AI agent you speak to in Assistant. Set its on-chain limits, execution mode and revocation; this screen is not a separate agent. Wallet connection alone grants nothing." actions={<AgentPill />} />
 
       {s.revoked && <Banner tone="danger" action={<Button size="sm" variant="gold" onClick={reauthorize}>Re-enable in Advisory</Button>}><b>Agent access is revoked.</b> The agent cannot analyse, propose or act until you re-enable it.</Banner>}
       {s.paused && !s.revoked && <Banner tone="warn" action={<Button size="sm" variant="gold" onClick={resumeAgent}>Resume</Button>}><b>The agent is paused.</b> Your permissions are unchanged, but nothing runs until you resume.</Banner>}
@@ -107,7 +107,6 @@ export default function Agent() {
           <div className="col gap8" style={{ minWidth: 200 }}>
             {s.paused ? <Button variant="gold" icon={<LuPlay size={14} />} onClick={resumeAgent} disabled={s.revoked}>Resume agent</Button> : <Button icon={<LuPause size={14} />} onClick={pauseAgent} disabled={s.revoked}>Pause automation</Button>}
             <Button variant="danger" icon={<LuBan size={14} />} onClick={() => setConfirmRevoke(true)} disabled={s.revoked}>Revoke agent access</Button>
-            <Button size="sm" variant="ghost" onClick={runAgentCycle} disabled={s.agentActivity !== 'idle'}>Run a demo agent cycle</Button>
           </div>
         </div>
       </Card>
