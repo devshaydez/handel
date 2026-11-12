@@ -1,4 +1,4 @@
-import { setupWalletSelector } from '@near-wallet-selector/core';
+import { actionCreators, setupWalletSelector } from '@near-wallet-selector/core';
 import { setupModal } from '@near-wallet-selector/modal-ui';
 import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet';
 import { setupMeteorWallet } from '@near-wallet-selector/meteor-wallet';
@@ -19,7 +19,7 @@ let modalPromise: Promise<ReturnType<typeof setupModal>> | undefined;
 async function selector() {
   if (!selectorPromise) {
     selectorPromise = setupWalletSelector({
-      network: { networkId: NETWORK_ID, nodeUrl: RPC, walletUrl: 'https://testnet.mynearwallet.com', helperUrl: 'https://helper.testnet.near.org', explorerUrl: 'https://testnet.nearblocks.io' },
+      network: NETWORK_ID,
       modules: [setupMyNearWallet(), setupMeteorWallet(), setupSender(), setupBitteWallet()],
     });
   }
@@ -56,7 +56,7 @@ async function send(receiverId: string, methodName: string, args: Record<string,
   const wallet = await s.wallet();
   const result = await wallet.signAndSendTransaction({
     receiverId,
-    actions: [{ type: 'FunctionCall', params: { methodName, args, gas, deposit } }],
+    actions: [actionCreators.functionCall(methodName, args, BigInt(gas), BigInt(deposit))],
   });
   if (!result) throw new Error('This wallet completed a redirect-based signing flow. Reopen Handel from the wallet return page and check the transaction before retrying.');
   const outcome = result as unknown as { transaction?: { hash?: string }; status?: { SuccessValue?: string } };
