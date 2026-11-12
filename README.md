@@ -1,6 +1,17 @@
 # Handel
 
+## Unified Assistant and Agent
+
+Handel has **one AI agent**, surfaced through the Assistant. The Assistant is the single conversational interface for education, market analysis, trade planning and (when delegated execution is fully configured) trade submission. The Agent tab is **configuration only**: it controls the same agent's on-chain policy, limits, execution mode and revocation. It is not a second agent and must not maintain a separate decision or execution runtime. Both surfaces must use the same connected principal, agent identity, policy snapshot and audit trail.
+
+
 ## Verified status — 2026-11-12
+
+- Delegated execution implementation is in progress on 'feat/unified-agent-delegated-execution'; do not treat this branch as deployed or CI-verified until its PR checks pass.
+- The contract change keeps root Borsh state and OptionPosition layouts unchanged. Agent-to-position attribution uses a separate raw-storage key. Delegated lifecycle calls re-check enabled state, Delegated mode, expiry, principal attribution, asset allowlist and current position caps.
+- The approved authority boundary is strict: the agent can create a position and initiate/register writer-side collateral lifecycle steps; the principal still authorizes the actual collateral transfer; the holder authorizes premium payment. The agent has no token-transfer authority.
+- Accepted delegated actions emit NEP-297 events. Rejected NEAR contract calls revert, so their durable evidence is the failed transaction receipt; a reverted contract call cannot persist an on-chain rejection event.
+
 
 - PR [#22](https://github.com/devshaydez/handel/pull/22) is merged into `feat/handel-frontend-integration`.
 - [GitHub Actions run #43300087425](https://github.com/devshaydez/handel/actions/runs/43300087425) passed all seven jobs, including the frontend production build and live NEAR AI → SDK → approval-gated Sandbox proof.
@@ -16,9 +27,9 @@
 - NEAR AI Chat uses the official Node inference SDK with pinned Gateway/model identities and TEE measurements.
 - System One is a separate safety-classification call. Its current configured trust mode is Gateway-signed; it is not represented as a separately model-TEE-attested classifier.
 - The same agent exposes education-only answers and advisory option proposals.
-- Advisory proposals are checked against an on-chain agent policy read at NEAR finality and require ManualApproval mode.
-- The configured **agent account** submits create_agent_proposal; the **principal account** separately signs approve_agent_proposal.
-- The SDK refuses to treat an advisory proposal as executable. The AI path has no verified market feed or live option-pricing engine; it replaces model premium output with an explicitly labelled fixed demo fixture.
+- Existing advisory proposals are checked against an on-chain agent policy read at NEAR finality and require ManualApproval mode. The new delegated path is separate and must be explicitly enabled by the principal on-chain.
+- The legacy proposal flow has the configured **agent account** submit create_agent_proposal and the **principal account** separately sign approve_agent_proposal. The delegated path instead uses a dedicated restricted function-call key on the agent account; it does not grant the agent the principal's key.
+- The existing SDK advisory path still refuses to treat a proposal as executable. Contract-side delegated execution is being added separately; do not label the full AI-to-transaction loop complete until the restricted signer/runtime integration and live Testnet evidence are verified. The AI path has no verified market feed or live option-pricing engine; it replaces model premium output with an explicitly labelled fixed demo fixture.
 - The Sandbox lifecycle exercises the OptionsContract, mock NEP-141 collateral, escrow, premium, exercise and settlement callbacks.
 
 ## Local advisory API

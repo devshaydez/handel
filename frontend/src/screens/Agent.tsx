@@ -87,7 +87,7 @@ export default function Agent() {
 
   return (
     <div className="page">
-      <PageHead title="Agent permissions" sub="Decide exactly what the AI may do. Wallet connection alone grants nothing, and you can stop the agent at any time." actions={<AgentPill />} />
+      <PageHead title="Agent permissions" sub="Configure the same AI agent you speak to in Assistant. Set its on-chain limits, execution mode and revocation; this screen is not a separate agent. Wallet connection alone grants nothing." actions={<AgentPill />} />
 
       {s.revoked && <Banner tone="danger" action={<Button size="sm" variant="gold" onClick={reauthorize}>Re-enable in Advisory</Button>}><b>Agent access is revoked.</b> The agent cannot analyse, propose or act until you re-enable it.</Banner>}
       {s.paused && !s.revoked && <Banner tone="warn" action={<Button size="sm" variant="gold" onClick={resumeAgent}>Resume</Button>}><b>The agent is paused.</b> Your permissions are unchanged, but nothing runs until you resume.</Banner>}

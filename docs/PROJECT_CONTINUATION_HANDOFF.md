@@ -1,5 +1,29 @@
 # Handel — Project Continuation Handoff
 
+## Approved delegated execution scope — 2026-11-12
+
+The user approved implementation of the minimal on-chain delegated execution path and confirmed the authority boundary:
+- **One agent only.** The Assistant is the single AI/trading interface. The Agent tab is configuration for that same agent (policy, limits, mode, revocation); it must not create a second model/runtime/identity.
+- The agent may create Call/Put positions and initiate/register writer-side collateral lifecycle actions, subject to current on-chain policy checks on every delegated method.
+- The principal must still authorize the actual collateral token transfer. The holder must still authorize premium payment. The agent must never receive token-transfer authority for either party.
+- Prefer a dedicated NEAR Testnet agent account with a restricted function-call access key scoped to options.shaydez.testnet and only the delegated contract methods. Never use or request the principal's full-access key or seed phrase.
+- Preserve serialized contract state. Agent-to-position attribution belongs in separate raw storage keys, not new fields in OptionsContract or OptionPosition.
+- Accepted agent actions emit NEP-297 events. Reverted calls cannot persist rejection events; failed transaction receipts are the rejection evidence.
+- Keep scope Testnet/Tidepool/mock only. No claim of mainnet, live Ondo routing, or real-asset settlement.
+
+### Current implementation branch
+feat/unified-agent-delegated-execution is the implementation branch. It adds raw-storage attribution, delegated lifecycle authorization and explicit agent_begin_collateral_lock / agent_register_escrow_position entrypoints, with policy checks including immediate revocation. The branch is not complete until CI, SDK/runtime signer integration, frontend unified wiring, and Testnet evidence are verified. Do not infer completion from code changes alone.
+
+### Required acceptance evidence
+1. Agent places an in-limit trade; confirm principal writer attribution and agent_trade_created event.
+2. Agent is rejected when any on-chain limit is exceeded.
+3. Agent is rejected immediately after principal revocation.
+4. Agent can initiate/register writer-side collateral but cannot transfer tokens.
+5. Holder-only premium payment remains inaccessible to the writer agent.
+6. Full Rust and SDK test suites plus offline lifecycle demo pass.
+7. README, docs/EVIDENCE.md, and this handoff report exact commit, CI run, and transaction evidence; distinguish unit/Sandbox mocks from Testnet receipts.
+
+
 ## Current release status — 2026-11-12
 
 > This dated status block supersedes stale branch, PR, CI, and release-gate snapshots in the historical notes below. Update this block first when the live repository state changes.
