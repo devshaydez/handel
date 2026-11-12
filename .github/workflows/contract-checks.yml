@@ -12,12 +12,14 @@ on:
       - work/batch-10-product-release
       - work/batch-8-ai-agent-intelligence
       - feat/handel-archive-core
+      - feat/handel-frontend-integration
       - work/final-backend-readiness
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
       - feat/handel-archive-core
+      - feat/handel-frontend-integration
       - work/testnet-backend-hardening
       - work/batch-4-ai-integration-adversarial
       - work/batch-8-ai-agent-intelligence
