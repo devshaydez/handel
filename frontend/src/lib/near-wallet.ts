@@ -179,7 +179,7 @@ export async function saveOnChainAgentPolicy(input: {
   if (!principal) throw new Error('Connect the principal NEAR Testnet wallet before saving agent permissions.');
   if (!input.allowedAssets.length) throw new Error('Select at least one enabled asset.');
   for (const [label, value] of [['underlying', input.maxUnderlyingAmount], ['premium', input.maxPremiumUsdc], ['collateral', input.maxCollateralUsdc]] as const) {
-    if (!/^\\d+$/.test(value) || BigInt(value) <= 0n) throw new Error('The maximum ' + label + ' amount must be a positive integer in base units.');
+    if (!/^\d+$/.test(value) || BigInt(value) <= 0n) throw new Error('The maximum ' + label + ' amount must be a positive integer in base units.');
   }
   if (!Number.isInteger(input.maxOpenPositions) || input.maxOpenPositions < 1) throw new Error('Maximum open positions must be a positive whole number.');
   if (!Number.isInteger(input.validityDays) || input.validityDays < 1 || input.validityDays > 365) throw new Error('Policy validity must be between 1 and 365 days.');
