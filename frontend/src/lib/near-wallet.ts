@@ -188,12 +188,15 @@ async function transferCall(token: string, escrowPositionId: string, leg: 'colla
  * collateral and premium using NEP-141 transfer_call, then pay the premium
  * through the escrow's callback-verified NEP-141 transfer.
  */
-async function fundExistingEscrowPosition(positionId: string, methodName: 'create_call' | 'create_put', args: Record<string, unknown>, accountId: string, initialHash: string, initialLabel: string) {
-  let lastHash = initialHash;
+async function fundExistingEscrowPosition(positionId: string, methodName: 'create_call' | 'create_put', args: Record<string, unknown>, accountId: string, initialHash: string | undefined, initialLabel: string) {
+  let lastHash = initialHash || '';
   try {
-    const registerTx = await send(OPTIONS_CONTRACT!, 'register_escrow_position', { position_id: Number(positionId) });
-    lastHash = registerTx.transactionHash;
-    const option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT!, 'get_position', { position_id: Number(positionId) });
+    let option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT!, 'get_position', { position_id: Number(positionId) });
+    if (option.escrow_position_id === undefined || option.escrow_position_id === null) {
+      const registerTx = await send(OPTIONS_CONTRACT!, 'register_escrow_position', { position_id: Number(positionId) });
+      lastHash = registerTx.transactionHash;
+      option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT!, 'get_position', { position_id: Number(positionId) });
+    }
     if (option.escrow_position_id === undefined || option.escrow_position_id === null) {
       throw new Error('Escrow registration is not confirmed by OptionsContract yet.');
     }
@@ -201,23 +204,31 @@ async function fundExistingEscrowPosition(positionId: string, methodName: 'creat
     const isCall = methodName === 'create_call';
     const collateralToken = isCall ? UNDERLYING_TOKEN : USDC_TOKEN;
     const collateralAmount = String(isCall ? args.underlying_amount : args.strike_amount_usdc);
-    const collateralTx = await transferCall(collateralToken, escrowPositionId, 'collateral', collateralAmount);
-    lastHash = collateralTx.transactionHash;
-    const escrowState = await view<{ collateral_received?: boolean }>(ESCROW_CONTRACT!, 'get_position', { position_id: Number(escrowPositionId) });
+    let escrowState = await view<{ collateral_received?: boolean }>(ESCROW_CONTRACT!, 'get_position', { position_id: Number(escrowPositionId) });
+    if (escrowState.collateral_received !== true) {
+      const collateralTx = await transferCall(collateralToken, escrowPositionId, 'collateral', collateralAmount);
+      lastHash = collateralTx.transactionHash;
+      escrowState = await view<{ collateral_received?: boolean }>(ESCROW_CONTRACT!, 'get_position', { position_id: Number(escrowPositionId) });
+    }
     if (escrowState.collateral_received !== true) {
       throw new Error('Escrow has not confirmed collateral receipt. Position remains pending; transaction ' + lastHash);
     }
     const premiumAmount = String(args.premium_amount_usdc);
-    const premiumTx = await transferCall(USDC_TOKEN, escrowPositionId, 'premium', premiumAmount);
-    lastHash = premiumTx.transactionHash;
-    const premiumReceived = await view<{ received?: boolean } | null>(ESCROW_CONTRACT!, 'get_premium_status', { position_id: Number(escrowPositionId) });
-    if (!premiumReceived || premiumReceived.received !== true) {
+    let premiumStatus = await view<{ received?: boolean; paid?: boolean } | null>(ESCROW_CONTRACT!, 'get_premium_status', { position_id: Number(escrowPositionId) });
+    if (!premiumStatus?.received) {
+      const premiumTx = await transferCall(USDC_TOKEN, escrowPositionId, 'premium', premiumAmount);
+      lastHash = premiumTx.transactionHash;
+      premiumStatus = await view<{ received?: boolean; paid?: boolean } | null>(ESCROW_CONTRACT!, 'get_premium_status', { position_id: Number(escrowPositionId) });
+    }
+    if (!premiumStatus?.received) {
       throw new Error('Escrow has not confirmed the premium transfer. Transaction ' + lastHash);
     }
-    const settleTx = await send(ESCROW_CONTRACT!, 'settle_premium', { position_id: Number(escrowPositionId) });
-    lastHash = settleTx.transactionHash;
-    const premium = await view<{ paid?: boolean } | null>(ESCROW_CONTRACT!, 'get_premium_status', { position_id: Number(escrowPositionId) });
-    if (!premium || premium.paid !== true) {
+    if (!premiumStatus.paid) {
+      const settleTx = await send(ESCROW_CONTRACT!, 'settle_premium', { position_id: Number(escrowPositionId) });
+      lastHash = settleTx.transactionHash;
+      premiumStatus = await view<{ received?: boolean; paid?: boolean } | null>(ESCROW_CONTRACT!, 'get_premium_status', { position_id: Number(escrowPositionId) });
+    }
+    if (!premiumStatus?.paid) {
       throw new Error('Escrow premium payout is not confirmed. Position remains pending; transaction ' + lastHash);
     }
     const optionState = await view<{ state?: string | Record<string, unknown> }>(OPTIONS_CONTRACT!, 'get_position', { position_id: Number(positionId) });
@@ -226,10 +237,11 @@ async function fundExistingEscrowPosition(positionId: string, methodName: 'creat
     if (stateName !== 'Open') {
       throw new Error('Escrow reports premium paid but OptionsContract has not confirmed the Open state. Transaction ' + lastHash);
     }
-    return { transactionHash: lastHash, accountId, positionId, escrowPositionId };
+    return { transactionHash: lastHash || String(args.agent_tx_hash || ''), accountId, positionId, escrowPositionId };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Escrow lifecycle failed.';
-    throw new Error(message + ' ' + initialLabel + ' transaction: ' + initialHash);
+    const prior = initialHash ? ' ' + initialLabel + ' transaction: ' + initialHash : '';
+    throw new Error(message + prior);
   }
 }
 async function createAndFundEscrowOption(methodName: 'create_call' | 'create_put', args: Record<string, unknown>) {
@@ -245,7 +257,7 @@ async function approveAndFundAgentProposal(args: Record<string, unknown>): Promi
   const proposalId = String(args.proposal_id || '');
   const positionId = String(args.position_id || '');
   const kind = String(args.kind || '');
-  if (!proposalId || !/^\d+$/.test(positionId) || (kind !== 'Call' && kind !== 'Put')) {
+  if (!proposalId || !/^\\d+$/.test(positionId) || (kind !== 'Call' && kind !== 'Put')) {
     throw new Error('Agent proposal approval payload is incomplete or invalid.');
   }
   const methodName = kind === 'Call' ? 'create_call' : 'create_put';
@@ -253,14 +265,25 @@ async function approveAndFundAgentProposal(args: Record<string, unknown>): Promi
     underlying_amount: String(args.underlying_amount),
     strike_amount_usdc: String(args.strike_amount_usdc),
     premium_amount_usdc: String(args.premium_amount_usdc),
+    agent_tx_hash: String(args.agent_tx_hash || ''),
   };
-  if (Object.values(optionArgs).some((value) => !/^\d+$/.test(value))) {
+  if (Object.values(optionArgs).slice(0, 3).some((value) => !/^\\d+$/.test(value))) {
     throw new Error('Agent proposal contains invalid option amounts.');
   }
-  const approvalTx = await send(OPTIONS_CONTRACT, 'approve_agent_proposal', { proposal_id: proposalId });
-  return fundExistingEscrowPosition(positionId, methodName, optionArgs, approvalTx.accountId, approvalTx.transactionHash, 'Principal approval');
+  const accountId = await currentNearAccount();
+  if (!accountId) throw new Error('Connect the principal wallet to approve this agent proposal.');
+  const proposal = await view<{ state?: string } | null>(OPTIONS_CONTRACT, 'get_agent_proposal', { proposal_id: proposalId });
+  if (!proposal) throw new Error('The on-chain agent proposal could not be found.');
+  let initialHash: string | undefined;
+  let initialLabel = 'Principal approval';
+  if (proposal.state === 'PendingApproval') {
+    const approvalTx = await send(OPTIONS_CONTRACT, 'approve_agent_proposal', { proposal_id: proposalId });
+    initialHash = approvalTx.transactionHash;
+  } else if (proposal.state !== 'Approved') {
+    throw new Error('This agent proposal is no longer pending approval.');
+  }
+  return fundExistingEscrowPosition(positionId, methodName, optionArgs, accountId, initialHash, initialLabel);
 }
-
 export async function signNearContractCall(methodName: string, args: Record<string, unknown>): Promise<WalletTransactionResult> {
   if (methodName === 'create_call' || methodName === 'create_put') {
     return createAndFundEscrowOption(methodName, args);
