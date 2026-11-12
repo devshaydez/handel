@@ -130,6 +130,12 @@ async function createAndFundEscrowOption(methodName: 'create_call' | 'create_put
     if (!premium || premium.paid !== true) {
       throw new Error('Escrow premium payout is not confirmed. Position remains pending; transaction ' + lastHash);
     }
+    const optionState = await view<{ state?: string | Record<string, unknown> }>(OPTIONS_CONTRACT, 'get_position', { position_id: Number(positionId) });
+    const stateName = typeof optionState.state === 'string' ? optionState.state :
+      optionState.state && typeof optionState.state === 'object' ? Object.keys(optionState.state)[0] : '';
+    if (stateName !== 'Open') {
+      throw new Error('Escrow reports premium paid but OptionsContract has not confirmed the Open state. Transaction ' + lastHash);
+    }
     return { transactionHash: lastHash, accountId: positionTx.accountId };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Escrow lifecycle failed.';
