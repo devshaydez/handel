@@ -191,7 +191,7 @@ async function approveAndFundAgentProposal(args: Record<string, unknown>): Promi
   const proposalId = String(args.proposal_id || '');
   const positionId = String(args.position_id || '');
   const kind = String(args.kind || '');
-  if (!proposalId || !/^\\d+$/.test(positionId) || (kind !== 'Call' && kind !== 'Put')) {
+  if (!proposalId || !/^\d+$/.test(positionId) || (kind !== 'Call' && kind !== 'Put')) {
     throw new Error('Agent proposal approval payload is incomplete or invalid.');
   }
   const methodName = kind === 'Call' ? 'create_call' : 'create_put';
@@ -200,7 +200,7 @@ async function approveAndFundAgentProposal(args: Record<string, unknown>): Promi
     strike_amount_usdc: String(args.strike_amount_usdc),
     premium_amount_usdc: String(args.premium_amount_usdc),
   };
-  if (Object.values(optionArgs).some((value) => !/^\\d+$/.test(value))) {
+  if (Object.values(optionArgs).some((value) => !/^\d+$/.test(value))) {
     throw new Error('Agent proposal contains invalid option amounts.');
   }
   const approvalTx = await send(OPTIONS_CONTRACT, 'approve_agent_proposal', { proposal_id: proposalId });
