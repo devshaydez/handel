@@ -6,6 +6,7 @@ import { NETWORK } from '../data/mock';
 import { go } from '../router';
 import { agentStatus, connectWallet, disconnectWallet, resetDemo, setNotifPref, setTxPref, toast, useStore } from '../state/store';
 import { usd } from '../lib/pricing';
+import { connectNearWallet } from '../lib/near-wallet';
 
 type T = 'account' | 'security' | 'notifications' | 'integrations' | 'help';
 const NOTIF: [string, string, string][] = [['proposals', 'New proposals', 'When the AI creates a proposal or recommendation'], ['approvals', 'Approval requests', 'When something needs your decision'], ['tx', 'Transaction status changes', 'Submitted, confirmed, and settlement updates'], ['expiry', 'Position expiry', 'Before and after an option expires'], ['risk', 'Risk warnings', 'Stale data, blocked actions and limits'], ['restrictions', 'Agent restrictions', 'Mode, pause and revoke changes'], ['failed', 'Failed or unresolved actions', 'Anything that needs a second look']];
@@ -26,11 +27,11 @@ export default function Settings() {
             {s.wallet.connected ? (
               <>
                 <KV k="Account" v={<span className="row gap8 mono"><span>{s.wallet.account}</span><button aria-label="Copy account ID" onClick={() => { navigator.clipboard?.writeText(s.wallet.account).catch(() => {}); toast('success', 'Account ID copied'); }}><LuCopy size={13} className="muted" /></button></span>} />
-                <KV k="Network" v={s.wallet.network} /><KV k="Status" v={<Badge tone="green" sm>Connected</Badge>} /><KV k="Demo balance" v={`${usd(s.balance)} USDC`} />
-                <div className="row gap8 mt16"><Button icon={<LuUnplug size={14} />} onClick={() => { disconnectWallet(); go('/connect'); }}>Disconnect wallet</Button></div>
+                <KV k="Network" v={s.wallet.network} /><KV k="Status" v={<Badge tone="green" sm>Connected</Badge>} /><KV k="Testnet assets" v="On-chain token balances are checked at funding time" />
+                <div className="row gap8 mt16"><Button icon={<LuUnplug size={14} />} onClick={async () => { try { await disconnectWallet(); go('/connect'); } catch (error) { toast('danger', error instanceof Error ? error.message : 'Wallet disconnect failed'); } }}>Disconnect wallet</Button></div>
               </>
             ) : (
-              <div className="col gap12"><p className="muted">{s.wallet.readOnly ? 'You’re in read-only mode.' : 'No wallet connected.'} Connect to sign trades.</p><Button variant="gold" onClick={() => { connectWallet(); toast('success', 'Wallet connected'); }}>Connect mock wallet</Button></div>
+              <div className="col gap12"><p className="muted">{s.wallet.readOnly ? 'You’re in read-only mode.' : 'No wallet connected.'} Connect to sign trades.</p><Button variant="gold" onClick={async () => { try { const account = await connectNearWallet(); connectWallet(account.accountId, account.network); toast('success', 'NEAR Testnet wallet connected'); } catch (error) { toast('danger', error instanceof Error ? error.message : 'Wallet connection failed'); } }}>Connect NEAR wallet</Button></div>
             )}
           </Card>
           <Card>
