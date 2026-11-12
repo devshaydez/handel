@@ -70,7 +70,7 @@ function stableJson(value: unknown): string {
     const record = value as Record<string, unknown>;
     return '{' + Object.keys(record).sort().map((key) => JSON.stringify(key) + ':' + stableJson(record[key])).join(',') + '}';
   }
-  return JSON.stringify(value);
+  return JSON.stringify(value) ?? 'null';
 }
 async function view<T>(accountId: string, methodName: string, args: Record<string, unknown>): Promise<T> {
   const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(args))));
