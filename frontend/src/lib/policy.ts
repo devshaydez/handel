@@ -52,7 +52,7 @@ export function runChecks(i: CheckInput, c: CheckCtx): Check[] {
       : C('strategy', 'Supported strategy', 'fail', `${i.strategy} is not implemented yet.`, 'platform'),
   );
 
-  const simulated = i.quality === 'simulated' || i.quality === 'estimated';
+  const simulated = i.quality === 'estimated';
   const pricingOk = i.quality === 'verified' || (i.demoMode === true && simulated) || (!p.requireVerified && i.quality === 'estimated');
   out.push(
     i.quality === 'unavailable' || i.premium == null
