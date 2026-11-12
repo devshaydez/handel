@@ -13,6 +13,54 @@ const RPCS = ['https://rpc.testnet.near.org', 'https://rpc.testnet.fastnear.com'
 const USDC_TOKEN = import.meta.env.VITE_HANDEL_TESTNET_USDC_ACCOUNT || 'usdc.tidepool-sandbox.testnet';
 const UNDERLYING_TOKEN = import.meta.env.VITE_HANDEL_TESTNET_UNDERLYING_ACCOUNT || 'wnear.tidepool-sandbox.testnet';
 
+export interface AgentProposalAuthorization {
+  message: string;
+  nonce: string;
+  recipient: string;
+  issuedAtMs: string;
+  publicKey: string;
+  signature: string;
+}
+export async function signAgentProposalIntent(input: {
+  holder: string;
+  kind: 'Call' | 'Put';
+  assetId: string;
+  quantity: string;
+  strike: string;
+  expiryNs: string;
+}): Promise<AgentProposalAuthorization> {
+  const accountId = await currentNearAccount();
+  if (!accountId || accountId !== input.holder) throw new Error('Connect the principal wallet that owns this agent before requesting a proposal.');
+  const s = await selector();
+  const wallet = await s.wallet();
+  if (typeof wallet.signMessage !== 'function') {
+    throw new Error('The selected wallet does not support NEP-413 message signing. Use a connected wallet that supports signMessage.');
+  }
+  const nonceBytes = crypto.getRandomValues(new Uint8Array(32));
+  const nonce = btoa(Array.from(nonceBytes, (byte) => String.fromCharCode(byte)).join(''));
+  const issuedAtMs = String(Date.now());
+  const recipient = 'handel-live.vercel.app';
+  const message = [
+    'Handel agent proposal authorization',
+    'Action: submit one pending options proposal for principal approval',
+    'Version: 1',
+    'Principal: ' + input.holder,
+    'Option type: ' + input.kind,
+    'Asset ID: ' + input.assetId,
+    'Underlying amount (base units): ' + input.quantity,
+    'Strike amount (USDC base units): ' + input.strike,
+    'Expiry (nanoseconds): ' + input.expiryNs,
+    'Issued at (milliseconds): ' + issuedAtMs,
+  ].join('\\n');
+  const signed = await wallet.signMessage({ message, recipient, nonce: nonceBytes as never });
+  if (!signed || !signed.signature || !signed.publicKey || signed.accountId !== input.holder) {
+    throw new Error('The wallet did not return a verifiable NEP-413 signature. No proposal was submitted.');
+  }
+  const signatureBytes = signed.signature instanceof Uint8Array ? signed.signature : new Uint8Array(signed.signature as unknown as ArrayLike<number>);
+  const signature = btoa(Array.from(signatureBytes, (byte) => String.fromCharCode(byte)).join(''));
+  return { message, nonce, recipient, issuedAtMs, publicKey: signed.publicKey.toString(), signature };
+}
+
 export interface WalletTransactionResult {
   transactionHash: string;
   accountId: string;
