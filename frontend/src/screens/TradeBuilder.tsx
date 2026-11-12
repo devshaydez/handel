@@ -176,7 +176,7 @@ export default function TradeBuilder() {
       const expiryNs = (BigInt(Date.parse(expiry + 'T23:59:59Z')) * 1_000_000n).toString();
       const authorization = await signAgentProposalIntent({
         holder: s.wallet.account, kind: side === 'call' ? 'Call' : 'Put',
-        assetId: 'nep141:wnear.tidepool-sandbox.testnet', quantity, strike: strikeAmount, expiryNs,
+        assetId: 'nep141:wnear.tidepool-sandbox.testnet', quantity, strike: strikeAmount, premium: '5000000', expiryNs,
       });
       const reply = await createAdvisoryProposal({
         holder: s.wallet.account,
