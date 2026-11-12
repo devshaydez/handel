@@ -33,7 +33,7 @@ export default function Proposals() {
     setPreparing(true);
     setPrepareError('');
     try {
-      const quantity = (BigInt(proposal.qty) * 100n * 10n ** 18n).toString();
+      const quantity = (BigInt(proposal.qty) * 100n * 10n ** 24n).toString();
       const strike = (BigInt(Math.round(proposal.strike * 100)) * BigInt(proposal.qty) * 1_000_000n).toString();
       const expiryNs = (BigInt(Date.parse(proposal.expiry + 'T23:59:59Z')) * 1_000_000n).toString();
       const reply = await createAdvisoryProposal({
