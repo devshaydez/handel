@@ -13,7 +13,7 @@
 ### Implemented in this branch
 1. Contract delegated Call/Put entrypoints with on-chain allowlist, amount, premium, Put collateral, expiry, open-position and pause checks.
 2. Separate raw-storage agent-to-position attribution; root Borsh and OptionPosition layouts remain unchanged.
-3. Delegated writer-side lifecycle methods, with current policy/revocation checks on each call and NEP-297 accepted-action events.
+3. Delegated writer-side lifecycle methods, with current policy/revocation checks on each call and NEP-297 events for policy set, mode change, revocation, trade creation and lifecycle initiation. Reverted calls use failed receipts as rejection evidence.
 4. SDK restricted FunctionCall signer: verifies public key, exact OptionsContract receiver, exact four-method allowlist and finite bounded NEAR allowance before each call; FullAccess keys rejected.
 5. SDK executor: reads policy and Delegated mode from the same finalized block, submits create Call/Put, re-reads policy before Escrow registration, verifies the resulting position and returns `awaiting_principal_collateral`.
 6. Vercel API route `POST /api/v1/delegated/trades`, guarded by server-only `HANDEL_AGENT_API_TOKEN`, with dedicated restricted key env var. It uses a fixed Testnet demo premium fixture.

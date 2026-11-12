@@ -48,6 +48,7 @@ Never claim a path works without an entry here.
 ## Delegated execution integration update — 2026-11-12
 
 - Baseline PR #25 commit `9331688a6c6a1ff7ebf884a1e69e2a0467153291`: [Actions run #43310008665](https://github.com/devshaydez/handel/actions/runs/43310008665) completed all seven jobs successfully. This run predates the restricted signer/executor/API integration added afterward.
+- Contract now emits NEP-297 events for `agent_policy_set`, `agent_execution_mode_changed`, `agent_revoked`, `agent_trade_created`, `agent_collateral_initiated`, and `agent_escrow_registration_started`. A rejected transaction still cannot persist an event; the finalized failed receipt is the evidence.
 - New code adds `sdk/src/near-function-call-signer.ts` (on-chain FunctionCall-key verification and exact method allowlist), `sdk/src/agent-execution.ts` (finalized policy read, create Call/Put, re-check revocation, Escrow registration and result verification), and tests for accepted/rejected/partial-failure paths.
 - New Vercel handler `POST /api/v1/delegated/trades` uses `NEAR_AGENT_DELEGATED_FUNCTION_CALL_PRIVATE_KEY`, checks exact key scope/allowance before each call, and uses only the configured demo fixture. It requires `HANDEL_AGENT_API_TOKEN`.
 - Frontend exports separate principal-only collateral and holder-only premium wallet actions. The Assistant UI is not yet wired to this endpoint; the bearer token must remain server-side.

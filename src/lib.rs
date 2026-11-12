@@ -1167,8 +1167,8 @@ impl OptionsContract {
         self.agent_policies.insert(
             agent_id.clone(),
             AgentPolicy {
-                principal,
-                allowed_assets,
+                principal: principal.clone(),
+                allowed_assets: allowed_assets.clone(),
                 max_underlying_amount,
                 max_premium_usdc,
                 max_collateral_usdc,
@@ -1179,6 +1179,18 @@ impl OptionsContract {
         );
         // Safe default: a newly granted agent must receive explicit delegated authority.
         self.store_agent_execution_mode(&agent_id, AgentExecutionMode::ManualApproval);
+        env::log_str(&format!(
+            "EVENT_JSON:{}",
+            near_sdk::serde_json::json!({
+                "standard":"nep297","version":"1.0.0","event":"agent_policy_set",
+                "data":[{"agent":agent_id,"principal":principal,"allowed_assets":allowed_assets,
+                    "max_underlying_amount":max_underlying_amount.to_string(),
+                    "max_premium_usdc":max_premium_usdc.to_string(),
+                    "max_collateral_usdc":max_collateral_usdc.to_string(),
+                    "max_open_positions":max_open_positions,
+                    "expires_at_ns":expires_at_ns.to_string(),"enabled":true}]
+            })
+        ));
     }
 
     /// Precision-safe policy setter for JavaScript clients. NEAR's U64 JSON wrapper
@@ -1214,6 +1226,13 @@ impl OptionsContract {
             .expect("agent policy missing");
         assert_eq!(policy.principal, principal, "principal only");
         self.store_agent_execution_mode(&agent_id, mode);
+        env::log_str(&format!(
+            "EVENT_JSON:{}",
+            near_sdk::serde_json::json!({
+                "standard":"nep297","version":"1.0.0","event":"agent_execution_mode_changed",
+                "data":[{"agent":agent_id,"principal":principal,"mode":mode}]
+            })
+        ));
     }
 
     pub fn get_agent_execution_mode(&self, agent_id: AccountId) -> AgentExecutionMode {
@@ -1244,7 +1263,14 @@ impl OptionsContract {
         if let Some(mut policy) = self.agent_policies.get(&agent_id).cloned() {
             assert_eq!(policy.principal, principal, "principal only");
             policy.enabled = false;
-            self.agent_policies.insert(agent_id, policy);
+            self.agent_policies.insert(agent_id.clone(), policy);
+            env::log_str(&format!(
+                "EVENT_JSON:{}",
+                near_sdk::serde_json::json!({
+                    "standard":"nep297","version":"1.0.0","event":"agent_revoked",
+                    "data":[{"agent":agent_id,"principal":principal,"enabled":false}]
+                })
+            ));
         }
     }
 
