@@ -13,6 +13,18 @@ import { createAdvisoryProposal } from '../lib/handel-api';
 import { signAgentProposalIntent, signNearContractCall } from '../lib/near-wallet';
 import { CONTRACT_SIZE, breakeven, usd, usd0 } from '../lib/pricing';
 
+function formatBaseUnits(value: string, decimals: number, symbol: string): string {
+  try {
+    const amount = BigInt(value);
+    const scale = 10n ** BigInt(decimals);
+    const whole = amount / scale;
+    const fraction = (amount % scale).toString().padStart(decimals, '0').slice(0, 2).replace(/0+$/, '');
+    return whole.toString() + (fraction ? '.' + fraction : '') + ' ' + symbol;
+  } catch {
+    return 'Unavailable';
+  }
+}
+
 const ST: Record<ProposalStatus, { l: string; t: 'gold' | 'green' | 'red' | 'blue' | 'amber' }> = { pending: { l: 'Awaiting approval', t: 'amber' }, approved: { l: 'Approved', t: 'blue' }, executed: { l: 'Executed', t: 'green' }, rejected: { l: 'Rejected', t: 'red' }, blocked: { l: 'Blocked by policy', t: 'red' } };
 const REASONS = ['Too risky', 'Expiry too short', 'Disagree with the thesis', 'Position too large', 'Other'];
 
@@ -96,7 +108,7 @@ export default function Proposals() {
       <style>{`@media (max-width: 900px){ .page .grid[style*="340px"]{ grid-template-columns: minmax(0,1fr) !important; } }`}</style>
 
       {prepareError && <Banner tone="danger">{prepareError}</Banner>}
-      {p && preparedCall && <SignModal open={sign} onClose={() => { setSign(false); setPreparedCall(null); }} execute={() => signNearContractCall(preparedCall.method, preparedCall.args)} onSigned={async (result) => { const premiumPerShare = Number(preparedCall.args.premium_amount_usdc) / 1_000_000 / (100 * p.qty); const recorded = executeProposal(p.id, result, premiumPerShare); if (recorded.ok) { setSign(false); setPreparedCall(null); setTab('history'); } }} action={`Create and approve ${p.strategy.toLowerCase()} on ${p.sym}`} rows={[{ k: 'Underlying', v: 'Tidepool Testnet wNEAR (demo proxy)' }, { k: 'Contract', v: `${p.strike} ${p.side} · ${fmtDate(p.expiry)}` }, { k: 'Quantity', v: String(p.qty) }, { k: 'Premium', v: 'Configured demo fixture' }, { k: 'AI model', v: preparedCall.aiModel + ' · response verified' }, { k: 'AI rationale', v: preparedCall.rationale }, { k: 'AI risks', v: preparedCall.risks.join(' · ') }]} />}
+      {p && preparedCall && <SignModal open={sign} onClose={() => { setSign(false); setPreparedCall(null); }} execute={() => signNearContractCall(preparedCall.method, preparedCall.args)} onSigned={async (result) => { const premiumPerShare = Number(preparedCall.args.premium_amount_usdc) / 1_000_000 / (100 * p.qty); const recorded = executeProposal(p.id, result, premiumPerShare); if (recorded.ok) { setSign(false); setPreparedCall(null); setTab('history'); } }} action={`Create and approve ${p.strategy.toLowerCase()} on ${p.sym}`} rows={[{ k: 'Underlying', v: 'Tidepool Testnet wNEAR (demo proxy)' }, { k: 'Contract', v: `${p.strike} ${p.side} · ${fmtDate(p.expiry)}` }, { k: 'Quantity', v: String(p.qty) }, { k: 'Premium transferred', v: formatBaseUnits(preparedCall.args.premium_amount_usdc, 6, 'USDC') }, { k: 'Collateral transferred', v: p.side === 'call' ? formatBaseUnits(preparedCall.args.underlying_amount, 24, 'wNEAR') : formatBaseUnits(preparedCall.args.strike_amount_usdc, 6, 'USDC') }, { k: 'AI model', v: preparedCall.aiModel + ' · response verified' }, { k: 'AI rationale', v: preparedCall.rationale }, { k: 'AI risks', v: preparedCall.risks.join(' · ') }]} />}
       {preparing && <div className="small muted">Preparing AI proposal and demo pricing…</div>}
       <Modal open={rej} onClose={() => setRej(false)} title="Reject this proposal?">
         <div className="col gap16">
