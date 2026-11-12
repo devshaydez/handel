@@ -7,7 +7,8 @@ import { Badge, Banner, Button, Card, CardHead, EmptyState, KV, Modal, PageHead,
 import { assetBySym, DEMO_NOW, dteOf, fmtDate, fmtStamp } from '../data/mock';
 import { shortHash } from '../data/seed';
 import { go } from '../router';
-import { nowMs, submitAction, useStore } from '../state/store';
+import { nowMs, recordEscrowAction, useStore } from '../state/store';
+import { exerciseEscrowPosition, releaseExpiredEscrowPosition } from '../lib/near-wallet';
 import { markPosition } from '../lib/valuation';
 import { CONTRACT_SIZE, breakeven, signedUsd, usd, usd0 } from '../lib/pricing';
 
@@ -28,7 +29,10 @@ export default function PositionDetail({ id }: { id: string }) {
   const a = assetBySym(p.sym)!;
   const m = markPosition(p, s.demo.feed);
   const dte = dteOf(p.expiry);
-  const expired = p.status === 'expired' || (dte <= 0 && p.status === 'open');
+  const expiryMs = Date.parse(p.expiry + 'T23:59:59Z');
+  const exerciseDeadlineMs = expiryMs + 24 * 60 * 60 * 1000;
+  const expired = p.status === 'expired' || (nowMs() >= expiryMs && p.status === 'open');
+  const inExerciseWindow = nowMs() >= expiryMs && nowMs() <= exerciseDeadlineMs;
   const cost = p.entryPremium * CONTRACT_SIZE * p.qty;
   const txs = p.txHashes.map((h) => s.txs[h]).filter(Boolean);
   const live = txs.find((t) => ['submitted', 'pending', 'unknown', 'failed'].includes(t.stage) && (t.stage !== 'failed' || p.status === 'failed'));
@@ -40,18 +44,18 @@ export default function PositionDetail({ id }: { id: string }) {
   const li = p.status === 'closed' ? 3 : expired ? 2 : p.status === 'open' ? 1 : 0;
 
   const can = {
-    exercise: p.status === 'open' && m.itm && !busy && !expired,
-    close: p.status === 'open' && !busy && !expired && m.valued,
-    release: expired && p.status !== 'closed' && !busy,
+    exercise: p.status === 'open' && !!p.chainPositionId && !!p.escrowPositionId && m.itm && !busy && inExerciseWindow,
+    close: false,
+    release: p.status === 'open' && !!p.chainPositionId && !!p.escrowPositionId && nowMs() > exerciseDeadlineMs && !busy,
   };
   const why = (k: Act) => {
     if (busy) return 'Another action is pending.';
     if (p.status !== 'open' && p.status !== 'expired') return 'Only confirmed positions can be managed.';
-    if (k === 'exercise') return expired ? 'Expired options can’t be exercised here.' : !m.itm ? 'Out of the money. Exercising would lose value.' : '';
-    if (k === 'close') return expired ? 'Already expired. Request release instead.' : !m.valued ? 'No pricing evidence to close against.' : '';
-    return !expired ? 'Available after expiry.' : '';
+    if (k === 'exercise') return !p.chainPositionId ? 'This is a demo-only position without an on-chain escrow ID.' : !m.itm ? 'Out of the money. Exercising would lose value.' : !inExerciseWindow ? nowMs() < expiryMs ? 'Exercise is available at maturity, not before expiry.' : 'The 24-hour exercise window has ended. Request expiry release.' : '';
+    if (k === 'close') return 'Early close is not implemented by the Testnet escrow contract yet.';
+    return !p.chainPositionId ? 'This position has no on-chain escrow record.' : nowMs() <= exerciseDeadlineMs ? 'Available after the 24-hour exercise grace period.' : '';
   };
-  const checks = act === 'exercise' ? [['Position confirmed', p.status === 'open'], ['In the money', m.itm], ['Not expired', !expired], ['No pending action', !busy]] : act === 'release' ? [['Position expired', expired], ['No pending action', !busy]] : [['Position confirmed', p.status === 'open'], ['Pricing evidence available', m.valued], ['No pending action', !busy]];
+  const checks = act === 'exercise' ? [['Position confirmed', p.status === 'open'], ['In the money', m.itm], ['Maturity and exercise window', inExerciseWindow], ['On-chain escrow IDs available', !!p.escrowPositionId], ['No pending action', !busy]] : act === 'release' ? [['Position expired', nowMs() > exerciseDeadlineMs], ['On-chain escrow IDs available', !!p.escrowPositionId], ['No pending action', !busy]] : [['Position confirmed', p.status === 'open'], ['Pricing evidence available', m.valued], ['No pending action', !busy]];
 
   return (
     <div className="page">
@@ -61,7 +65,8 @@ export default function PositionDetail({ id }: { id: string }) {
       {p.status === 'unresolved' && <Banner tone="warn"><b>This position is unresolved.</b> The transaction was submitted but Handel found no execution receipt. It is not counted as open, no P&L is shown, and its collateral stays reserved. Use “Check again” below.</Banner>}
       {p.status === 'failed' && <Banner tone="danger"><b>The transaction failed.</b> No funds moved and no position exists. You can build the trade again.</Banner>}
       {p.status === 'pending' && <Banner tone="info"><b>Waiting for confirmation.</b> Submitted is not the same as completed. Management actions unlock once the network confirms.</Banner>}
-      {expired && p.status !== 'closed' && <Banner tone="warn"><b>This option has expired.</b> {m.itm ? 'It finished in the money.' : 'It finished out of the money, so it has no value.'} Request an expiry release to finalise it and free the collateral.</Banner>}
+      {expired && p.status !== 'closed' && <Banner tone="warn"><b>This option has reached maturity.</b> {inExerciseWindow ? 'The 24-hour exercise submission window is open.' : 'The exercise window has ended; collateral release is available after the grace period.'} {m.itm ? 'The demo valuation is in the money.' : 'The demo valuation is out of the money.'}</Banner>}
+      {(!p.chainPositionId || !p.escrowPositionId) && <Banner tone="info">This is a legacy demo position. It has no on-chain OptionsContract/escrow IDs, so wallet settlement actions are disabled.</Banner>}
       {dte > 0 && dte <= 3 && p.status === 'open' && <Banner tone="warn"><b>Expires in {dte} day{dte > 1 ? 's' : ''}.</b> Time decay is now the main driver of value. {m.itm ? 'Consider closing or exercising.' : 'It is out of the money, so it may expire worthless.'}</Banner>}
 
       <div className="grid g-side">
@@ -126,7 +131,12 @@ export default function PositionDetail({ id }: { id: string }) {
           </div>
         )}
       </Modal>
-      <SignModal open={sign} onClose={() => setSign(false)} onSigned={() => { if (act) submitAction(p.id, act); setSign(false); setAct(null); }} action={act ? COPY[act].title : ''} rows={[{ k: 'Position', v: `${p.sym} ${p.strike} ${p.side} ×${p.qty}` }]} />
+      <SignModal open={sign} onClose={() => setSign(false)} execute={() => {
+        if (!p.chainPositionId || !p.escrowPositionId) return Promise.reject(new Error('This position has no on-chain escrow IDs.'));
+        if (act === 'exercise') return exerciseEscrowPosition(p.chainPositionId, p.escrowPositionId);
+        if (act === 'release') return releaseExpiredEscrowPosition(p.chainPositionId, p.escrowPositionId);
+        return Promise.reject(new Error('Early close is not implemented by the Testnet escrow contract.'));
+      }} onSigned={async (result) => { if (act === 'exercise' || act === 'release') recordEscrowAction(p.id, act, result); setSign(false); setAct(null); }} action={act ? COPY[act].title : ''} rows={[{ k: 'Position', v: `${p.sym} ${p.strike} ${p.side} ×${p.qty}` }, { k: 'On-chain ID', v: p.chainPositionId ?? 'Not available' }]} />
     </div>
   );
 }
