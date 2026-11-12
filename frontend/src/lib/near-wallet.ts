@@ -88,7 +88,20 @@ function returnedId(outcome: { status?: { SuccessValue?: string } }): string {
   }
   return String(value);
 }
+async function ensureTokenStorage(token: string, accountId: string) {
+  const existing = await view<unknown | null>(token, 'storage_balance_of', { account_id: accountId });
+  if (existing) return;
+  const bounds = await view<{ min?: string }>(token, 'storage_balance_bounds', {});
+  if (!bounds.min || !/^\d+$/.test(bounds.min)) throw new Error('Token returned invalid NEP-145 storage bounds: ' + token);
+  await send(token, 'storage_deposit', { account_id: accountId, registration_only: true }, bounds.min);
+}
 async function transferCall(token: string, escrowPositionId: string, leg: 'collateral' | 'premium', amount: string) {
+  const accountId = await currentNearAccount();
+  if (!accountId) throw new Error('Wallet disconnected before escrow funding.');
+  await ensureTokenStorage(token, accountId);
+  await ensureTokenStorage(token, ESCROW_CONTRACT!);
+  const balance = await view<string>(token, 'ft_balance_of', { account_id: accountId });
+  if (BigInt(balance) < BigInt(amount)) throw new Error(`Insufficient ${token} balance for ${leg}. Need ${amount} base units; wallet has ${balance}.`);
   return send(token, 'ft_transfer_call', {
     receiver_id: ESCROW_CONTRACT,
     amount,
