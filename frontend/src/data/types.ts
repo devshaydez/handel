@@ -150,6 +150,8 @@ export interface Position {
   txHashes: string[];
   pendingOp?: 'exercise' | 'release' | 'close';
   proposalId?: string;
+  chainPositionId?: string;
+  escrowPositionId?: string;
 }
 
 export type TxKind = 'open' | 'exercise' | 'release' | 'close';
