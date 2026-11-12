@@ -6,7 +6,9 @@ import { ChecksList, CheckVerdict, EvidenceList, SegBars, TradeStatus, TxLanes }
 import { Badge, Banner, Button, Card, CardHead, EmptyState, KV, PageHead, QtyStepper, QualityBadge, Term } from '../components/ui';
 import { assetBySym, EXPIRIES, fmtDate, getChain, isoAgo, makeContract, MIN, parseContractId, ROUTE, SUPPORTED_STRATEGIES, UNSUPPORTED_STRATEGIES } from '../data/mock';
 import { go, useRoute } from '../router';
-import { lockedCollateral, submitOpen, useStore } from '../state/store';
+import { lockedCollateral, recordManualOpen, useStore } from '../state/store';
+import { createAdvisoryProposal } from '../lib/handel-api';
+import { signNearContractCall, type WalletTransactionResult } from '../lib/near-wallet';
 import { runChecks, overall } from '../lib/policy';
 import { CONTRACT_SIZE, breakeven, usd, usd0 } from '../lib/pricing';
 
@@ -23,6 +25,9 @@ export default function TradeBuilder() {
   const [step, setStep] = useState<'build' | 'review' | 'track'>('build');
   const [sign, setSign] = useState(false);
   const [tracked, setTracked] = useState<{ hash: string; posId: string } | null>(null);
+  const [preparedCall, setPreparedCall] = useState<{ method: 'create_call' | 'create_put'; args: Record<string, string> } | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const [prepareError, setPrepareError] = useState('');
 
   const a = assetBySym(sym)!;
   const strikes = useMemo(() => getChain(sym, expiry, s.demo.feed).map((x) => x.strike), [sym, expiry, s.demo.feed]);
@@ -32,7 +37,7 @@ export default function TradeBuilder() {
   const total = (ask ?? 0) * CONTRACT_SIZE * qty;
   const strategy = side === 'call' ? 'Long call' : 'Long put';
   const checks = runChecks(
-    { actor: 'user', sym, side, strategy, qty, premium: ask, dte: c.dte, quality: c.quality, optionsSupported: a.optionsSupported, pricingAgeMin: s.demo.feed === 'stale' ? 47 : 2 },
+    { actor: 'user', sym, side, strategy, qty, premium: ask, dte: c.dte, quality: ask == null ? 'unavailable' : 'estimated', optionsSupported: a.optionsSupported, pricingAgeMin: s.demo.feed === 'stale' ? 47 : 2, demoMode: true },
     { policy: s.policy, walletConnected: s.wallet.connected, balance: s.balance, locked: lockedCollateral(s), paused: false, revoked: false, mode: s.mode },
   );
   const verdict = overall(checks);
@@ -55,6 +60,8 @@ export default function TradeBuilder() {
   return (
     <div className="page">
       <PageHead crumbs={[{ label: 'Markets', href: '/app/markets' }, { label: sym, href: `/app/markets/${sym}` }, { label: 'Trade' }]} title="Trade builder" sub="Build a long option, see exactly what it costs and risks, then review before anything is signed." />
+      {prepareError && <Banner tone="danger">{prepareError}</Banner>}
+      {preparing && <Banner tone="info">Preparing verified NEAR AI rationale and the Testnet escrow transaction…</Banner>}
       {stepper}
 
       {step === 'build' && (
@@ -83,7 +90,7 @@ export default function TradeBuilder() {
           </div>
           <div className="col gap16">
             <Card className="glow-gold">
-              <CardHead title="Cost and risk" right={<QualityBadge q={c.quality} />} />
+              <CardHead title="Cost and risk" right={<QualityBadge q={ask == null ? 'unavailable' : 'estimated'} />} />
               <KV k={<Term k="premium">Premium (ask)</Term>} v={ask != null ? usd(ask) : '—'} />
               <KV k="Estimated total cost" v={ask != null ? usd(total) : '—'} />
               <KV k={<Term k="collateral">Collateral required</Term>} v={ask != null ? usd(total) : '—'} />
@@ -121,7 +128,7 @@ export default function TradeBuilder() {
                 <li>You can close early at the then-current price, so you don’t have to wait for expiry.</li>
               </ul>
             </Card>
-            <Card><CardHead title="Pricing evidence" /><EvidenceList items={[{ label: 'Underlying price', value: usd(a.price), source: 'Demo market feed', ts, quality: 'simulated' }, { label: 'Option ask', value: usd(ask ?? 0), source: 'Demo pricing oracle', ts, quality: c.quality }]} /></Card>
+            <Card><CardHead title="Pricing evidence" /><EvidenceList items={[{ label: 'Underlying price', value: usd(a.price), source: 'Demo market feed', ts, quality: 'simulated' }, { label: 'Option ask', value: usd(ask ?? 0), source: 'Demo pricing oracle', ts, quality: ask == null ? 'unavailable' : 'estimated' }]} /></Card>
           </div>
           <div className="col gap16">
             <Card>
@@ -131,7 +138,7 @@ export default function TradeBuilder() {
               <Banner tone="warn">{ROUTE.note}</Banner>
             </Card>
             <Card><CardHead title="Final risk check" right={<CheckVerdict checks={checks} />} /><ChecksList checks={checks} compact /></Card>
-            <div className="row gap8"><Button onClick={() => setStep('build')}>Edit</Button><Button variant="gold" block size="lg" disabled={verdict === 'fail'} onClick={() => (s.txPrefs.reviewBeforeSign ? setSign(true) : doSign())}>Confirm and sign</Button></div>
+            <div className="row gap8"><Button onClick={() => setStep('build')}>Edit</Button><Button variant="gold" block size="lg" disabled={verdict === 'fail'} onClick={() => { void prepareAndSign(); }}>Confirm and sign</Button></div>
           </div>
         </div>
       )}
@@ -150,13 +157,39 @@ export default function TradeBuilder() {
         </div>
       )}
 
-      <SignModal open={sign} onClose={() => setSign(false)} onSigned={() => { setSign(false); doSign(); }} action={`Open ${strategy.toLowerCase()} on ${sym}`} rows={[{ k: 'Contract', v: `${k} ${side} · ${fmtDate(expiry)}` }, { k: 'Quantity', v: String(qty) }, { k: 'Total premium', v: usd(total) }]} />
+      {preparedCall && <SignModal open={sign} onClose={() => { setSign(false); setPreparedCall(null); }} execute={() => signNearContractCall(preparedCall.method, preparedCall.args)} onSigned={async (result: WalletTransactionResult) => {
+        const premiumPerShare = Number(preparedCall.args.premium_amount_usdc) / 1_000_000 / (100 * qty);
+        const recorded = recordManualOpen({ sym, side, strike: k, expiry, qty, premium: premiumPerShare, source: 'manual' }, result, premiumPerShare);
+        setTracked({ hash: recorded.hash, posId: recorded.positionId });
+        setSign(false); setPreparedCall(null); setStep('track');
+      }} action={`Open ${strategy.toLowerCase()} on ${sym}`} rows={[{ k: 'Underlying', v: 'Tidepool Testnet wNEAR (demo proxy)' }, { k: 'Contract', v: `${k} ${side} · ${fmtDate(expiry)}` }, { k: 'Quantity', v: String(qty) }, { k: 'Premium', v: 'Configured demo fixture' }]} />}
     </div>
   );
 
-  function doSign() {
-    const res = submitOpen({ sym, side, strike: k, expiry, qty, premium: ask ?? 0, source: 'manual' });
-    setTracked({ hash: res.hash, posId: res.positionId });
-    setStep('track');
+  async function prepareAndSign() {
+    if (!s.wallet.connected || !s.wallet.account) { setPrepareError('Connect your NEAR Testnet wallet first.'); return; }
+    setPreparing(true); setPrepareError('');
+    try {
+      const quantity = (BigInt(qty) * 100n * 10n ** 24n).toString();
+      const strikeAmount = (BigInt(Math.round(k * 100)) * BigInt(qty) * 1_000_000n).toString();
+      const expiryNs = (BigInt(Date.parse(expiry + 'T23:59:59Z')) * 1_000_000n).toString();
+      const reply = await createAdvisoryProposal({
+        holder: s.wallet.account,
+        request: {
+          type: side === 'call' ? 'Call' : 'Put',
+          assetId: 'nep141:wnear.tidepool-sandbox.testnet',
+          quantity,
+          strike: strikeAmount,
+          expiryNs,
+          objective: `Create a simulated ${strategy} on ${sym}. The underlying is testnet wNEAR used as a demo proxy, not a tokenized ${sym} stock. ${sym} demo market price is ${a.price}; option quote is synthetic.`,
+        },
+      });
+      setPreparedCall(reply.prepared);
+      setSign(true);
+    } catch (error) {
+      setPrepareError(error instanceof Error ? error.message : 'Could not prepare the Testnet trade.');
+    } finally {
+      setPreparing(false);
+    }
   }
 }
