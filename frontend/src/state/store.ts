@@ -408,7 +408,7 @@ export function proposalChecks(p: Proposal, s: State = state): Check[] {
   const c = makeContract(p.sym, p.expiry, p.side, p.strike, s.demo.feed);
   const premium = c.ask ?? p.premium;
   return runChecks(
-    { actor: 'agent', sym: p.sym, side: p.side, strategy: p.strategy, qty: p.qty, premium: c.ask == null ? null : premium, dte: dteOf(p.expiry), quality: c.quality, optionsSupported: a.optionsSupported, pricingAgeMin: s.demo.feed === 'stale' ? 47 : 2 },
+    { actor: 'agent', sym: p.sym, side: p.side, strategy: p.strategy, qty: p.qty, premium: c.ask == null ? null : premium, dte: dteOf(p.expiry), quality: c.quality, optionsSupported: a.optionsSupported, pricingAgeMin: s.demo.feed === 'stale' ? 47 : 2, demoMode: true },
     { policy: s.policy, walletConnected: s.wallet.connected, balance: s.balance, locked: lockedCollateral(s), paused: s.paused, revoked: s.revoked, mode: s.mode },
   );
 }
