@@ -4,7 +4,11 @@ import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet';
 import '@near-wallet-selector/modal-ui/styles.css';
 
 const NETWORK_ID = 'testnet';
-const CONTRACT_ID = import.meta.env.VITE_HANDEL_OPTIONS_CONTRACT_ID as string | undefined;
+const OPTIONS_CONTRACT = import.meta.env.VITE_HANDEL_OPTIONS_CONTRACT_ID as string | undefined;
+const ESCROW_CONTRACT = import.meta.env.VITE_HANDEL_ESCROW_CONTRACT_ID as string | undefined;
+const RPC = 'https://rpc.testnet.near.org';
+const USDC_TOKEN = import.meta.env.VITE_HANDEL_TESTNET_USDC_ACCOUNT || 'usdc.tidepool-sandbox.testnet';
+const UNDERLYING_TOKEN = import.meta.env.VITE_HANDEL_TESTNET_UNDERLYING_ACCOUNT || 'wnear.tidepool-sandbox.testnet';
 
 let selectorPromise: ReturnType<typeof setupWalletSelector> | undefined;
 let modalPromise: Promise<ReturnType<typeof setupModal>> | undefined;
@@ -12,26 +16,21 @@ let modalPromise: Promise<ReturnType<typeof setupModal>> | undefined;
 async function selector() {
   if (!selectorPromise) {
     selectorPromise = setupWalletSelector({
-      network: { networkId: NETWORK_ID, nodeUrl: 'https://rpc.testnet.near.org', walletUrl: 'https://testnet.mynearwallet.com', helperUrl: 'https://helper.testnet.near.org', explorerUrl: 'https://testnet.nearblocks.io' },
+      network: { networkId: NETWORK_ID, nodeUrl: RPC, walletUrl: 'https://testnet.mynearwallet.com', helperUrl: 'https://helper.testnet.near.org', explorerUrl: 'https://testnet.nearblocks.io' },
       modules: [setupMyNearWallet()],
     });
   }
   return selectorPromise;
 }
-
 async function modal() {
-  if (!modalPromise) {
-    modalPromise = selector().then((s) => setupModal(s, { contractId: CONTRACT_ID ?? '' }));
-  }
+  if (!modalPromise) modalPromise = selector().then((s) => setupModal(s, { contractId: OPTIONS_CONTRACT ?? '' }));
   return modalPromise;
 }
-
 export async function connectNearWallet(): Promise<{ accountId: string; network: string }> {
   const s = await selector();
   const existing = s.store.getState().accounts.find((item) => item.active)?.accountId ?? s.store.getState().accounts[0]?.accountId;
   if (existing) return { accountId: existing, network: NETWORK_ID };
   (await modal()).show();
-  // The modal completes asynchronously after the user selects a wallet.
   const accountId = await new Promise<string>((resolve, reject) => {
     let subscription: { unsubscribe: () => void } | undefined;
     const timeout = window.setTimeout(() => { subscription?.unsubscribe(); reject(new Error('Wallet connection timed out. Please try connecting again.')); }, 120_000);
@@ -42,37 +41,111 @@ export async function connectNearWallet(): Promise<{ accountId: string; network:
   });
   return { accountId, network: NETWORK_ID };
 }
-
 export async function currentNearAccount(): Promise<string | null> {
   const s = await selector();
-  return s.store.getState().accounts.find((item) => item.active)?.accountId ?? null;
+  return s.store.getState().accounts.find((item) => item.active)?.accountId ?? s.store.getState().accounts[0]?.accountId ?? null;
 }
 
-export async function signNearContractCall(methodName: string, args: Record<string, unknown>): Promise<{ transactionHash: string; accountId: string }> {
-  if (!CONTRACT_ID) throw new Error('VITE_HANDEL_OPTIONS_CONTRACT_ID is not configured.');
+async function send(receiverId: string, methodName: string, args: Record<string, unknown>, deposit = '0', gas = '30000000000000') {
   const s = await selector();
   const accountId = s.store.getState().accounts.find((item) => item.active)?.accountId ?? s.store.getState().accounts[0]?.accountId;
   if (!accountId) throw new Error('Connect your NEAR Testnet wallet before approving.');
   const wallet = await s.wallet();
   const result = await wallet.signAndSendTransaction({
-    receiverId: CONTRACT_ID,
-    actions: [{
-      type: 'FunctionCall',
-      params: {
-        methodName,
-        args,
-        gas: '30000000000000',
-        deposit: '0',
-      },
-    }],
+    receiverId,
+    actions: [{ type: 'FunctionCall', params: { methodName, args, gas, deposit } }],
   });
-  const transactionHash = result.transaction?.hash;
+  const outcome = result as unknown as { transaction?: { hash?: string }; status?: { SuccessValue?: string } };
+  const transactionHash = outcome.transaction?.hash;
   if (!transactionHash) throw new Error('Wallet returned without a transaction hash.');
-  return { transactionHash, accountId };
+  return { transactionHash, accountId, outcome };
+}
+async function view<T>(accountId: string, methodName: string, args: Record<string, unknown>): Promise<T> {
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(args))));
+  const response = await fetch(RPC, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 'handel-view', method: 'query',
+      params: { request_type: 'call_function', finality: 'final', account_id: accountId,
+        method_name: methodName, args_base64: encoded } }),
+  });
+  if (!response.ok) throw new Error('NEAR RPC returned HTTP ' + response.status);
+  const body = await response.json() as { result?: { result?: number[] }; error?: { message?: string } };
+  if (body.error || !body.result?.result) throw new Error('NEAR view call failed: ' + (body.error?.message ?? methodName));
+  const bytes = new Uint8Array(body.result.result);
+  return JSON.parse(new TextDecoder().decode(bytes)) as T;
+}
+function returnedId(outcome: { status?: { SuccessValue?: string } }): string {
+  const encoded = outcome.status?.SuccessValue;
+  if (!encoded) throw new Error('OptionsContract did not return a position ID.');
+  const value = JSON.parse(atob(encoded));
+  if (!(typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value)))) {
+    throw new Error('OptionsContract returned an invalid position ID.');
+  }
+  return String(value);
+}
+async function transferCall(token: string, escrowPositionId: string, leg: 'collateral' | 'premium', amount: string) {
+  return send(token, 'ft_transfer_call', {
+    receiver_id: ESCROW_CONTRACT,
+    amount,
+    msg: JSON.stringify({ position_id: Number(escrowPositionId), leg }),
+  }, '1', '100000000000000');
 }
 
+/**
+ * Testnet-only lifecycle: create offer, register the escrow terms, fund the
+ * collateral and premium using NEP-141 transfer_call, then pay the premium
+ * through the escrow's callback-verified NEP-141 transfer.
+ */
+async function createAndFundEscrowOption(methodName: 'create_call' | 'create_put', args: Record<string, unknown>) {
+  if (!OPTIONS_CONTRACT || !ESCROW_CONTRACT) {
+    throw new Error('Set VITE_HANDEL_OPTIONS_CONTRACT_ID and VITE_HANDEL_ESCROW_CONTRACT_ID before trading.');
+  }
+  const positionTx = await send(OPTIONS_CONTRACT, methodName, args);
+  let lastHash = positionTx.transactionHash;
+  try {
+    const positionId = returnedId(positionTx.outcome);
+    const registerTx = await send(OPTIONS_CONTRACT, 'register_escrow_position', { position_id: Number(positionId) });
+    lastHash = registerTx.transactionHash;
+    const option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT, 'get_position', { position_id: Number(positionId) });
+    if (option.escrow_position_id === undefined || option.escrow_position_id === null) {
+      throw new Error('Escrow registration is not confirmed by OptionsContract yet.');
+    }
+    const escrowPositionId = String(option.escrow_position_id);
+    const isCall = methodName === 'create_call';
+    const collateralToken = isCall ? UNDERLYING_TOKEN : USDC_TOKEN;
+    const collateralAmount = String(isCall ? args.underlying_amount : args.strike_amount_usdc);
+    const collateralTx = await transferCall(collateralToken, escrowPositionId, 'collateral', collateralAmount);
+    lastHash = collateralTx.transactionHash;
+    const escrowState = await view<{ collateral_received?: boolean }>(ESCROW_CONTRACT, 'get_position', { position_id: Number(escrowPositionId) });
+    if (escrowState.collateral_received !== true) {
+      throw new Error('Escrow has not confirmed collateral receipt. Position remains pending; transaction ' + lastHash);
+    }
+    const premiumAmount = String(args.premium_amount_usdc);
+    const premiumTx = await transferCall(USDC_TOKEN, escrowPositionId, 'premium', premiumAmount);
+    lastHash = premiumTx.transactionHash;
+    const settleTx = await send(ESCROW_CONTRACT, 'settle_premium', { position_id: Number(escrowPositionId) });
+    lastHash = settleTx.transactionHash;
+    const premium = await view<{ paid?: boolean } | null>(ESCROW_CONTRACT, 'get_premium_status', { position_id: Number(escrowPositionId) });
+    if (!premium || premium.paid !== true) {
+      throw new Error('Escrow premium payout is not confirmed. Position remains pending; transaction ' + lastHash);
+    }
+    return { transactionHash: lastHash, accountId: positionTx.accountId };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Escrow lifecycle failed.';
+    throw new Error(message + ' Initial offer transaction: ' + positionTx.transactionHash);
+  }
+}
+
+export async function signNearContractCall(methodName: string, args: Record<string, unknown>): Promise<{ transactionHash: string; accountId: string }> {
+  if (methodName === 'create_call' || methodName === 'create_put') {
+    return createAndFundEscrowOption(methodName, args);
+  }
+  if (!OPTIONS_CONTRACT) throw new Error('VITE_HANDEL_OPTIONS_CONTRACT_ID is not configured.');
+  const result = await send(OPTIONS_CONTRACT, methodName, args);
+  return { transactionHash: result.transactionHash, accountId: result.accountId };
+}
 export async function disconnectNearWallet(): Promise<void> {
   const s = await selector();
-  const wallet = await s.wallet();
-  await wallet.signOut();
+  await (await s.wallet()).signOut();
 }
