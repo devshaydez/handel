@@ -68,19 +68,23 @@ export function runChecks(i: CheckInput, c: CheckCtx): Check[] {
               : C('pricing', 'Pricing evidence', pricingOk ? 'pass' : 'warn', `Verified quote, ${i.pricingAgeMin} min old.`, 'platform'),
   );
 
-  out.push(
-    cost <= available
-      ? C('collateral', 'Collateral', 'pass', `${usd0(cost)} needed, ${usd0(available)} available.`, 'platform')
-      : C('collateral', 'Collateral', 'fail', `${usd0(cost)} needed, only ${usd0(available)} available.`, 'platform'),
-  );
-
-  const exposureAfter = ((c.locked + cost) / Math.max(c.balance, 1)) * 100;
-  const cap = agent ? p.maxExposurePct : 100;
-  out.push(
-    exposureAfter <= cap
-      ? C('exposure', agent ? 'Exposure limit' : 'Capital at risk', 'pass', `${exposureAfter.toFixed(1)}% of balance at risk after this trade (limit ${cap}%).`, agent ? 'policy' : 'platform')
-      : C('exposure', agent ? 'Exposure limit' : 'Capital at risk', 'fail', `${exposureAfter.toFixed(1)}% at risk after this trade, above the ${cap}% limit.`, agent ? 'policy' : 'platform'),
-  );
+  if (i.demoMode === true) {
+    out.push(C('collateral', 'On-chain collateral', 'warn', 'The displayed quote is synthetic. The exact NEP-141 token balance is checked immediately before each escrow transfer.', 'platform'));
+    out.push(C('exposure', agent ? 'On-chain exposure limit' : 'Capital at risk', 'warn', agent ? 'The contract enforces the registered agent limits; exact collateral is verified before funding.' : 'Demo portfolio values are illustrative; exact token balances are checked before funding.', agent ? 'policy' : 'platform'));
+  } else {
+    out.push(
+      cost <= available
+        ? C('collateral', 'Collateral', 'pass', `${usd0(cost)} needed, ${usd0(available)} available.`, 'platform')
+        : C('collateral', 'Collateral', 'fail', `${usd0(cost)} needed, only ${usd0(available)} available.`, 'platform'),
+    );
+    const exposureAfter = ((c.locked + cost) / Math.max(c.balance, 1)) * 100;
+    const cap = agent ? p.maxExposurePct : 100;
+    out.push(
+      exposureAfter <= cap
+        ? C('exposure', agent ? 'Exposure limit' : 'Capital at risk', 'pass', `${exposureAfter.toFixed(1)}% of balance at risk after this trade (limit ${cap}%).`, agent ? 'policy' : 'platform')
+        : C('exposure', agent ? 'Exposure limit' : 'Capital at risk', 'fail', `${exposureAfter.toFixed(1)}% at risk after this trade, above the ${cap}% limit.`, agent ? 'policy' : 'platform'),
+    );
+  }
 
   if (agent) {
     out.push(
