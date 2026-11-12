@@ -12,7 +12,10 @@
   "dependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-icons": "^5.4.0"
+    "react-icons": "^5.4.0",
+    "@near-wallet-selector/core": "^9.2.0",
+    "@near-wallet-selector/modal-ui": "^9.2.0",
+    "@near-wallet-selector/my-near-wallet": "^9.2.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
