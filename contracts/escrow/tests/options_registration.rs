@@ -599,7 +599,7 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         fast_forward_batches * 1_000
     );
     let exercise_deadline = expiry
-        .checked_add(24 * 60 * 60 * 1_000_000_000)
+        .checked_add(60 * 60 * 1_000_000_000)
         .expect("exercise deadline overflow");
     assert!(
         exercise_timestamp >= expiry && exercise_timestamp <= exercise_deadline,
