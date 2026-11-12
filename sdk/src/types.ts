@@ -51,6 +51,8 @@ export interface AgentPermission {
   allowedAssets: string[];
   maxQuantity: string;
   maxPremium: string;
+  /** Required for Put proposals; mirrors AgentPolicy.max_collateral_usdc. */
+  maxCollateralUsdc?: string;
   maxOpenPositions: number;
   minExpiryNs: string;
   maxExpiryNs: string;

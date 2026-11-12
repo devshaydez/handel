@@ -148,7 +148,7 @@ async fn payout_failures_retry_only_the_unpaid_leg_and_callbacks_are_private() -
         &worker,
         concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../target/near/handel_escrow/handel_escrow.wasm"
+            "/../../target/near/handel_escrow_default.wasm"
         ),
     )
     .await?;

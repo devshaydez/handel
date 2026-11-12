@@ -1,0 +1,19 @@
+{
+  "name": "handel-deployment",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm --prefix sdk install --no-audit --no-fund && npm --prefix sdk run build && npm --prefix frontend install --no-audit --no-fund && npm --prefix frontend run build"
+  },
+  "dependencies": {
+    "@nearai/inference-sdk": "^0.3.0",
+    "borsh": "^2.0.0",
+    "bs58": "^6.0.0",
+    "tweetnacl": "^1.0.3",
+    "near-api-js": "^7.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}

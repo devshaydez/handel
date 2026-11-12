@@ -53,7 +53,7 @@ export function proposalToCreateArgs(
   holder: string,
   permission: AgentPermission | null = null
 ): { ok: true; method: "create_call" | "create_put"; args: CreateOptionArgs } | { ok: false; errors: string[] } {
-  const result = validateProposal(proposal, permission);
+  const result = validateProposal(proposal, permission, { requireFreshMarketData: true });
   if (!result.ok) return { ok: false, errors: result.errors };
   if (!holder.trim()) return { ok: false, errors: ["holder account is required"] };
 
@@ -79,9 +79,13 @@ export function proposalToCreateArgs(
 export function proposalToAgentProposalArgs(
   proposal: AgentProposal,
   holder: string,
-  permission: AgentPermission
+  permission: AgentPermission,
+  options: { requireFreshMarketData?: boolean } = {},
 ): { ok: true; method: "create_agent_proposal"; args: CreateAgentProposalArgs } | { ok: false; errors: string[] } {
-  const result = validateProposal(proposal, permission, { requireAgent: true });
+  const result = validateProposal(proposal, permission, {
+    requireAgent: true,
+    requireFreshMarketData: options.requireFreshMarketData ?? true,
+  });
   if (!result.ok) return { ok: false, errors: result.errors };
   if (!holder.trim()) return { ok: false, errors: ["holder account is required"] };
 

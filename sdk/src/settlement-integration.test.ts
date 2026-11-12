@@ -85,6 +85,7 @@ function makeInspector(body: unknown) {
   return new NearRpcReceiptInspector({
     verifierAccountId: "verifier.testnet",
     transactionSignerAccountId: "alice.testnet",
+    rpcUrl: "https://rpc.testnet.fastnear.com",
     fetcher: async () => new Response(JSON.stringify(body), { status: 200 }),
   });
 }

@@ -14,3 +14,20 @@ export * from "./near-rpc.js";
 export * from "./near-rpc-receipt-inspector.js";
 export * from "./settlement-service.js";
 export * from "./observability.js";
+
+export * from "./nearai-provider.js";
+export * from "./market-context.js";
+export * from "./agent-runtime.js";
+export * from "./advisory-agent.js";
+export * from "./advisory-workflow.js";
+export * from "./education-agent.js";
+export * from "./agent-permissions.js";
+export * from "./wallet-nep413.js";
+export * from "./escrow-custody.js";
+export * from "./intents-execution.js";
+
+export * from "./frontend-contract.js";
+export * from "./nearai-stack.js";
+export * from "./nearai-systemone.js";
+export * from "./decision-journal.js";
+export * from "./pricing.js";

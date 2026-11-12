@@ -1,4 +1,5 @@
 name: Handel backend checks
+# Batch 9 integrated validation: Rust contracts, SDK tests, and read-only Testnet checks.
 
 on:
   push:
@@ -7,14 +8,30 @@ on:
       - work/batch-4-ai-integration-adversarial
       - work/batch-5-testnet-release-readiness
       - work/testnet-infrastructure-readiness
+      - work/batch-9-execution-safety
+      - work/batch-10-product-release
+      - work/batch-8-ai-agent-intelligence
+      - feat/handel-archive-core
+      - feat/handel-frontend-integration
+      - feat/frontend-prototype-upload
+      - work/final-backend-readiness
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
       - feat/handel-archive-core
+      - feat/handel-frontend-integration
+      - feat/frontend-prototype-upload
       - work/testnet-backend-hardening
       - work/batch-4-ai-integration-adversarial
+      - work/batch-8-ai-agent-intelligence
+      - work/batch-9-execution-safety
   workflow_dispatch:
+
+# Keep only the newest PR run active; superseded commits are not useful release evidence.
+concurrency:
+  group: handel-backend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -22,7 +39,7 @@ permissions:
 jobs:
   contract:
     name: Rust format, unit tests, and Wasm build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -31,13 +48,16 @@ jobs:
         run: |
           bash -n scripts/deploy.sh
           bash -n scripts/deploy-escrow-testnet.sh
+          bash -n scripts/run-e2e-proof-demo.sh
           bash scripts/test-deploy-safety.sh
           bash scripts/test-escrow-deploy-safety.sh
+          node --check scripts/check-testnet-deployment-readiness.mjs
+          node --test scripts/test-testnet-deployment-readiness.mjs
 
       - name: Install system dependencies for cargo-near
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes pkg-config libudev-dev
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=5 install --yes pkg-config libudev-dev
 
       - name: Install stable Rust
         uses: dtolnay/rust-toolchain@stable
@@ -51,13 +71,22 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Install cargo-near
-        run: cargo install --locked cargo-near --version 0.22.0
+      - name: Install pinned cargo-near 0.22.0 release binary
+        run: |
+          installer="$RUNNER_TEMP/cargo-near-installer.sh"
+          curl --fail --location --silent --show-error \
+            https://github.com/near/cargo-near/releases/download/cargo-near-v0.22.0/cargo-near-installer.sh \
+            --output "$installer"
+          echo "efbc260384a2e40c5690a6e0c5eae125eaa51347e38dfaaff07d342e704486f7  $installer" | sha256sum --check -
+          sh "$installer"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          cargo near --version
 
       - name: Build optimized NEAR contract Wasm
         run: |
           cargo near build non-reproducible-wasm --no-abi
           (cd contracts/escrow && cargo near build non-reproducible-wasm --no-abi)
+          cp target/near/handel_escrow/handel_escrow.wasm target/near/handel_escrow_default.wasm
           (cd contracts/mock-ft && cargo near build non-reproducible-wasm --no-abi)
           ls -lh target/near/*.wasm target/near/*/*.wasm
 
@@ -75,6 +104,14 @@ jobs:
       - name: Run contract and sandbox integration tests
         run: cargo test --workspace
 
+      - name: Upload compiled Sandbox contract Wasm
+        uses: actions/upload-artifact@v4
+        with:
+          name: handel-sandbox-wasm
+          path: target/near/
+          if-no-files-found: error
+          retention-days: 1
+
   testnet-assets:
     name: Live Testnet asset verification (read-only)
     runs-on: ubuntu-latest
@@ -86,10 +123,41 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24.22.1
 
       - name: Verify Tidepool assets through two independent Testnet RPCs
         run: node scripts/verify-testnet-assets.mjs
+
+      - name: Verify Tidepool Testnet verifier code hash and health
+        run: node scripts/verify-tidepool-verifier.mjs
+
+      - name: Request a live Tidepool dry quote (no deposit address or transaction)
+        run: node scripts/verify-tidepool-dry-quote.mjs
+
+  frontend:
+    if: github.event_name == 'pull_request'
+    name: Frontend typecheck and production build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.22.1
+
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck frontend
+        run: npm run typecheck
+
+      - name: Build frontend
+        run: npm run build
 
   sdk:
     name: TypeScript SDK build and offline demo
@@ -104,7 +172,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24.22.1
 
       - name: Install SDK dependencies
         run: npm install --no-audit --no-fund
@@ -117,3 +185,116 @@ jobs:
 
       - name: Run offline lifecycle demo
         run: npm run lifecycle
+
+  nearai-credential-preflight:
+    name: NEAR AI credential and model-catalogue preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NEARAI_API_KEY: ${{ secrets.NEARAI_API_KEY }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.22.1
+
+      - name: Require repository credential
+        run: |
+          if [ -z "${NEARAI_API_KEY:-}" ]; then
+            echo "::error::NEARAI_API_KEY repository secret is unavailable to this workflow."
+            exit 1
+          fi
+
+      - name: Authenticate and inspect official model catalogue (no inference)
+        run: node scripts/verify-nearai-credentials.mjs
+
+      - name: Build SDK for live advisory-to-contract smoke
+        working-directory: sdk
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
+      - name: Install isolated NEAR AI smoke dependencies
+        working-directory: sdk/ai-smoke
+        run: npm install --no-audit --no-fund
+
+      - name: Set live AI proof artifact paths
+        run: |
+          echo "HANDEL_DEMO_PROPOSAL_FILE=$RUNNER_TEMP/handel-live-ai-proposal.json" >> "$GITHUB_ENV"
+          echo "HANDEL_DEMO_PREPARED_FILE=$RUNNER_TEMP/handel-live-ai-prepared.json" >> "$GITHUB_ENV"
+
+      - name: Verify live Chat and System One TEE paths
+        working-directory: sdk/ai-smoke
+        run: node verify-nearai-live-inference.mjs
+
+      - name: Upload live AI and SDK-prepared proposal evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: handel-live-ai-proposal
+          path: |
+            ${{ runner.temp }}/handel-live-ai-proposal.json
+            ${{ runner.temp }}/handel-live-ai-prepared.json
+          if-no-files-found: error
+          retention-days: 1
+
+  live-ai-sandbox-proof:
+    name: Live NEAR AI → SDK → Sandbox contract proof
+    needs: [contract, nearai-credential-preflight]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Sandbox system dependencies
+        run: |
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=5 install --yes pkg-config libudev-dev
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Download contract Wasm built by the contract job
+        uses: actions/download-artifact@v4
+        with:
+          name: handel-sandbox-wasm
+          path: target/near
+
+      - name: Download live AI and SDK-prepared proposal
+        uses: actions/download-artifact@v4
+        with:
+          name: handel-live-ai-proposal
+          path: ${{ runner.temp }}/handel-live-ai
+
+      - name: Run the live AI → SDK → approval-gated Sandbox lifecycle
+        env:
+          HANDEL_DEMO_PROPOSAL_FILE: ${{ runner.temp }}/handel-live-ai/handel-live-ai-proposal.json
+          HANDEL_DEMO_PREPARED_FILE: ${{ runner.temp }}/handel-live-ai/handel-live-ai-prepared.json
+        run: cargo test -p handel-escrow --test options_registration call_and_put_registration_deposit_and_settle_through_escrow -- --nocapture
+
+  powershell-script-check:
+    name: Windows PowerShell proof-runner syntax
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Parse Windows proof runner
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "scripts/run-e2e-proof-demo.ps1",
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }

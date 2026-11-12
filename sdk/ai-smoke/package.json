@@ -1,0 +1,8 @@
+{
+  "name": "handel-nearai-live-smoke",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@nearai/inference-sdk": "0.3.0"
+  }
+}

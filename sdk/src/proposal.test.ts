@@ -10,6 +10,7 @@ const permission: AgentPermission = {
   allowedAssets: [NVDAON_ASSET_ID],
   maxQuantity: "2000000000000000000",
   maxPremium: "10000000",
+  maxCollateralUsdc: "1000000000",
   maxOpenPositions: 2,
   minExpiryNs: "0",
   maxExpiryNs: "999999999999999999999",
@@ -56,5 +57,20 @@ test("invalid proposal is rejected before a contract call is built", () => {
 
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.ok(result.errors.some((error) => error.includes("underlying not a supported Ondo asset")));
+  assert.ok(result.errors.some((error) => error.includes("underlying must be a curated Ondo asset or explicitly allowlisted by the principal")));
+});
+
+
+test("both direct and agent proposal builders reject stale market evidence", () => {
+  const staleDirect = stubProposal({ underlyingAssetId: NVDAON_ASSET_ID, daysToExpiry: 2 });
+  staleDirect.dataFreshness = new Date(Date.now() - 600_000).toISOString();
+  const direct = proposalToCreateArgs(staleDirect, "buyer.testnet");
+  assert.equal(direct.ok, false);
+  if (!direct.ok) assert.ok(direct.errors.some(error => error.includes("market data older")));
+
+  const staleAgent = stubProposal({ underlyingAssetId: NVDAON_ASSET_ID, daysToExpiry: 2 });
+  staleAgent.dataFreshness = new Date(Date.now() - 600_000).toISOString();
+  const agent = proposalToAgentProposalArgs(staleAgent, "buyer.testnet", permission);
+  assert.equal(agent.ok, false);
+  if (!agent.ok) assert.ok(agent.errors.some(error => error.includes("market data older")));
 });

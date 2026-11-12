@@ -20,9 +20,36 @@ if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
 if (-not (Get-Command near -ErrorAction SilentlyContinue)) {
   throw "near-cli-rs is required. Configure its keychain first."
 }
-& cargo near --help *> $null
+# Use the checksum-pinned Windows installer so users do not compile cargo-near/wasm-opt-sys.
+$cargoBin = Join-Path $env:USERPROFILE ".cargo\bin"
+if (Test-Path $cargoBin) {
+  $env:PATH = "$cargoBin;$env:PATH"
+}
+if (-not (Get-Command cargo-near -ErrorAction SilentlyContinue)) {
+  $installer = Join-Path $env:TEMP "cargo-near-installer.ps1"
+  $installerUrl = "https://github.com/near/cargo-near/releases/download/cargo-near-v0.22.0/cargo-near-installer.ps1"
+  Invoke-WebRequest -Uri $installerUrl -OutFile $installer -UseBasicParsing
+  $installerHash = (Get-FileHash -Algorithm SHA256 -Path $installer).Hash.ToLowerInvariant()
+  if ($installerHash -ne "78c477ce11ddb1d5e3874fc69f0e990a9fb2f49d34bc79d29801b201401ffc49") {
+    throw "cargo-near installer checksum mismatch; refusing to execute it."
+  }
+  & $installer
+  if ($LASTEXITCODE -ne 0) {
+    throw "Pinned cargo-near 0.22.0 installer failed with exit code $LASTEXITCODE."
+  }
+  $env:PATH = "$cargoBin;$env:PATH"
+}
+if (-not (Get-Command cargo-near -ErrorAction SilentlyContinue)) {
+  throw "Pinned cargo-near 0.22.0 installation completed but cargo-near was not found on PATH."
+}
+& cargo near --version *> $null
 if ($LASTEXITCODE -ne 0) {
-  throw "cargo-near is required (cargo install cargo-near)."
+  throw "cargo-near is installed but 'cargo near' cannot run. Check the Rust Cargo bin directory on PATH."
+}
+
+& near --version *> $null
+if ($LASTEXITCODE -ne 0) {
+  throw "near-cli-rs was found on PATH but cannot run. Repair the near-cli-rs installation before deploying; this is separate from cargo-near."
 }
 
 Push-Location (Join-Path $PSScriptRoot "..")

@@ -109,9 +109,9 @@ No Testnet deployment, token transaction, or release approval is claimed.
 
 ## Infrastructure readiness — Escrow deployment foundation
 
-PR #7 is open and unmerged on `work/testnet-infrastructure-readiness`. The previous complete CI run #42685027473 passed on `f368eb35af18433dc5f39abab7e23f078b5a3a9b`. A new dual-RPC verification job was added; its first attempt exposed HTTP 429 rate limiting on the deprecated public NEAR RPC, so the check now uses FastNEAR and dRPC and honors Retry-After before the next CI run.
+PR #7 was squash-merged into `feat/handel-archive-core` on 2026-11-09 as `e6a37f33aaac5249934be59a7dc6862ddfdcaf19`. The exact PR head `50c58c6981532a5d8c7831d1bdf6420388c3c0ca` passed the complete backend workflow before merge: [CI #42686870141](https://github.com/devshaydez/handel/actions/runs/42686870141). The PR-triggered validation also passed: [CI #42686880752](https://github.com/devshaydez/handel/actions/runs/42686880752).
 
-### Implemented in this branch (pending CI)
+### Implemented / CI-validated
 - Dedicated Bash and PowerShell Escrow deployment helpers.
 - Explicit `.testnet` account validation and Testnet confirmation required before invoking near-cli.
 - Deterministic Escrow artifact path: `target/near/handel_escrow/handel_escrow.wasm`; no arbitrary Wasm fallback.
@@ -121,19 +121,22 @@ PR #7 is open and unmerged on `work/testnet-infrastructure-readiness`. The previ
 - CI trigger and Bash safety checks extended for this infrastructure branch.
 - Runbook documents the two-step Escrow controller handoff, token-account mapping, and trusted reconciler/payout-reconciler setup sequence.
 - Tidepool's live provider token registry observed 2026-11-09 and six NEAR-side token IDs/accounts/decimals recorded in `config/testnet-assets.tidepool.json`.
-- SDK now exposes distinct Tidepool Testnet USDC and wNEAR asset IDs; production/mainnet asset constants remain distinct.
-- OptionsContract now supports owner-only configuration of its USDC asset ID using a dedicated versioned storage key, preserving the serialized contract root layout. Configuration rejects missing, disabled, or non-six-decimal assets; existing deployments retain the previous mainnet USDC default unless explicitly changed.
+- SDK exposes distinct Tidepool Testnet USDC and wNEAR asset IDs; production/mainnet asset constants remain distinct.
+- OptionsContract supports owner-only configuration of its USDC asset ID using a dedicated versioned storage key, preserving the serialized contract root layout. Configuration rejects missing, disabled, or non-six-decimal assets; existing deployments retain the previous mainnet USDC default unless explicitly changed.
+- A read-only dual-RPC asset-verification script and CI job check the published registry against NEAR Testnet contract metadata, code hashes, owner/minter configuration, NEP-145 storage bounds, and provider-account storage balances. The final CI run passed using FastNEAR and dRPC.
 
-### Still open
-- Run all CI checks against the latest branch head, including the new dual-RPC live asset-verification job, and fix any failures.
-- Pass the new read-only dual-RPC Testnet asset-verification CI job, which checks live registry identity, `ft_metadata`, code hashes, owner/minter configuration, NEP-145 storage bounds, and provider-account storage balances. The intended Handel Escrow account's `storage_balance_of` remains unverified until its account ID exists and the script is run with `HANDEL_ESCROW_ACCOUNT`.
-- Provision dedicated Testnet accounts and approve the account-key policy outside the repository.
+### Still open — external release gates
+- Provision dedicated OptionsContract and Escrow Testnet accounts and approve the account-key policy outside the repository.
+- Verify the intended Handel Escrow account's own `storage_balance_of` after its account ID exists; provider-account checks do not substitute for this.
 - Execute deployment only after explicit deployment approval and verified account/commit/artifact mapping.
-- Independently verify code hashes, initialization state, authority views, and transaction receipts.
-- Confirm exact Testnet token contracts, decimals, NEP-145 storage requirements and funding; no token transfers until verified.
-- Implement or configure independent settlement evidence production and verification; current reconciler remains a trust root.
-- Complete deployed synthetic-asset lifecycle tests and independent security review.
+- Independently verify deployed code hashes, initialization state, authority views, and transaction receipts.
+- Complete NEP-145 registration/storage funding for the actual Handel accounts; no token transfer or storage funding has been performed by this work.
+- Implement or configure independent settlement evidence production and verification; the current reconciler remains a trust root.
+- Complete deployed synthetic-asset lifecycle tests (premium, exercise, expiry, payout retry, ambiguous-outcome reconciliation, duplicate/replay) and independent security review.
+- Resolve the broader Batch 1–5 limitations above, including migration/redeployment, payout non-atomicity, governance, production monitoring, UI integration, and live AI-provider configuration.
 
+No Testnet deployment, token transaction, account provisioning, or release approval is claimed. Passing CI and read-only token verification do not make the contracts safe for real assets or Mainnet.
+ 
 ## Cross-cutting limitations and rules
 
 - **No mainnet or real-asset readiness claim** follows from CI or Sandbox tests.
@@ -154,3 +157,46 @@ For each item, record:
 - [ ] Security/review sign-off obtained where required.
 - [ ] Documentation and operational runbook updated.
 - [ ] Status changed here with commit/run/evidence references.
+
+
+## Testnet deployment preflight — implementation in progress
+
+Branch `work/testnet-deployment-preflight` adds a fail-closed, read-only deployment manifest validator, a non-secret example manifest, and regression tests. It requires distinct OptionsContract/Escrow `.testnet` accounts, exact Wasm SHA-256 hashes, operator/key-policy attestation, explicit state disposition, reviewed rollback plan, independent security review, explicit deployment approval, and enabled assets with verified metadata plus NEP-145 registration for both contracts. It rejects placeholders and credential-bearing fields. CI runs the Node syntax check and regression suite.
+
+This is a preflight guard, not deployment automation or independent proof of the attestations. No populated manifest is checked in, and no accounts, keys, storage deposits, deployments, or token transfers are created by it. Actual account provisioning, account-specific storage verification, approvals, and deployed lifecycle evidence remain external gates.
+
+## Batch 8–10 continuation plan (2026-11-09)
+
+- Batch 8 — Intelligence: NEAR AI Cloud verified inference and budget guard; bounded agent runtime; market data and deterministic premium/risk engine. Initial SDK adapter, model-attestation gate, provider-TEE receipt gate, conservative local reservation ledger, market snapshot validator and host-side premium override have been added on `work/batch-8-ai-agent-intelligence`. These are implementation foundations only; no live NEAR AI request, live market feed or production pricing engine is verified. The budget ledger is process-local and the optional official SDK must be installed in the runtime.
+- Batch 9 — Execution and safety: on-chain permissions/revocation and signing model; Ondo/USDC NEAR Intents route verification and NEP-413; real collateral custody, physical settlement and independent proof.
+- Batch 10 — Product and release: frontend integration; end-to-end adversarial/security testing and evidence; reproducible demo and hackathon submission.
+
+## Cross-batch product requirements — AI education and decision accountability
+
+Tracked in [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md). These are open acceptance requirements across Batches 8–10, not completed features: the same agent must teach in context and trade only under the user's selected authority mode; each consequential action, rejection, and no-trade decision must be linked to a durable, evidence-grounded decision record. User-facing explanations must distinguish proposals from confirmed execution and must never invent evidence or outcomes. Close only with implementation, tests, and auditable evidence.
+
+## Batch 9 — Phases 17–19: execution and safety (implementation foundations CI-verified; live integration/release gates remain)
+
+### Phase 17 — bounded agent authority: implemented in branch; final integrated CI pending
+- Added on-chain Education, Advisory, ManualApproval and Delegated execution modes, stored separately from AgentPolicy to avoid changing its Borsh value layout. New policies default to ManualApproval; only the principal may change the mode.
+- Direct delegated Call/Put methods require explicit Delegated mode and enforce live/revocable policy, allowlist, caps, expiry and open-position limits. Expired positions are excluded from the count.
+- Manual proposal creation/approval requires ManualApproval mode and a live policy; approval revalidates current principal, asset, caps, expiry, position terms and open-position count. Revocation, principal rotation, or reduced limits cannot grandfather an unsafe pending proposal. Education/Advisory modes cannot trade.
+- SDK preflight now rejects stale/future snapshots, invalid principal and Education/Advisory trading attempts. It remains a preflight; contract checks are authoritative.
+- Rust tests cover safe default, principal-only policy updates and mode changes, education/advisory denial, revocation before manual proposal approval, and approval-time revalidation after policy changes.
+- Integrated CI run [#42708258643](https://github.com/devshaydez/handel/actions/runs/42708258643) passed on code commit `95278bf7b2b13425b928c0e6bdec982a2c63b8f6`.
+- Added connected-wallet NEP-413 signing boundary: explicit approval, connected-principal match, verifier allowlist, signer/deadline/intent checks; no private-key handling.
+- Added paired NEAR Intents execution helpers: signed-intent validation with distinct nonces, read-only simulate_intents RPC call, and explicit-approval execute_intents wallet callback. Simulation is bound to the exact signed payload pair and verifier using SHA-256; mismatched payloads cannot reuse a prior simulation.
+- Added SDK NEP-141 escrow transfer_call argument builder for collateral, premium, and exercise payment. uint64 position IDs are preserved as exact JSON integer text.
+- Existing Escrow contract implements exact-token/sender/amount/position/leg validation in ft_on_transfer and rejects invalid transfers by returning the full amount.
+- Initial SDK build, SDK unit tests and live read-only Tidepool dual-RPC asset verification passed on an earlier Batch 9 commit. Rust CI was still running; later Rust changes and latest Phase 18/19 helpers require a final integrated run.
+
+### Open limitations / release gates
+1. **Permission mode does not solve signing authority.** On-chain modes now gate proposal/delegated position creation, but no production key architecture grants the agent a narrow, revocable NEP-413 signing capability. Never provide an AI service with a user's unrestricted full-access key. NEP-413 wallet signing remains a user-wallet action unless a separately audited delegated authority is implemented.
+2. **Wallet integration is an adapter, not a deployed wallet selector.** The SDK accepts a connected-wallet callback; a real wallet selector, key registration checks, signature-format verification, and end-to-end wallet tests remain.
+3. **NEAR Intents Testnet is unavailable.** The Verifier is Mainnet-only according to its official integration documentation. No Mainnet signing, submission, or asset movement has been performed. Tidepool is a separate community Testnet and does not prove Ondo asset support.
+4. **No production Ondo route is proven.** Exact Ondo stock token IDs, decimals, deposits, withdrawals, and verifier support remain unverified. Do not map Tidepool test assets to NVDAon, TSLAon, AAPL on or SPYon.
+5. **No per-position Intents-ledger collateral reservation.** A balance inside intents.near is not automatically locked for a Handel option. A separately audited reservation mechanism is required before claiming fully collateralized options.
+6. **Intents simulation is not settlement proof.** simulate_intents validates the verifier's proposed ledger execution, not external NEP-141 withdrawal callbacks or cross-chain settlement. Canonical event parsing, final transaction proof, balance reconciliation and ambiguous-outcome handling remain.
+7. **Escrow exercise payouts are sequential, not atomic.** The first payout may succeed while the second fails. The position must remain in recovery/reconciliation; no automatic duplicate payout based on timeout is safe.
+8. **Reconciler remains a trust root.** The configured account can attest to ambiguous payout outcomes; this is not a trustless light-client or verifier proof. Independent proof and audit remain.
+9. **Independent security review and deployed end-to-end tests remain mandatory.** No Mainnet/real-asset readiness is claimed.
