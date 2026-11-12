@@ -367,6 +367,22 @@ function applyActionSuccess(p: Position, kind: TxKind) {
   return realized;
 }
 
+export function recordEscrowAction(positionId: string, kind: 'exercise' | 'release', result: WalletTransactionResult): void {
+  const position = state.positions.find((item) => item.id === positionId);
+  if (!position) throw new Error('Position not found.');
+  if (!result.transactionHash) throw new Error('Verified settlement transaction hash is required.');
+  const asset = assetBySym(position.sym)!;
+  const intrinsic = position.side === 'call' ? Math.max(asset.price - position.strike, 0) : Math.max(position.strike - asset.price, 0);
+  const exitPremium = kind === 'exercise' ? intrinsic : 0;
+  const closeReason: Position['closeReason'] = kind === 'exercise' ? 'exercised' : intrinsic === 0 ? 'expired worthless' : 'released';
+  const realized = +((exitPremium - position.entryPremium) * CONTRACT_SIZE * position.qty).toFixed(2);
+  patchPos(positionId, { status: 'closed', closeReason, exitPremium, realized, closedAt: nowIso(), pendingOp: undefined });
+  const label = `${position.sym} ${position.strike} ${position.side}`;
+  set((s) => ({ txs: { ...s.txs, [result.transactionHash]: { hash: result.transactionHash, kind, title: `${kind === 'exercise' ? 'Exercise' : 'Expiry release'} ${label}`, positionId, stage: 'confirmed', outcome: 'success', delegated: false, startedAt: nowIso(), updatedAt: nowIso(), rechecks: 0, note: 'Both escrow payout callbacks and the OptionsContract lifecycle state were verified through independent Testnet RPCs.' } } }));
+  log({ kind: kind === 'exercise' ? 'tx_confirmed' : 'lifecycle', actor: 'user', title: `Escrow settlement confirmed: ${kind} ${label}`, summary: 'NEP-141 escrow payout callbacks and the corresponding OptionsContract terminal state were verified on Testnet. This remains a synthetic, self-traded demo position.', stage: 'confirmed', sym: position.sym, positionId, txHash: result.transactionHash });
+  toast('success', kind === 'exercise' ? 'Testnet exercise settled' : 'Testnet collateral released');
+}
+
 export function submitAction(positionId: string, kind: 'exercise' | 'release' | 'close'): string {
   const p = state.positions.find((x) => x.id === positionId)!;
   const hash = mockHash(counter * 13 + 5);
