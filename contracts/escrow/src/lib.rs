@@ -7,11 +7,10 @@ use near_sdk::{
 
 #[cfg(not(feature = "expiry-fast-forward"))]
 const EXERCISE_GRACE_NS: u64 = 24 * 60 * 60 * 1_000_000_000;
-// The combined fault-injection/expiry-fast-forward Sandbox artifact keeps a
-// bounded one-hour exercise window: long enough for the post-maturity NEP-141
-// payment transaction, while still allowing expiry-path tests to run quickly.
+// The expiry fault-injection artifact is used only by the expiry payout test,
+// which advances Sandbox beyond maturity before requesting collateral release.
 #[cfg(feature = "expiry-fast-forward")]
-const EXERCISE_GRACE_NS: u64 = 60 * 60 * 1_000_000_000;
+const EXERCISE_GRACE_NS: u64 = 0;
 const FT_TRANSFER_GAS: Gas = Gas::from_tgas(10);
 // The payment callback schedules the collateral transfer and its callback.
 // Reserve enough prepaid gas for both downstream receipts plus callback work.
