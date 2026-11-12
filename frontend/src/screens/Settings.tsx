@@ -6,7 +6,7 @@ import { NETWORK } from '../data/mock';
 import { go } from '../router';
 import { agentStatus, connectWallet, disconnectWallet, resetDemo, setNotifPref, setTxPref, toast, useStore } from '../state/store';
 import { usd } from '../lib/pricing';
-import { connectNearWallet } from '../lib/near-wallet';
+import { configureTestnetEscrow, connectNearWallet } from '../lib/near-wallet';
 
 type T = 'account' | 'security' | 'notifications' | 'integrations' | 'help';
 const NOTIF: [string, string, string][] = [['proposals', 'New proposals', 'When the AI creates a proposal or recommendation'], ['approvals', 'Approval requests', 'When something needs your decision'], ['tx', 'Transaction status changes', 'Submitted, confirmed, and settlement updates'], ['expiry', 'Position expiry', 'Before and after an option expires'], ['risk', 'Risk warnings', 'Stale data, blocked actions and limits'], ['restrictions', 'Agent restrictions', 'Mode, pause and revoke changes'], ['failed', 'Failed or unresolved actions', 'Anything that needs a second look']];
@@ -14,6 +14,8 @@ const NOTIF: [string, string, string][] = [['proposals', 'New proposals', 'When 
 export default function Settings() {
   const s = useStore();
   const [tab, setTab] = useState<T>('account');
+  const [escrowSetupBusy, setEscrowSetupBusy] = useState(false);
+  const [escrowSetupError, setEscrowSetupError] = useState('');
   const st = agentStatus(s);
   return (
     <div className="page">
@@ -77,10 +79,21 @@ export default function Settings() {
 
       {tab === 'integrations' && (
         <div className="grid g2">
-          {[['NEAR wallet', 'Wallet authorization and signing', 'Mocked', 'gold'], ['NEAR Intents', 'Settlement route. Capabilities depend on the asset', 'Simulated', 'gold'], ['Market data', 'Prices, volatility and news', 'Demo feed', 'gold'], ['Options execution', 'Long calls and long puts only', 'Mocked', 'gold'], ['Direct stock execution', 'Not part of the current verified scope', 'Not available', 'outline'], ['Spreads and covered strategies', 'Not implemented by the backend yet', 'Not available', 'outline']].map(([t, d, b, tone]) => (
+          {[['NEAR wallet', 'NEAR Testnet wallet-selector signing', 'Connected wallet', 'green'], ['Options execution', 'Principal-signed OptionsContract calls', 'Testnet', 'green'], ['Escrow settlement', 'NEP-141 transfer_call and callback-confirmed payouts', 'Testnet', 'green'], ['Market data', 'Synthetic option quotes and wNEAR test-token proxy', 'Demo data', 'gold'], ['NEAR Intents', 'Not used for this NEP-141 escrow demo path', 'Not enabled', 'outline'], ['Direct stock execution', 'Not part of the current verified scope', 'Not available', 'outline']].map(([t, d, b, tone]) => (
             <Card key={t}><div className="row between start gap12"><div><div className="semi">{t}</div><div className="small muted">{d}</div></div><Badge tone={tone as 'gold'}>{b}</Badge></div></Card>
           ))}
-          <div className="span2"><Banner tone="info">These integrations are mocked. Each one is a seam in <span className="mono">src/state/store.ts</span> and <span className="mono">src/data/mock.ts</span> where the real service plugs in.</Banner></div>
+          <div className="span2 card col gap12" style={{ padding: 16 }}>
+            <div className="semi">Configure Testnet escrow</div>
+            <div className="small muted">Uses your connected wallet to register wNEAR and test USDC, bind the escrow token contracts, and authorize the OptionsContract as escrow controller. The signer must own both contract accounts.</div>
+            {escrowSetupError && <Banner tone="danger">{escrowSetupError}</Banner>}
+            <Button variant="gold" disabled={!s.wallet.connected || escrowSetupBusy} onClick={async () => {
+              setEscrowSetupBusy(true); setEscrowSetupError('');
+              try { await configureTestnetEscrow(); toast('success', 'Testnet escrow configuration submitted'); }
+              catch (error) { setEscrowSetupError(error instanceof Error ? error.message : 'Escrow configuration failed.'); }
+              finally { setEscrowSetupBusy(false); }
+            }}>{escrowSetupBusy ? 'Configuring contracts…' : 'Configure Testnet escrow'}</Button>
+          </div>
+          <div className="span2"><Banner tone="info">Market prices and option premiums are synthetic demo data. The underlying asset used for Testnet escrow is Tidepool wNEAR; it is not an NVDA, TSLA or AAPL token. Settlement completion is based on NEP-141 transfer callbacks and on-chain escrow state, not a trusted reconciler.</Banner></div>
         </div>
       )}
 
