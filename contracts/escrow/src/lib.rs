@@ -203,6 +203,23 @@ impl EscrowContract {
         env::storage_remove(b"handel:escrow:pending-owner:v1");
     }
 
+    pub fn set_demo_self_trade(&mut self, enabled: bool) {
+        self.assert_owner();
+        assert!(
+            env::current_account_id().as_str().ends_with(".testnet"),
+            "demo self-trading is Testnet-only"
+        );
+        env::storage_write(
+            b"handel:escrow:demo-self-trade:v1",
+            &[u8::from(enabled)],
+        );
+    }
+
+    pub fn get_demo_self_trade(&self) -> bool {
+        env::storage_read(b"handel:escrow:demo-self-trade:v1")
+            .is_some_and(|value| value.as_slice() == [1])
+    }
+
     pub fn get_owner(&self) -> AccountId {
         self.owner.clone()
     }
@@ -450,7 +467,12 @@ impl EscrowContract {
             return existing_id;
         }
         assert!(!self.paused, "escrow paused");
-        assert_ne!(writer, holder, "writer and holder must differ");
+        let demo_self_trade_enabled = env::storage_read(b"handel:escrow:demo-self-trade:v1")
+            .is_some_and(|value| value.as_slice() == [1]);
+        assert!(
+            writer != holder || demo_self_trade_enabled,
+            "writer and holder must differ unless Testnet demo self-trading is enabled"
+        );
         assert_ne!(collateral_token, payment_token, "assets must differ");
         assert!(collateral_amount.0 > 0, "collateral must be positive");
         assert!(payment_amount.0 > 0, "payment must be positive");
