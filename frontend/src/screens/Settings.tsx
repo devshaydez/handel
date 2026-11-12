@@ -84,7 +84,7 @@ export default function Settings() {
           ))}
           <div className="span2 card col gap12" style={{ padding: 16 }}>
             <div className="semi">Configure Testnet escrow</div>
-            <div className="small muted">Uses your connected wallet to register wNEAR and test USDC, bind the escrow token contracts, and authorize the OptionsContract as escrow controller. The signer must own both contract accounts.</div>
+            <div className="small muted">Uses your connected wallet to register wNEAR and test USDC, bind token contracts, enable the escrow's Testnet-only self-trade demo mode, and authorize the OptionsContract as controller. The signer must own both contract accounts.</div>
             {escrowSetupError && <Banner tone="danger">{escrowSetupError}</Banner>}
             <Button variant="gold" disabled={!s.wallet.connected || escrowSetupBusy} onClick={async () => {
               setEscrowSetupBusy(true); setEscrowSetupError('');
@@ -93,7 +93,7 @@ export default function Settings() {
               finally { setEscrowSetupBusy(false); }
             }}>{escrowSetupBusy ? 'Configuring contracts…' : 'Configure Testnet escrow'}</Button>
           </div>
-          <div className="span2"><Banner tone="info">Market prices and option premiums are synthetic demo data. The underlying asset used for Testnet escrow is Tidepool wNEAR; it is not an NVDA, TSLA or AAPL token. Settlement completion is based on NEP-141 transfer callbacks and on-chain escrow state, not a trusted reconciler.</Banner></div>
+          <div className="span2"><Banner tone="info">Market prices and option premiums are synthetic demo data. The underlying asset used for Testnet escrow is Tidepool wNEAR; it is not an NVDA, TSLA or AAPL token. Settlement completion is based on NEP-141 transfer callbacks and matching state from two independent Testnet RPCs, not a trusted reconciler. Demo self-trading is enabled only on the Testnet escrow.</Banner></div>
         </div>
       )}
 
