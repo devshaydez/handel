@@ -10,10 +10,10 @@ import { agentStatus, pauseAgent, resumeAgent, revokeAgent, reauthorize, runAgen
 import { usd0 } from '../lib/pricing';
 import { getOnChainAgentPolicy, saveOnChainAgentPolicy } from '../lib/near-wallet';
 
-const MODES: { m: Mode; t: string; tag: string; pts: string[] }[] = [
+const MODES: { m: Mode; t: string; tag: string; pts: string[]; disabled?: boolean }[] = [
   { m: 'advisory', t: 'Advisory', tag: 'AI recommends', pts: ['Analyses markets and explains options', 'Recommends or rejects opportunities', 'Never executes. You act yourself'] },
   { m: 'approval', t: 'Approval', tag: 'You approve each trade', pts: ['Writes structured trade proposals', 'You approve or reject each one', 'Approved trades still pass every check'] },
-  { m: 'auto', t: 'Automatic', tag: 'Within your limits', pts: ['Executes only what your policy allows', 'Every trade passes the policy engine', 'You can pause or revoke at any time'] },
+  { m: 'auto', t: 'Automatic', tag: 'Not enabled on Testnet', pts: ['OptionsContract currently enforces ManualApproval', 'Every agent proposal still needs your wallet approval', 'Automatic execution requires a separately audited signer flow'], disabled: true },
 ];;
 function formatBaseUnits(value: string | number, decimals: number): string {
   const amount = BigInt(value);
@@ -33,7 +33,6 @@ export default function Agent() {
   const s = useStore();
   const st = agentStatus(s);
   const [draft, setDraft] = useState<Policy>(s.policy);
-  const [confirmAuto, setConfirmAuto] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [chainPolicy, setChainPolicy] = useState<Awaited<ReturnType<typeof getOnChainAgentPolicy>>>(null);
   const [chainDraft, setChainDraft] = useState({ maxUnderlyingWnear: '', maxPremiumUsdc: '', maxCollateralUsdc: '', maxOpenPositions: '', validityDays: '' });
@@ -103,7 +102,7 @@ export default function Agent() {
               <Badge tone={s.authorization.status === 'delegated' ? 'amber' : s.authorization.status === 'revoked' ? 'red' : 'outline'}>{s.authorization.status === 'delegated' ? `Delegated · ${s.authorization.id}` : s.authorization.status === 'revoked' ? 'Revoked' : s.authorization.status === 'per-proposal' ? 'Per-proposal approval' : 'No trading authority'}</Badge>
               <Badge tone="outline">{st.label}</Badge>
             </div>
-            <p className="small muted" style={{ maxWidth: '62ch' }}>{s.mode === 'auto' ? 'The agent may open trades that satisfy every limit below. Each one still passes the independent policy engine. You can pause or revoke with one click and nothing the agent holds can prevent that.' : s.mode === 'approval' ? 'The agent writes proposals. Nothing is submitted until you approve it, and approved trades are re-checked.' : 'The agent has no ability to trade. It analyses and recommends only.'}</p>
+            <p className="small muted" style={{ maxWidth: '62ch' }}>{s.mode === 'auto' ? 'Automatic execution is not enabled in this Testnet release. The on-chain contract requires ManualApproval and a principal wallet signature for every proposal.' : s.mode === 'approval' ? 'The agent writes proposals. Nothing is funded until you approve it in your wallet, and approved trades are checked against the on-chain contract and escrow.' : 'The agent has no ability to trade. It analyses and recommends only.'}</p>
           </div>
           <div className="col gap8" style={{ minWidth: 200 }}>
             {s.paused ? <Button variant="gold" icon={<LuPlay size={14} />} onClick={resumeAgent} disabled={s.revoked}>Resume agent</Button> : <Button icon={<LuPause size={14} />} onClick={pauseAgent} disabled={s.revoked}>Pause automation</Button>}
@@ -115,7 +114,7 @@ export default function Agent() {
 
       <div className="grid g3">
         {MODES.map((o) => (
-          <button key={o.m} className={`radio-card ${s.mode === o.m && !s.revoked ? 'on' : ''}`} onClick={() => (o.m === 'auto' ? setConfirmAuto(true) : setMode(o.m))} aria-pressed={s.mode === o.m}>
+          <button key={o.m} className={`radio-card ${s.mode === o.m && !s.revoked ? 'on' : ''}`} onClick={() => setMode(o.m)} aria-pressed={s.mode === o.m} disabled={o.disabled}>
             <div className="row between"><b className="big">{o.t}</b>{s.mode === o.m && !s.revoked ? <Badge tone="gold" sm><LuCheck size={11} />Current</Badge> : <Badge tone="outline" sm>{o.tag}</Badge>}</div>
             <ul>{o.pts.map((p) => <li key={p}><LuCheck size={13} className="green" />{p}</li>)}</ul>
           </button>
@@ -185,15 +184,7 @@ export default function Agent() {
         )}
       </Card>
 
-      <Modal open={confirmAuto} onClose={() => setConfirmAuto(false)} title="Enable automatic execution?">
-        <div className="col gap16">
-          <p className="text2">The agent will be allowed to open option trades <b>without asking you first</b>, but only inside the limits you set. Each trade still has to pass the independent policy engine.</p>
-          <div className="card" style={{ padding: 12 }}>{active.map((a) => <div key={a} className="row gap8 small" style={{ padding: '3px 0' }}><LuCheck size={13} className="green" />{a}</div>)}</div>
-          <Banner tone="gold">You can pause or revoke at any time. That always works, whatever the agent is doing.</Banner>
-          <div className="row gap8"><Button block onClick={() => setConfirmAuto(false)}>Cancel</Button><Button block variant="gold" onClick={() => { if (dirty) updatePolicy(draft); setMode('auto'); setConfirmAuto(false); }}>Enable automatic mode</Button></div>
-        </div>
-      </Modal>
-      <Modal open={confirmRevoke} onClose={() => setConfirmRevoke(false)} title="Revoke agent access?">
+undefined      <Modal open={confirmRevoke} onClose={() => setConfirmRevoke(false)} title="Revoke agent access?">
         <div className="col gap16">
           <p className="text2">This removes all delegated authority and returns the agent to Advisory. Positions you hold are not affected. You can re-enable the agent later.</p>
           <div className="row gap8"><Button block onClick={() => setConfirmRevoke(false)}>Cancel</Button><Button block variant="danger" onClick={() => { revokeAgent(); setConfirmRevoke(false); }}>Revoke access</Button></div>
