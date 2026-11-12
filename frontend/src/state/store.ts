@@ -1,7 +1,9 @@
 // ─────────────────────────────────────────────────────────────
 // UI STATE STORE
-// Market data and demo scenarios are local fixtures. Live Testnet execution is
-// implemented in near-wallet.ts; confirmed wallet results are recorded below.
+// Assistant and Agent share one state and one logical agent identity. Market data
+// and chat scenarios remain local fixtures. Wallet-authorized Testnet funding
+// helpers live in near-wallet.ts; delegated submission is backend-only and gated
+// until the restricted key and contract upgrade are provisioned.
 // ─────────────────────────────────────────────────────────────
 import { useSyncExternalStore } from 'react';
 import { assetBySym, DAY, DEFAULT_POLICY, DEMO_NOW, dteOf, fmtShort, makeContract, NETWORK, parseContractId } from '../data/mock';

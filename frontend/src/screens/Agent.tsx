@@ -6,7 +6,7 @@ import { Badge, Banner, Button, Card, CardHead, KV, Modal, PageHead, QtyStepper,
 import { ASSETS, DEFAULT_POLICY, fmtStamp, SUPPORTED_STRATEGIES, UNSUPPORTED_STRATEGIES } from '../data/mock';
 import type { Mode, Policy } from '../data/types';
 import { go } from '../router';
-import { agentStatus, pauseAgent, resumeAgent, revokeAgent, reauthorize, runAgentCycle, setMode, updatePolicy, useStore } from '../state/store';
+import { agentStatus, pauseAgent, resumeAgent, revokeAgent, reauthorize, setMode, updatePolicy, useStore } from '../state/store';
 import { usd0 } from '../lib/pricing';
 import { getOnChainAgentPolicy, saveOnChainAgentPolicy } from '../lib/near-wallet';
 
@@ -107,7 +107,6 @@ export default function Agent() {
           <div className="col gap8" style={{ minWidth: 200 }}>
             {s.paused ? <Button variant="gold" icon={<LuPlay size={14} />} onClick={resumeAgent} disabled={s.revoked}>Resume agent</Button> : <Button icon={<LuPause size={14} />} onClick={pauseAgent} disabled={s.revoked}>Pause automation</Button>}
             <Button variant="danger" icon={<LuBan size={14} />} onClick={() => setConfirmRevoke(true)} disabled={s.revoked}>Revoke agent access</Button>
-            <Button size="sm" variant="ghost" onClick={runAgentCycle} disabled={s.agentActivity !== 'idle'}>Run a demo agent cycle</Button>
           </div>
         </div>
       </Card>

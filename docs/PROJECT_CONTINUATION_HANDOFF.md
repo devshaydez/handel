@@ -20,6 +20,12 @@
 7. Separate frontend wallet helpers: principal signs collateral transfer; holder signs premium transfer. The agent key never calls NEP-141 token contracts.
 8. SDK tests for restricted-key rejection, policy caps, revocation/mode rejection, successful create/register and partial registration failure. Rust adversarial tests cover size, premium, Put collateral, allowlist, expiry, open-position cap, post-revocation creation/lifecycle denial, cross-agent attribution and holder-only premium initiation.
 
+### Current Vercel configuration snapshot — 2026-11-12
+- The Vercel project currently has `NEAR_AGENT_ACCOUNT_ID=handel-agent.shaydez.testnet` and a legacy encrypted `NEAR_AGENT_PRIVATE_KEY` variable. The secret value was not decrypted or inspected.
+- The new `NEAR_AGENT_DELEGATED_FUNCTION_CALL_PRIVATE_KEY`, `NEAR_AGENT_PROPOSAL_FUNCTION_CALL_PRIVATE_KEY`, and `HANDEL_AGENT_API_TOKEN` variables were not present in the environment inventory.
+- The new code refuses the legacy `NEAR_AGENT_PRIVATE_KEY`; after the replacement restricted keys are installed, remove/revoke the legacy key so the legacy signer is not retained.
+- Vercel's only branch preview observed was for commit `8005ab2e06325def47a3afb902af00e602800a10`; it failed at SDK TypeScript build due signer type errors. Those SDK errors were fixed afterward. No preview deployment for the latest branch head was observed at the time of this snapshot.
+
 ### Required server environment / key authority
 - `NEAR_AGENT_ACCOUNT_ID`: dedicated agent account, distinct from principal.
 - `NEAR_AGENT_DELEGATED_FUNCTION_CALL_PRIVATE_KEY`: dedicated restricted key, not a full-access key.

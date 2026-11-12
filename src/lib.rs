@@ -3622,7 +3622,14 @@ mod tests {
         c.revoke_agent(account("agent.testnet"));
         context("agent.testnet");
         let revoked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            c.agent_create_call(account("holder.testnet"), "nep141:stock.testnet".into(), 5, 10, 80, 5)
+            c.agent_create_call(
+                account("holder.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                10,
+                80,
+                5,
+            )
         }));
         assert!(revoked.is_err());
     }
