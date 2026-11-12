@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
-// MOCK STORE
-// A tiny external store (no dependencies). Every exported action below is a
-// seam where the real backend / wallet call will go. Auth and data are mocked.
+// UI STATE STORE
+// Market data and demo scenarios are local fixtures. Live Testnet execution is
+// implemented in near-wallet.ts; confirmed wallet results are recorded below.
 // ─────────────────────────────────────────────────────────────
 import { useSyncExternalStore } from 'react';
 import { assetBySym, DAY, DEFAULT_POLICY, DEMO_NOW, dteOf, fmtShort, makeContract, NETWORK, parseContractId } from '../data/mock';
@@ -264,7 +264,9 @@ export function updatePolicy(p: Policy) {
 export const toggleWatch = (sym: string) =>
   set((s) => ({ watchlist: s.watchlist.includes(sym) ? s.watchlist.filter((x) => x !== sym) : [...s.watchlist, sym] }));
 
-// ── transaction pipeline (mock) ──────────────────────────────
+// ── demo-only transaction simulation ─────────────────────────
+// The Trade Builder and Approval Centre do not call these mock helpers.
+// Real wallet execution and receipt verification live in near-wallet.ts.
 export interface TradeSpec {
   sym: string;
   side: 'call' | 'put';
@@ -337,6 +339,7 @@ export function recordManualOpen(spec: TradeSpec, result: WalletTransactionResul
   return { hash, positionId };
 }
 
+/** Demo-only simulated open. Never use this for wallet or Testnet execution. */
 export function submitOpen(spec: TradeSpec): { hash: string; positionId: string } {
   const hash = mockHash(counter * 7 + 3);
   counter++;
@@ -416,6 +419,7 @@ export function recordEscrowAction(positionId: string, kind: 'exercise' | 'relea
   toast('success', kind === 'exercise' ? 'Testnet exercise settled' : 'Testnet collateral released');
 }
 
+/** Demo-only simulated lifecycle action. Real exercise/release use near-wallet.ts. */
 export function submitAction(positionId: string, kind: 'exercise' | 'release' | 'close'): string {
   const p = state.positions.find((x) => x.id === positionId)!;
   const hash = mockHash(counter * 13 + 5);
@@ -446,6 +450,7 @@ export function submitAction(positionId: string, kind: 'exercise' | 'release' | 
   return hash;
 }
 
+/** Demo-only simulated recheck. On-chain transactions are re-read from NEAR RPCs. */
 export function recheckTx(hash: string) {
   const tx = state.txs[hash];
   if (!tx || tx.stage !== 'unknown') return;
