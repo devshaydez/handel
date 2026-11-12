@@ -24,7 +24,7 @@ export default function Onboarding() {
     setWalletError('');
     try {
       const account = await connectNearWallet();
-      connectWallet(account.accountId, account.network);
+      await connectWallet(account.accountId, account.network);
       setStep(2);
     } catch (error) {
       setWalletError(error instanceof Error ? error.message : 'Wallet connection failed.');

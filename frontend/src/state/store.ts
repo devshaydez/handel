@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
-// MOCK STORE
-// A tiny external store (no dependencies). Every exported action below is a
-// seam where the real backend / wallet call will go. Auth and data are mocked.
+// UI STATE STORE
+// Market data and demo scenarios are local fixtures. Live Testnet execution is
+// implemented in near-wallet.ts; confirmed wallet results are recorded below.
 // ─────────────────────────────────────────────────────────────
 import { useSyncExternalStore } from 'react';
 import { assetBySym, DAY, DEFAULT_POLICY, DEMO_NOW, dteOf, fmtShort, makeContract, NETWORK, parseContractId } from '../data/mock';
@@ -14,7 +14,7 @@ import { overall, runChecks } from '../lib/policy';
 import { CONTRACT_SIZE, usd0 } from '../lib/pricing';
 import { markPosition } from '../lib/valuation';
 import { askHandelEducation } from '../lib/handel-api';
-import { disconnectNearWallet, type WalletTransactionResult } from '../lib/near-wallet';
+import { disconnectNearWallet, getTestnetUsdcBalance, type WalletTransactionResult } from '../lib/near-wallet';
 
 export interface AgentRun {
   id: string;
@@ -53,7 +53,7 @@ export interface State {
 }
 
 const START = Date.now();
-const SEED_BALANCE = 24860.5;
+const SEED_BALANCE = 0;
 
 function fresh(dataset: 'populated' | 'empty'): Pick<State, 'positions' | 'proposals' | 'activity' | 'txs' | 'notices' | 'agentRuns' | 'chat'> {
   if (dataset === 'empty') {
@@ -74,13 +74,13 @@ const initial = (): State => ({
   paused: false,
   revoked: false,
   policy: { ...DEFAULT_POLICY },
-  authorization: { status: 'per-proposal', id: 'AUTH-7F3A' },
+  authorization: { status: 'none', id: '' },
   balance: SEED_BALANCE,
-  ...fresh('populated'),
+  ...fresh('empty'),
   watchlist: ['NVDA', 'MSFT', 'META'],
   chatBusy: false,
   agentActivity: 'idle',
-  demo: { dataset: 'populated', feed: 'ok', outcome: 'success', agentError: false },
+  demo: { dataset: 'empty', feed: 'ok', outcome: 'success', agentError: false },
   toasts: [],
   notifPrefs: { proposals: true, approvals: true, tx: true, expiry: true, risk: true, restrictions: true, failed: true },
   txPrefs: { reviewBeforeSign: true, maxSlippagePct: 2, defaultQty: 1 },
@@ -172,19 +172,31 @@ export const markAllRead = () => set((s) => ({ notices: s.notices.map((n) => ({ 
 export const markRead = (id: string) => set((s) => ({ notices: s.notices.map((n) => (n.id === id ? { ...n, read: true } : n)) }));
 
 // ── wallet and onboarding ────────────────────────────────────
-export function connectWallet(account: string, network = NETWORK) {
+export async function connectWallet(account: string, network = NETWORK) {
   if (!account.trim()) throw new Error('A connected NEAR account is required.');
-  set({ wallet: { connected: true, readOnly: false, account, network } });
+  if (network !== 'testnet') throw new Error('Handel only supports NEAR Testnet wallets.');
+  set({ wallet: { connected: true, readOnly: false, account, network }, balance: 0 });
+  try {
+    const balance = await getTestnetUsdcBalance(account);
+    set({ balance });
+  } catch (error) {
+    set({ balance: 0 });
+    toast('warn', error instanceof Error ? 'Wallet connected, but the USDC balance could not be verified. On-chain funding checks remain authoritative.' : 'Wallet connected, but the USDC balance could not be verified.');
+  }
 }
 export async function disconnectWallet() {
   await disconnectNearWallet();
   set({ wallet: { connected: false, readOnly: false, account: '', network: NETWORK } });
 }
 export function enterReadOnly() {
-  set({ wallet: { connected: false, readOnly: true, account: '', network: NETWORK } });
+  set({ wallet: { connected: false, readOnly: true, account: '', network: NETWORK }, balance: 0 });
 }
 export function startMode(m: Mode) {
-  set({ mode: m, authorization: { status: m === 'approval' ? 'per-proposal' : 'none', id: 'AUTH-7F3A' } });
+  if (m === 'auto') {
+    toast('warn', 'Automatic execution is not enabled. On-chain proposals require your approval.');
+    return;
+  }
+  set({ mode: m, authorization: { status: m === 'approval' ? 'per-proposal' : 'none', id: '' } });
 }
 export const dismissGuide = () => set({ guideDismissed: true });
 export const setNotifPref = (k: string, v: boolean) => set((s) => ({ notifPrefs: { ...s.notifPrefs, [k]: v } }));
@@ -192,20 +204,21 @@ export const setTxPref = (p: Partial<State['txPrefs']>) => set((s) => ({ txPrefs
 
 // ── agent permissions ────────────────────────────────────────
 export function setMode(m: Mode) {
+  if (m === 'auto') {
+    toast('warn', 'Automatic execution is not enabled. OptionsContract enforces ManualApproval.');
+    return;
+  }
   const prev = state.mode;
   if (prev === m) return;
   const grantedAt = nowIso();
   set({
     mode: m,
     revoked: false,
-    authorization:
-      m === 'auto'
-        ? { status: 'delegated', id: 'AUTH-' + mockHash(counter).slice(0, 4).toUpperCase(), grantedAt, expiresAt: new Date(nowMs() + 30 * DAY).toISOString() }
-        : { status: m === 'approval' ? 'per-proposal' : 'none', id: state.authorization.id },
+    authorization: { status: m === 'approval' ? 'per-proposal' : 'none', id: state.authorization.id },
   });
-  log({ kind: 'permission_change', actor: 'user', title: `Mode changed to ${m === 'auto' ? 'Automatic execution' : m === 'approval' ? 'Approval' : 'Advisory'}`, summary: m === 'auto' ? 'The agent may execute eligible trades within your policy. You can pause or revoke at any time.' : m === 'approval' ? 'The agent creates proposals. Nothing executes without your approval.' : 'The agent analyses and recommends only.' });
+  log({ kind: 'permission_change', actor: 'user', title: `Mode changed to ${m === 'approval' ? 'Approval' : 'Advisory'}`, summary: m === 'approval' ? 'The agent creates proposals. Nothing is funded until you approve it in your wallet.' : 'The agent analyses and recommends only.' });
   notify('info', 'Agent mode updated', `Now in ${m} mode.`, '/app/agent', 'restrictions');
-  toast('success', `Agent mode: ${m === 'auto' ? 'Automatic execution' : m === 'approval' ? 'Approval' : 'Advisory'}`);
+  toast('success', `Agent mode: ${m === 'approval' ? 'Approval' : 'Advisory'}`);
 }
 export function pauseAgent() {
   set({ paused: true });
@@ -248,7 +261,9 @@ export function updatePolicy(p: Policy) {
 export const toggleWatch = (sym: string) =>
   set((s) => ({ watchlist: s.watchlist.includes(sym) ? s.watchlist.filter((x) => x !== sym) : [...s.watchlist, sym] }));
 
-// ── transaction pipeline (mock) ──────────────────────────────
+// ── demo-only transaction simulation ─────────────────────────
+// The Trade Builder and Approval Centre do not call these mock helpers.
+// Real wallet execution and receipt verification live in near-wallet.ts.
 export interface TradeSpec {
   sym: string;
   side: 'call' | 'put';
@@ -295,22 +310,33 @@ export function recordManualOpen(spec: TradeSpec, result: WalletTransactionResul
   const hash = result.transactionHash;
   const positionId = `NEAR-${hash.slice(0, 10)}`;
   const label = `${spec.sym} ${spec.strike} ${spec.side} ×${spec.qty}`;
+  const transactionSteps = result.transactionSteps?.length
+    ? result.transactionSteps
+    : [{ hash, label: 'Verified Testnet execution' }];
+  const transactionHashes = [...new Set(transactionSteps.map((step) => step.hash))];
   const position: Position = {
     id: positionId,
     contractId: `${spec.sym}-${spec.expiry.replace(/-/g, '')}-${spec.side === 'call' ? 'C' : 'P'}-${spec.strike}`,
     sym: spec.sym, side: spec.side, strike: spec.strike, expiry: spec.expiry, qty: spec.qty,
     entryPremium: premiumPerShare, status: 'open', openedAt: nowIso(), source: 'manual',
-    txHashes: [hash], chainPositionId: result.positionId, escrowPositionId: result.escrowPositionId,
+    txHashes: transactionHashes, chainPositionId: result.positionId, escrowPositionId: result.escrowPositionId,
   };
+  const recordedAt = nowIso();
+  const transactionRecords = Object.fromEntries(transactionSteps.map((step) => [step.hash, {
+    hash: step.hash, kind: 'open' as const, title: `${step.label}: ${label}`, positionId, stage: 'confirmed' as const,
+    outcome: 'success' as const, delegated: false, startedAt: recordedAt, updatedAt: recordedAt, rechecks: 0,
+    note: 'This wallet transaction completed; the complete escrow lifecycle was independently verified through two Testnet RPCs.',
+  }]));
   set((s) => ({
     positions: [position, ...s.positions],
-    txs: { ...s.txs, [hash]: { hash, kind: 'open', title: `Open ${label}`, positionId, stage: 'confirmed', outcome: 'success', delegated: false, startedAt: nowIso(), updatedAt: nowIso(), rechecks: 0, note: 'NEAR Testnet escrow and OptionsContract state verified through two independent RPCs.' } },
+    txs: { ...s.txs, ...transactionRecords },
   }));
   log({ kind: 'tx_confirmed', actor: 'user', title: `Escrow confirmed: opened ${label}`, summary: 'Testnet offer, collateral receipt, premium payout and OptionsContract Open state were verified. This is a self-traded demo position using synthetic prices and a wNEAR proxy.', stage: 'confirmed', sym: spec.sym, positionId, txHash: hash });
   toast('success', `Testnet escrow position opened: ${label}`);
   return { hash, positionId };
 }
 
+/** Demo-only simulated open. Never use this for wallet or Testnet execution. */
 export function submitOpen(spec: TradeSpec): { hash: string; positionId: string } {
   const hash = mockHash(counter * 7 + 3);
   counter++;
@@ -376,13 +402,21 @@ export function recordEscrowAction(positionId: string, kind: 'exercise' | 'relea
   const exitPremium = kind === 'exercise' ? intrinsic : 0;
   const closeReason: Position['closeReason'] = kind === 'exercise' ? 'exercised' : intrinsic === 0 ? 'expired worthless' : 'released';
   const realized = +((exitPremium - position.entryPremium) * CONTRACT_SIZE * position.qty).toFixed(2);
-  patchPos(positionId, { status: 'closed', closeReason, exitPremium, realized, closedAt: nowIso(), pendingOp: undefined });
+  patchPos(positionId, { status: 'closed', closeReason, exitPremium, realized, closedAt: nowIso(), pendingOp: undefined, txHashes: [...position.txHashes, ...(result.transactionSteps ?? [{ hash: result.transactionHash, label: kind }]).map((step) => step.hash)] });
   const label = `${position.sym} ${position.strike} ${position.side}`;
-  set((s) => ({ txs: { ...s.txs, [result.transactionHash]: { hash: result.transactionHash, kind, title: `${kind === 'exercise' ? 'Exercise' : 'Expiry release'} ${label}`, positionId, stage: 'confirmed', outcome: 'success', delegated: false, startedAt: nowIso(), updatedAt: nowIso(), rechecks: 0, note: 'Both escrow payout callbacks and the OptionsContract lifecycle state were verified through independent Testnet RPCs.' } } }));
+  const transactionSteps = result.transactionSteps?.length ? result.transactionSteps : [{ hash: result.transactionHash, label: kind }];
+  const recordedAt = nowIso();
+  const transactionRecords = Object.fromEntries(transactionSteps.map((step) => [step.hash, {
+    hash: step.hash, kind, title: `${step.label}: ${label}`, positionId, stage: 'confirmed' as const, outcome: 'success' as const,
+    delegated: false, startedAt: recordedAt, updatedAt: recordedAt, rechecks: 0,
+    note: 'This wallet transaction completed; escrow payout callbacks and the OptionsContract terminal state were independently verified through two Testnet RPCs.',
+  }]));
+  set((s) => ({ txs: { ...s.txs, ...transactionRecords } }));
   log({ kind: kind === 'exercise' ? 'tx_confirmed' : 'lifecycle', actor: 'user', title: `Escrow settlement confirmed: ${kind} ${label}`, summary: 'NEP-141 escrow payout callbacks and the corresponding OptionsContract terminal state were verified on Testnet. This remains a synthetic, self-traded demo position.', stage: 'confirmed', sym: position.sym, positionId, txHash: result.transactionHash });
   toast('success', kind === 'exercise' ? 'Testnet exercise settled' : 'Testnet collateral released');
 }
 
+/** Demo-only simulated lifecycle action. Real exercise/release use near-wallet.ts. */
 export function submitAction(positionId: string, kind: 'exercise' | 'release' | 'close'): string {
   const p = state.positions.find((x) => x.id === positionId)!;
   const hash = mockHash(counter * 13 + 5);
@@ -413,6 +447,7 @@ export function submitAction(positionId: string, kind: 'exercise' | 'release' | 
   return hash;
 }
 
+/** Demo-only simulated recheck. On-chain transactions are re-read from NEAR RPCs. */
 export function recheckTx(hash: string) {
   const tx = state.txs[hash];
   if (!tx || tx.stage !== 'unknown') return;
@@ -456,6 +491,10 @@ export function executeProposal(id: string, result: WalletTransactionResult, pre
   if (!result.transactionHash?.trim() || !result.positionId || !result.escrowPositionId) return { ok: false, reason: 'Verified OptionsContract and escrow position identifiers are required.' };
   const checks = proposalChecks(p);
   const transactionHash = result.transactionHash;
+  const transactionSteps = result.transactionSteps?.length
+    ? result.transactionSteps
+    : [{ hash: transactionHash, label: 'Verified Testnet execution' }];
+  const transactionHashes = [...new Set(transactionSteps.map((step) => step.hash))];
   const positionId = `NEAR-${transactionHash.slice(0, 10)}`;
   const contract = makeContract(p.sym, p.expiry, p.side, p.strike, state.demo.feed);
   const position: Position = {
@@ -470,12 +509,18 @@ export function executeProposal(id: string, result: WalletTransactionResult, pre
     status: 'open',
     openedAt: nowIso(),
     source: 'ai-approved',
-    txHashes: [transactionHash],
+    txHashes: transactionHashes,
     proposalId: p.id,
     chainPositionId: result.positionId,
     escrowPositionId: result.escrowPositionId,
   };
-  set((s) => ({ positions: [position, ...s.positions], txs: { ...s.txs, [transactionHash]: { hash: transactionHash, kind: 'open', title: `Open ${p.sym} ${p.strike} ${p.side}`, positionId, stage: 'confirmed', outcome: 'success', delegated: false, startedAt: nowIso(), updatedAt: nowIso(), rechecks: 0, note: 'NEAR Testnet escrow and OptionsContract state verified through two independent RPCs.' } } }));
+  const recordedAt = nowIso();
+  const transactionRecords = Object.fromEntries(transactionSteps.map((step) => [step.hash, {
+    hash: step.hash, kind: 'open' as const, title: `${step.label}: Open ${p.sym} ${p.strike} ${p.side}`, positionId,
+    stage: 'confirmed' as const, outcome: 'success' as const, delegated: false, startedAt: recordedAt, updatedAt: recordedAt,
+    rechecks: 0, note: 'This wallet transaction completed; the complete escrow lifecycle was independently verified through two Testnet RPCs.',
+  }]));
+  set((s) => ({ positions: [position, ...s.positions], txs: { ...s.txs, ...transactionRecords } }));
   patchProposal(id, { status: 'executed', decidedAt: nowIso(), txHash: transactionHash, decisionNote: 'Created and funded through the NEAR Testnet NEP-141 escrow. This is a self-traded demo position: the connected account is both writer and holder. Collateral, premium payout, and OptionsContract Open state were verified on-chain.' });
   log({ kind: 'tx_confirmed', actor: 'system', title: `Escrow confirmed: ${p.strategy.toLowerCase()} on ${p.sym} ${p.strike}`, summary: 'NEAR Testnet offer, escrow collateral receipt, premium payout callback, and OptionsContract Open state were verified. The connected account is both writer and holder; there is no external counterparty. Underlying and option pricing are synthetic demo data.', stage: 'confirmed', sym: p.sym, positionId, proposalId: p.id, txHash: transactionHash, record: { action: p.headline, strategy: p.strategy, evidence: p.evidence, risks: p.risks, alternatives: p.alternatives.map((a) => a.title), confidence: p.confidence, uncertainty: p.uncertainty, checks, authorization: 'Principal wallet signed all Testnet transactions', result: 'Escrow-backed Testnet position opened.' } });
   toast('success', 'Testnet escrow position opened');
@@ -511,6 +556,10 @@ const SCENARIOS = [
 
 export function runAgentCycle() {
   if (state.agentActivity !== 'idle') return;
+  if (state.mode === 'auto') {
+    toast('warn', 'Automatic execution is disabled on Testnet. Use principal-approved proposals.');
+    return;
+  }
   if (state.demo.agentError) {
     set({ agentActivity: 'analysing' });
     setTimeout(() => {

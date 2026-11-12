@@ -36,7 +36,7 @@ export function DemoControls() {
   const s = useStore();
   return (
     <div className="col gap16">
-      <div className="small muted">Everything in this prototype is mocked. Use these switches to see every state the backend can produce.</div>
+      <div className="small muted">Market data, option quotes and demo scenarios are mocked. Wallet signing and escrow funding use real NEAR Testnet transactions.</div>
       <div className="field">
         <span className="label">Account data</span>
         <Seg value={s.demo.dataset} onChange={(v) => setDemo({ dataset: v })} options={[{ v: 'populated', label: 'Populated' }, { v: 'empty', label: 'Empty account' }]} />
@@ -169,7 +169,7 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
         <div className="nav-foot">
           <div className="card" style={{ padding: 14, borderRadius: 16 }}>
             <div className="row gap8"><DemoTag /></div>
-            <div className="tiny muted mt8">{NETWORK}. Prices, balances and transactions are simulated.</div>
+            <div className="tiny muted mt8">{NETWORK}. Market prices are simulated; connected-wallet transactions are real Testnet actions.</div>
           </div>
         </div>
       </aside>

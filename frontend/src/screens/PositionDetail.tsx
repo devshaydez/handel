@@ -87,7 +87,7 @@ export default function PositionDetail({ id }: { id: string }) {
           <Card>
             <CardHead title="Transaction history" />
             {txs.length === 0 ? <p className="muted small">No transactions recorded.</p> : txs.map((t) => (
-              <div key={t.hash} className="kv"><span className="k"><TradeStatus stage={t.stage} sm /><span className="text2">{t.title}</span></span><span className="v mono tiny">{shortHash(t.hash)} · {fmtStamp(t.updatedAt)}</span></div>
+              <div key={t.hash} className="kv"><span className="k"><TradeStatus stage={t.stage} sm /><span className="text2">{t.title}</span></span><span className="v mono tiny"><a className="link mono" href={`https://explorer.testnet.near.org/transactions/${t.hash}`} target="_blank" rel="noreferrer">{shortHash(t.hash)}</a> · {fmtStamp(t.updatedAt)}</span></div>
             ))}
             <button className="link small mt12" onClick={() => go('/app/activity')}>Open the full journal</button>
           </Card>

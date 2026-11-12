@@ -35,7 +35,7 @@ export function SignModal({
       <div className="col gap12">
         <div className="banner gold">
           <LuFingerprint size={16} />
-          <div>Real NEAR Testnet escrow workflow. Your wallet will request separate approvals for the offer, escrow funding and premium payout. Review every transaction; Handel never receives your private key.</div>
+          <div>Real NEAR Testnet escrow workflow. Your wallet may request separate approvals for agent approval, token registration, collateral transfer and premium transfer. Review every transaction and amount; Handel never receives your private key.</div>
         </div>
         <div>
           <div className="small muted">Handel requests approval to</div>
