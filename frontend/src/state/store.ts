@@ -411,9 +411,10 @@ export function proposalChecks(p: Proposal, s: State = state): Check[] {
   );
 }
 
-export function executeProposal(id: string): { ok: boolean; reason?: string } {
+export function executeProposal(id: string, transactionHash?: string): { ok: boolean; reason?: string } {
   const p = state.proposals.find((x) => x.id === id);
   if (!p) return { ok: false, reason: 'Proposal not found' };
+  if (!transactionHash?.trim()) return { ok: false, reason: 'A finalized wallet transaction hash is required.' };
   const checks = proposalChecks(p);
   if (overall(checks) === 'fail') {
     const f = checks.find((c) => c.status === 'fail')!;
@@ -422,10 +423,9 @@ export function executeProposal(id: string): { ok: boolean; reason?: string } {
     toast('danger', `Blocked by policy engine: ${f.label}`);
     return { ok: false, reason: f.detail };
   }
-  patchProposal(id, { status: 'approved', decidedAt: nowIso(), decisionNote: 'Approved by you.' });
-  log({ kind: 'approval', actor: 'user', title: `You approved: ${p.strategy.toLowerCase()} on ${p.sym} ${p.strike}`, summary: 'Wallet signature completed. Independent checks passed again.', sym: p.sym, proposalId: p.id, stage: 'approved', record: { action: p.headline, strategy: p.strategy, evidence: p.evidence, risks: p.risks, alternatives: p.alternatives.map((a) => a.title), confidence: p.confidence, uncertainty: p.uncertainty, checks, authorization: 'Approved by you, then wallet-signed', result: 'Submitted' } });
-  const c = makeContract(p.sym, p.expiry, p.side, p.strike, state.demo.feed);
-  submitOpen({ sym: p.sym, side: p.side, strike: p.strike, expiry: p.expiry, qty: p.qty, premium: c.ask ?? p.premium, source: 'ai-approved', proposalId: p.id });
+  patchProposal(id, { status: 'approved', decidedAt: nowIso(), txHash: transactionHash, decisionNote: 'Principal approval transaction submitted to the NEAR Testnet OptionsContract. Collateral registration and funding are separate steps.' });
+  log({ kind: 'approval', actor: 'user', title: `You approved: ${p.strategy.toLowerCase()} on ${p.sym} ${p.strike}`, summary: 'The connected wallet submitted the on-chain principal approval call. This does not claim that collateral has been deposited or the option opened.', sym: p.sym, proposalId: p.id, stage: 'approved', txHash: transactionHash, record: { action: p.headline, strategy: p.strategy, evidence: p.evidence, risks: p.risks, alternatives: p.alternatives.map((a) => a.title), confidence: p.confidence, uncertainty: p.uncertainty, checks, authorization: 'Principal wallet-signed on-chain approval', result: 'Approval transaction submitted; escrow funding remains pending.' } });
+  toast('success', 'On-chain approval submitted');
   return { ok: true };
 }
 
