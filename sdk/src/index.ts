@@ -31,3 +31,6 @@ export * from "./nearai-stack.js";
 export * from "./nearai-systemone.js";
 export * from "./decision-journal.js";
 export * from "./pricing.js";
+
+export * from "./near-function-call-signer.js";
+export * from "./agent-execution.js";

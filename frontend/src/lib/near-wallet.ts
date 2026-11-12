@@ -394,6 +394,109 @@ async function approveAndFundAgentProposal(args: Record<string, unknown>): Promi
   }
   return fundExistingEscrowPosition(positionId, methodName, optionArgs, accountId, initialSteps);
 }
+/**
+ * Principal-authorized collateral funding for an agent-created Testnet option.
+ * This intentionally transfers only the writer collateral leg. It never sends
+ * premium: the holder must authorize premium payment from their own wallet.
+ */
+export async function authorizeDelegatedCollateralFunding(
+  positionId: string,
+  expectedEscrowPositionId: string,
+): Promise<WalletTransactionResult> {
+  if (!OPTIONS_CONTRACT || !ESCROW_CONTRACT) throw new Error('Handel Testnet contracts are not configured.');
+  if (!/^\d+$/.test(positionId) || !/^\d+$/.test(expectedEscrowPositionId)) {
+    throw new Error('Position identifiers must be unsigned integers.');
+  }
+  const principal = await currentNearAccount();
+  if (!principal) throw new Error('Connect the principal wallet to authorize collateral funding.');
+  const option = await view<{
+    writer: string; kind: 'Call' | 'Put'; underlying_amount: string | number;
+    strike_amount_usdc: string | number; state: string; escrow_position_id?: string | number | null;
+  }>(OPTIONS_CONTRACT, 'get_position', { id: Number(positionId) });
+  if (option.writer !== principal) throw new Error('Only the policy principal can fund this agent-created writer position.');
+  if (String(option.escrow_position_id ?? '') !== expectedEscrowPositionId) {
+    throw new Error('Escrow position does not match the OptionsContract position.');
+  }
+  if (option.state !== 'PendingCollateral') throw new Error('This position is not awaiting principal collateral funding.');
+  const escrow = await view<{ collateral_received?: boolean }>(ESCROW_CONTRACT, 'get_position', {
+    position_id: Number(expectedEscrowPositionId),
+  });
+  if (escrow.collateral_received === true) throw new Error('Escrow already confirms collateral receipt.');
+  const token = option.kind === 'Call' ? UNDERLYING_TOKEN : USDC_TOKEN;
+  const amount = String(option.kind === 'Call' ? option.underlying_amount : option.strike_amount_usdc);
+  if (!/^\d+$/.test(amount) || BigInt(amount) <= 0n) throw new Error('OptionsContract returned an invalid collateral amount.');
+  const transfer = await transferCall(token, expectedEscrowPositionId, 'collateral', amount);
+  const confirmed = await view<{ collateral_received?: boolean }>(ESCROW_CONTRACT, 'get_position', {
+    position_id: Number(expectedEscrowPositionId),
+  });
+  if (confirmed.collateral_received !== true) {
+    throw new Error('Collateral transfer was submitted but Escrow has not confirmed receipt yet. Transaction: ' + transfer.transactionHash);
+  }
+  return {
+    transactionHash: transfer.transactionHash,
+    accountId: principal,
+    positionId,
+    escrowPositionId: expectedEscrowPositionId,
+    transactionSteps: [{ hash: transfer.transactionHash, label: 'Principal-authorized collateral transfer' }],
+  };
+}
+
+/**
+ * Holder-authorized premium payment for an agent-created Testnet option.
+ * This is a separate wallet action from writer collateral funding.
+ */
+export async function authorizeDelegatedPremiumPayment(
+  positionId: string,
+  expectedEscrowPositionId: string,
+): Promise<WalletTransactionResult> {
+  if (!OPTIONS_CONTRACT || !ESCROW_CONTRACT) throw new Error('Handel Testnet contracts are not configured.');
+  if (!/^\d+$/.test(positionId) || !/^\d+$/.test(expectedEscrowPositionId)) {
+    throw new Error('Position identifiers must be unsigned integers.');
+  }
+  const holder = await currentNearAccount();
+  if (!holder) throw new Error('Connect the holder wallet to authorize premium payment.');
+  const option = await view<{
+    holder: string; premium_amount_usdc: string | number; escrow_position_id?: string | number | null;
+  }>(OPTIONS_CONTRACT, 'get_position', { id: Number(positionId) });
+  if (option.holder !== holder) throw new Error('Only the option holder can authorize premium payment.');
+  if (String(option.escrow_position_id ?? '') !== expectedEscrowPositionId) {
+    throw new Error('Escrow position does not match the OptionsContract position.');
+  }
+  const escrow = await view<{ collateral_received?: boolean }>(ESCROW_CONTRACT, 'get_position', {
+    position_id: Number(expectedEscrowPositionId),
+  });
+  if (escrow.collateral_received !== true) throw new Error('Writer collateral must be confirmed before premium payment.');
+  const premium = String(option.premium_amount_usdc);
+  if (!/^\d+$/.test(premium) || BigInt(premium) <= 0n) throw new Error('OptionsContract returned an invalid premium amount.');
+  let status = await view<{ received?: boolean; paid?: boolean }>(ESCROW_CONTRACT, 'get_premium_status', {
+    position_id: Number(expectedEscrowPositionId),
+  });
+  const steps: { hash: string; label: string }[] = [];
+  if (!status.received) {
+    const transfer = await transferCall(USDC_TOKEN, expectedEscrowPositionId, 'premium', premium);
+    steps.push({ hash: transfer.transactionHash, label: 'Holder-authorized premium transfer' });
+    status = await view<{ received?: boolean; paid?: boolean }>(ESCROW_CONTRACT, 'get_premium_status', {
+      position_id: Number(expectedEscrowPositionId),
+    });
+  }
+  if (!status.received) throw new Error('Premium transfer was submitted but Escrow has not confirmed receipt yet.');
+  if (!status.paid) {
+    const settlement = await send(ESCROW_CONTRACT, 'settle_premium', { position_id: Number(expectedEscrowPositionId) });
+    steps.push({ hash: settlement.transactionHash, label: 'Escrow premium settlement' });
+    status = await view<{ received?: boolean; paid?: boolean }>(ESCROW_CONTRACT, 'get_premium_status', {
+      position_id: Number(expectedEscrowPositionId),
+    });
+  }
+  if (!status.paid) throw new Error('Escrow has not confirmed premium settlement.');
+  return {
+    transactionHash: steps.at(-1)?.hash ?? '',
+    accountId: holder,
+    positionId,
+    escrowPositionId: expectedEscrowPositionId,
+    transactionSteps: steps,
+  };
+}
+
 export async function signNearContractCall(methodName: string, args: Record<string, unknown>): Promise<WalletTransactionResult> {
   if (methodName === 'create_call' || methodName === 'create_put') {
     return createAndFundEscrowOption(methodName, args);
