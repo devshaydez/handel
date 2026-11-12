@@ -2272,3 +2272,56 @@ mod tests {
         assert_eq!(c.get_position(128).state, EscrowState::AwaitingCollateral);
     }
 }
+
+
+#[cfg(test)]
+mod demo_self_trade_tests {
+    use super::*;
+    use near_sdk::{test_utils::VMContextBuilder, testing_env};
+
+    #[test]
+    fn testnet_demo_mode_allows_only_explicit_self_trade() {
+        let owner: AccountId = "owner.testnet".parse().unwrap();
+        let escrow: AccountId = "escrow.testnet".parse().unwrap();
+        testing_env!(VMContextBuilder::new()
+            .current_account_id(escrow)
+            .predecessor_account_id(owner.clone())
+            .attached_deposit(NearToken::from_near(1))
+            .build());
+
+        let mut contract = EscrowContract::new();
+        contract.controller = Some(owner.clone());
+        assert!(!contract.get_demo_self_trade());
+
+        contract.set_demo_self_trade(true);
+        assert!(contract.get_demo_self_trade());
+
+        let id = contract.create_position(
+            7,
+            owner.clone(),
+            owner.clone(),
+            "wnear.testnet".parse().unwrap(),
+            U128(100),
+            "usdc.testnet".parse().unwrap(),
+            U128(50),
+            env::block_timestamp() + 1_000,
+        );
+        assert_eq!(id, 0);
+        let position = contract.position(id);
+        assert_eq!(position.writer, owner);
+        assert_eq!(position.holder, position.writer);
+    }
+
+    #[test]
+    #[should_panic(expected = "Testnet-only")]
+    fn demo_self_trade_cannot_be_enabled_on_mainnet_account_names() {
+        let owner: AccountId = "owner.near".parse().unwrap();
+        let escrow: AccountId = "escrow.near".parse().unwrap();
+        testing_env!(VMContextBuilder::new()
+            .current_account_id(escrow)
+            .predecessor_account_id(owner)
+            .build());
+        let mut contract = EscrowContract::new();
+        contract.set_demo_self_trade(true);
+    }
+}
