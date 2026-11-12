@@ -145,6 +145,19 @@ export async function signNearContractCall(methodName: string, args: Record<stri
   const result = await send(OPTIONS_CONTRACT, methodName, args);
   return { transactionHash: result.transactionHash, accountId: result.accountId };
 }
+export async function configureTestnetEscrow(): Promise<void> {
+  if (!OPTIONS_CONTRACT || !ESCROW_CONTRACT) throw new Error('Set both Testnet contract IDs before configuring escrow.');
+  const usdcAsset = 'nep141:usdc.tidepool-sandbox.testnet';
+  const wnearAsset = 'nep141:wnear.tidepool-sandbox.testnet';
+  await send(OPTIONS_CONTRACT, 'set_asset', { asset_id: usdcAsset, decimals: 6, enabled: true });
+  await send(OPTIONS_CONTRACT, 'set_asset', { asset_id: wnearAsset, decimals: 24, enabled: true });
+  await send(OPTIONS_CONTRACT, 'set_usdc_asset_id', { asset_id: usdcAsset });
+  await send(OPTIONS_CONTRACT, 'set_escrow_contract', { escrow_contract: ESCROW_CONTRACT });
+  await send(OPTIONS_CONTRACT, 'set_escrow_token_account', { asset_id: usdcAsset, token_account: USDC_TOKEN });
+  await send(OPTIONS_CONTRACT, 'set_escrow_token_account', { asset_id: wnearAsset, token_account: UNDERLYING_TOKEN });
+  await send(ESCROW_CONTRACT, 'propose_controller', { controller: OPTIONS_CONTRACT });
+  await send(OPTIONS_CONTRACT, 'accept_escrow_controller', {});
+}
 export async function disconnectNearWallet(): Promise<void> {
   const s = await selector();
   await (await s.wallet()).signOut();
