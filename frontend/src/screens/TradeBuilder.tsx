@@ -12,6 +12,18 @@ import { signAgentProposalIntent, signNearContractCall, type WalletTransactionRe
 import { runChecks, overall } from '../lib/policy';
 import { CONTRACT_SIZE, breakeven, usd, usd0 } from '../lib/pricing';
 
+function formatBaseUnits(value: string, decimals: number, symbol: string): string {
+  try {
+    const amount = BigInt(value);
+    const scale = 10n ** BigInt(decimals);
+    const whole = amount / scale;
+    const fraction = (amount % scale).toString().padStart(decimals, '0').slice(0, 2).replace(/0+$/, '');
+    return whole.toString() + (fraction ? '.' + fraction : '') + ' ' + symbol;
+  } catch {
+    return 'Unavailable';
+  }
+}
+
 export default function TradeBuilder() {
   const s = useStore();
   const r = useRoute();
@@ -116,6 +128,7 @@ export default function TradeBuilder() {
           <div className="col gap16">
             <Card className="glow-gold">
               <CardHead title="Final review" sub="Nothing has been submitted. You will sign in your wallet next." right={<TradeStatus stage="draft" />} />
+              <Banner tone="warn">The market quote and payoff below are synthetic illustrations, not a live option quote or the amount transferred on-chain. The exact Testnet premium and collateral are shown in the wallet request before you approve funding.</Banner>
               <div className="grid g2">
                 <div><KV k="Underlying" v={`${a.name} (${sym})`} /><KV k="Strategy" v={strategy} /><KV k="Contract" v={`${k} ${side} · ${fmtDate(expiry)}`} /><KV k="Quantity" v={`${qty} contract${qty > 1 ? 's' : ''} (${qty * CONTRACT_SIZE} shares)`} /></div>
                 <div><KV k="Premium" v={`${usd(ask ?? 0)} per share`} /><KV k="Total cost" v={usd(total)} /><KV k="Maximum loss" v={<span className="red">{usd(total)}</span>} /><KV k="Break-even" v={usd(be)} /></div>
@@ -163,7 +176,7 @@ export default function TradeBuilder() {
         const recorded = recordManualOpen({ sym, side, strike: k, expiry, qty, premium: premiumPerShare, source: 'manual' }, result, premiumPerShare);
         setTracked({ hash: recorded.hash, posId: recorded.positionId });
         setSign(false); setPreparedCall(null); setAiPreview(null); setStep('track');
-      }} action={`Open ${strategy.toLowerCase()} on ${sym}`} rows={[{ k: 'Underlying', v: 'Tidepool Testnet wNEAR (demo proxy)' }, { k: 'Contract', v: `${k} ${side} · ${fmtDate(expiry)}` }, { k: 'Quantity', v: String(qty) }, { k: 'Premium', v: 'Configured demo fixture' }, { k: 'AI model', v: (aiPreview?.model ?? 'NEAR AI') + ' · response verified' }, { k: 'AI rationale', v: aiPreview?.rationale ?? '' }, { k: 'AI risks', v: (aiPreview?.risks ?? []).join(' · ') }]} />}
+      }} action={`Open ${strategy.toLowerCase()} on ${sym}`} rows={[{ k: 'Underlying', v: 'Tidepool Testnet wNEAR (demo proxy)' }, { k: 'Contract', v: `${k} ${side} · ${fmtDate(expiry)}` }, { k: 'Quantity', v: String(qty) }, { k: 'Premium transferred', v: formatBaseUnits(preparedCall.args.premium_amount_usdc, 6, 'USDC') }, { k: 'Collateral transferred', v: side === 'call' ? formatBaseUnits(preparedCall.args.underlying_amount, 24, 'wNEAR') : formatBaseUnits(preparedCall.args.strike_amount_usdc, 6, 'USDC') }, { k: 'AI model', v: (aiPreview?.model ?? 'NEAR AI') + ' · response verified' }, { k: 'AI rationale', v: aiPreview?.rationale ?? '' }, { k: 'AI risks', v: (aiPreview?.risks ?? []).join(' · ') }]} />}
     </div>
   );
 
