@@ -25,7 +25,7 @@ export default function TradeBuilder() {
   const [step, setStep] = useState<'build' | 'review' | 'track'>('build');
   const [sign, setSign] = useState(false);
   const [tracked, setTracked] = useState<{ hash: string; posId: string } | null>(null);
-  const [preparedCall, setPreparedCall] = useState<{ method: 'create_call' | 'create_put'; args: Record<string, string> } | null>(null);
+  const [preparedCall, setPreparedCall] = useState<{ method: 'approve_agent_proposal'; args: Record<string, string> } | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [prepareError, setPrepareError] = useState('');
   const [aiPreview, setAiPreview] = useState<{ rationale: string; risks: string[]; model: string } | null>(null);
