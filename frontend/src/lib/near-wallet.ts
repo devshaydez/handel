@@ -17,6 +17,7 @@ export interface AgentProposalAuthorization {
   message: string;
   nonce: string;
   recipient: string;
+  callbackUrl: string;
   issuedAtMs: string;
   publicKey: string;
   signature: string;
@@ -41,6 +42,7 @@ export async function signAgentProposalIntent(input: {
   const nonce = btoa(Array.from(nonceBytes, (byte) => String.fromCharCode(byte)).join(''));
   const issuedAtMs = String(Date.now());
   const recipient = 'handel-live.vercel.app';
+  const callbackUrl = window.location.href;
   const message = [
     'Handel agent proposal authorization',
     'Action: submit one pending options proposal for principal approval',
@@ -54,13 +56,13 @@ export async function signAgentProposalIntent(input: {
     'Expiry (nanoseconds): ' + input.expiryNs,
     'Issued at (milliseconds): ' + issuedAtMs,
   ].join('\n');
-  const signed = await wallet.signMessage({ message, recipient, nonce: nonceBytes as never });
+  const signed = await wallet.signMessage({ message, recipient, nonce: nonceBytes as never, callbackUrl });
   if (!signed || !signed.signature || !signed.publicKey || signed.accountId !== input.holder) {
     throw new Error('The wallet did not return a verifiable NEP-413 signature. No proposal was submitted.');
   }
   const signatureBytes = signed.signature instanceof Uint8Array ? signed.signature : new Uint8Array(signed.signature as unknown as ArrayLike<number>);
   const signature = btoa(Array.from(signatureBytes, (byte) => String.fromCharCode(byte)).join(''));
-  return { message, nonce, recipient, issuedAtMs, publicKey: signed.publicKey.toString(), signature };
+  return { message, nonce, recipient, callbackUrl, issuedAtMs, publicKey: signed.publicKey.toString(), signature };
 }
 
 export interface WalletTransactionResult {
