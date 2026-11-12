@@ -29,7 +29,7 @@ export default function Settings() {
             {s.wallet.connected ? (
               <>
                 <KV k="Account" v={<span className="row gap8 mono"><span>{s.wallet.account}</span><button aria-label="Copy account ID" onClick={() => { navigator.clipboard?.writeText(s.wallet.account).catch(() => {}); toast('success', 'Account ID copied'); }}><LuCopy size={13} className="muted" /></button></span>} />
-                <KV k="Network" v={s.wallet.network} /><KV k="Status" v={<Badge tone="green" sm>Connected</Badge>} /><KV k="Testnet assets" v="On-chain token balances are checked at funding time" />
+                <KV k="Network" v={s.wallet.network} /><KV k="Status" v={<Badge tone="green" sm>Connected</Badge>} /><KV k="Testnet USDC balance" v={usd(s.balance, 2)} />
                 <div className="row gap8 mt16"><Button icon={<LuUnplug size={14} />} onClick={async () => { try { await disconnectWallet(); go('/connect'); } catch (error) { toast('danger', error instanceof Error ? error.message : 'Wallet disconnect failed'); } }}>Disconnect wallet</Button></div>
               </>
             ) : (
@@ -64,7 +64,7 @@ export default function Settings() {
           <Card>
             <CardHead title="Security status" />
             <KV k="Private keys" v="Never shared with Handel" /><KV k="Network" v={NETWORK} /><KV k="Active delegation" v={s.authorization.status === 'delegated' ? s.authorization.id : 'None'} />
-            <Banner tone="warn">Testnet and simulated settlement. This prototype does not demonstrate real-asset custody or settlement.</Banner>
+            <Banner tone="warn">Testnet-only synthetic assets and simulated market data. Escrow settlement is verified on-chain through NEP-141 callbacks and independent RPC state; this is not real-asset custody.</Banner>
             <div className="row gap8 mt16"><Button variant="danger" icon={<LuLogOut size={14} />} onClick={() => go('/app/agent')}>Go to revoke agent access</Button></div>
           </Card>
         </div>
