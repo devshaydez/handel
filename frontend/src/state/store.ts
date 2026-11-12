@@ -13,7 +13,7 @@ import { buildProposal } from '../lib/proposals';
 import { overall, runChecks } from '../lib/policy';
 import { CONTRACT_SIZE, usd0 } from '../lib/pricing';
 import { markPosition } from '../lib/valuation';
-import { respond } from '../lib/assistant';
+import { askHandelEducation } from '../lib/handel-api';
 
 export interface AgentRun {
   id: string;
@@ -531,11 +531,29 @@ export function sendChat(text: string, ctx: { sym?: string; positionId?: string 
   if (!t || state.chatBusy) return;
   const u: ChatMsg = { id: nid('M'), role: 'user', blocks: [{ t: 'p', text: t }], ts: nowIso() };
   set((s) => ({ chat: [...s.chat, u], chatBusy: true }));
-  setTimeout(() => {
-    const blocks = respond(t, ctx, state);
-    const a: ChatMsg = { id: nid('M'), role: 'ai', blocks, ts: nowIso() };
+
+  const context = {
+    ...(ctx.sym ? { symbol: ctx.sym } : {}),
+    ...(ctx.positionId ? { positionId: ctx.positionId } : {}),
+  };
+  void askHandelEducation(t, context).then((reply) => {
+    const a: ChatMsg = {
+      id: nid('M'),
+      role: 'ai',
+      blocks: [{ t: 'p', text: reply.answer }],
+      ts: nowIso(),
+    };
     set((s) => ({ chat: [...s.chat, a], chatBusy: false }));
-  }, 900);
+  }).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : 'The Handel backend request failed.';
+    const a: ChatMsg = {
+      id: nid('M'),
+      role: 'ai',
+      blocks: [{ t: 'p', text: `I couldn’t reach the live Handel education service: ${message}` }],
+      ts: nowIso(),
+    };
+    set((s) => ({ chat: [...s.chat, a], chatBusy: false }));
+  });
 }
 
 // ── demo controls ────────────────────────────────────────────
