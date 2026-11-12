@@ -33,7 +33,7 @@ export default function Settings() {
                 <div className="row gap8 mt16"><Button icon={<LuUnplug size={14} />} onClick={async () => { try { await disconnectWallet(); go('/connect'); } catch (error) { toast('danger', error instanceof Error ? error.message : 'Wallet disconnect failed'); } }}>Disconnect wallet</Button></div>
               </>
             ) : (
-              <div className="col gap12"><p className="muted">{s.wallet.readOnly ? 'You’re in read-only mode.' : 'No wallet connected.'} Connect to sign trades.</p><Button variant="gold" onClick={async () => { try { const account = await connectNearWallet(); connectWallet(account.accountId, account.network); toast('success', 'NEAR Testnet wallet connected'); } catch (error) { toast('danger', error instanceof Error ? error.message : 'Wallet connection failed'); } }}>Connect NEAR wallet</Button></div>
+              <div className="col gap12"><p className="muted">{s.wallet.readOnly ? 'You’re in read-only mode.' : 'No wallet connected.'} Connect to sign trades.</p><Button variant="gold" onClick={async () => { try { const account = await connectNearWallet(); await connectWallet(account.accountId, account.network); toast('success', 'NEAR Testnet wallet connected and Testnet USDC balance checked'); } catch (error) { toast('danger', error instanceof Error ? error.message : 'Wallet connection failed'); } }}>Connect NEAR wallet</Button></div>
             )}
           </Card>
           <Card>
