@@ -1,5 +1,14 @@
 # Handel
 
+## Verified status — 2026-11-12
+
+- PR [#22](https://github.com/devshaydez/handel/pull/22) is merged into `feat/handel-frontend-integration`.
+- [GitHub Actions run #43300087425](https://github.com/devshaydez/handel/actions/runs/43300087425) passed all seven jobs, including the frontend production build and live NEAR AI → SDK → approval-gated Sandbox proof.
+- OptionsContract and Escrow are deployed/configured on NEAR Testnet.
+- The frontend changes pass CI but the final merged commit is not yet confirmed on the public production deployment. Vercel deployment attempts hit the daily Hobby deployment limit after an intermediate-commit build failure.
+- Market pricing remains a demo fixture; no live Ondo execution or Mainnet/real-asset settlement is claimed. A green Sandbox proof is not a user-wallet trade.
+
+
 **Handel** is an AI-assisted, approval-gated options prototype on NEAR. The repository contains the Rust OptionsContract and Escrow contracts, a TypeScript SDK, a local AI service, and a Sandbox proof flow.
 
 ## Current working slice
