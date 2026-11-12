@@ -209,10 +209,7 @@ impl EscrowContract {
             env::current_account_id().as_str().ends_with(".testnet"),
             "demo self-trading is Testnet-only"
         );
-        env::storage_write(
-            b"handel:escrow:demo-self-trade:v1",
-            &[u8::from(enabled)],
-        );
+        env::storage_write(b"handel:escrow:demo-self-trade:v1", &[u8::from(enabled)]);
     }
 
     pub fn get_demo_self_trade(&self) -> bool {
@@ -2272,7 +2269,6 @@ mod tests {
         assert_eq!(c.get_position(128).state, EscrowState::AwaitingCollateral);
     }
 }
-
 
 #[cfg(test)]
 mod demo_self_trade_tests {
