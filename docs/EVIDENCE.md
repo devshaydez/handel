@@ -8,21 +8,24 @@
 
 | Field | Value |
 |---|---|
-| Workflow | [Handel backend checks, run #43474798000](https://github.com/devshaydez/handel/actions/runs/43474798000) |
-| Commit | `b07eeafcdcaadf8c1b397e61eb4cbb9638369a36` |
-| Date | 2026-11-13 |
-| Result | Historical run: 6 jobs succeeded; frontend typecheck/build was skipped on this commit. PR [#33](https://github.com/devshaydez/handel/pull/33) later changed the workflow to run frontend checks on `main` pushes. |
+| Workflow | [Handel backend checks, run #43523462966](https://github.com/devshaydez/handel/actions/runs/43523462966) |
+| Commit | `1e85e61` (merge of PR [#36](https://github.com/devshaydez/handel/pull/36)) |
+| Date | 2026-11-13 22:57Z |
+| Result | All 7 jobs succeeded, including frontend typecheck/build. |
 
 Successful jobs:
 - Rust format, unit tests and Wasm build
 - TypeScript SDK build and offline demo
+- Frontend typecheck and production build
 - Live Testnet asset verification (read-only)
 - Windows PowerShell proof-runner syntax
 - NEAR AI credential and model-catalogue preflight
 - Live NEAR AI → SDK → Sandbox contract proof
 
-**Proves:** the named jobs passed on the recorded commit. The frontend check configuration has since changed in merged PR [#33](https://github.com/devshaydez/handel/pull/33); consult the latest Actions run for its result.  
-**Does not prove:** frontend build/typecheck on this commit, a real Testnet trade, Ondo asset support, Mainnet settlement, production custody or security audit.
+The separate [Dual-RPC Testnet state audit run #43523462747](https://github.com/devshaydez/handel/actions/runs/43523462747) was inspected at the same commit: it failed with exit code 2 because the three expected view methods are absent from the deployed Wasm (see E-009), not because of an RPC or script error.
+
+**Proves:** the named jobs passed on the recorded commit and the audit fails only for the documented deployed-code gap.  
+**Does not prove:** a real Testnet trade, Ondo asset support, Mainnet settlement, production custody or security audit.
 
 ## E-002 — OptionsContract Testnet deployment and exact Wasm match
 
@@ -84,12 +87,18 @@ Successful jobs:
 **Proves:** the implementation path and automated tests exist.  
 **Does not prove:** a real user-authorized Testnet trade or a completed two-party funding lifecycle. No complete live lifecycle transaction set is recorded here.
 
-## E-007 — Production deployment lag
+## E-007 — Production deployment state
 
-The latest inspected READY production deployment is `dpl_3kuxaHaxroUCmHzzWrbfMptDtRSt`, Git commit `12c8222ab639cce05ee01ea27bae43a2e95f8eb0`. The verified custom domain `handel-live.vercel.app` returned HTTP 200. The repository `main` commit at this evidence snapshot is `b07eeafcdcaadf8c1b397e61eb4cbb9638369a36`, so production is behind main and needs redeployment after CI passes.
+`https://handel-live.vercel.app/` returned HTTP 200 with `last-modified: Fri, 13 Nov 2026 22:58:49 GMT`, one minute after the `main` push at 22:57:51Z. A fresh local `npm run build` of `main` at `1e85e61` emitted exactly the same bundle fingerprints that the live site serves:
 
-**Proves:** production alias is behind current `main` at the time checked.  
-**Does not prove:** the latest source is deployed or the current UI matches repository source.
+- `assets/index-4M471nLL.js`
+- `assets/index-idfmJuQN.js`
+- `assets/index-BlQFy-dE.css`
+
+No Vercel CLI, token or API credential is available in this environment, so the deployment ID and its commit SHA could not be read directly.
+
+**Proves:** the production alias serves a bundle byte-identical (by content hash) to a fresh build of `main` at `1e85e61`, and the alias was regenerated immediately after the merge.  
+**Does not prove:** the exact deployment record or commit SHA, because that requires authenticated Vercel access.
 
 ## E-008 — Trust and settlement boundary
 
