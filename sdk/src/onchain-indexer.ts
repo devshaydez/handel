@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import type { OptionPosition } from "./near-types.js";
 
 export interface IndexedPosition {
@@ -46,15 +47,15 @@ export class NearOptionsPositionReader {
     this.fetcher = fetcher;
   }
 
-  private async call<T>(methodName: string, args: Record<string, unknown>): Promise<{ value: T; blockHeight: number; blockHash: string }> {
+  private async call<T>(methodName: string, args: Record<string, unknown>, blockHash?: string): Promise<{ value: T; blockHeight: number; blockHash: string }> {
     const response = await this.fetcher(this.rpcUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         jsonrpc: "2.0", id: "handel-position-indexer", method: "query",
         params: {
-          request_type: "call_function", finality: "final", account_id: this.contractId,
-          method_name: methodName, args_base64: btoa(unescape(encodeURIComponent(JSON.stringify(args)))),
+          request_type: "call_function", ...(blockHash ? { block_id: blockHash } : { finality: "final" }), account_id: this.contractId,
+          method_name: methodName, args_base64: Buffer.from(JSON.stringify(args), "utf8").toString("base64"),
         },
       }),
     });
@@ -77,11 +78,11 @@ export class NearOptionsPositionReader {
     return { count, blockHeight: result.blockHeight, blockHash: result.blockHash };
   }
 
-  async positionsPage(fromId: number, limit = 50): Promise<{ positions: OptionPosition[]; blockHeight: number; blockHash: string }> {
+  async positionsPage(fromId: number, limit = 50, blockHash?: string): Promise<{ positions: OptionPosition[]; blockHeight: number; blockHash: string }> {
     if (!Number.isSafeInteger(fromId) || fromId < 0 || !Number.isInteger(limit) || limit < 1 || limit > 50) {
       throw new Error("position page bounds are invalid");
     }
-    const result = await this.call<OptionPosition[]>("get_positions_page", { from_id: fromId, limit });
+    const result = await this.call<OptionPosition[]>("get_positions_page", { from_id: fromId, limit }, blockHash);
     if (!Array.isArray(result.value)) throw new Error("OptionsContract returned an invalid position page");
     for (const position of result.value) {
       if (!position || !Number.isSafeInteger(Number(position.id)) || Number(position.id) < fromId ||
@@ -115,7 +116,7 @@ export class OptionsPositionIndexer {
     let cursor = from;
     let discovered = 0;
     while (cursor < snapshot.count) {
-      const page = await this.reader.positionsPage(cursor, Math.min(this.pageSize, snapshot.count - cursor));
+      const page = await this.reader.positionsPage(cursor, Math.min(this.pageSize, snapshot.count - cursor), snapshot.blockHash);
       // Pin every page to the same finalized block as the count. If the chain
       // advanced between calls, restart on the next pass rather than mix states.
       if (page.blockHash !== snapshot.blockHash) {
