@@ -1,209 +1,132 @@
-import { LuArrowRight, LuBriefcase, LuInbox, LuMessageSquareText, LuTriangleAlert, LuTrendingUp } from 'react-icons/lu';
-import { AgentPill, TradeStatus } from '../components/status';
-import { AreaChart, Bars, Sparkline, TickDonut } from '../components/charts';
-import { Badge, Banner, Button, Card, CardHead, EmptyState, Growth, MCard, MStat, PageHead, PageSkeleton, Sparkle, SymBadge, Term, UnavailableState, useLoading } from '../components/ui';
-import { ASSETS, fmtStamp, fmtShort } from '../data/mock';
+import { useEffect, useState } from 'react';
+import { LuBriefcase, LuMessageSquareText, LuShieldCheck, LuTriangleAlert } from 'react-icons/lu';
+import { AgentPill } from '../components/status';
+import { Badge, Banner, Button, Card, CardHead, EmptyState, MCard, PageHead, PageSkeleton, Term, useLoading } from '../components/ui';
 import { go } from '../router';
-import { agentStatus, dismissGuide, portfolio, runAgentCycle, useStore } from '../state/store';
-import { signedUsd, usd, usd0 } from '../lib/pricing';
-import { markPosition } from '../lib/valuation';
+import { useStore } from '../state/store';
+import { fetchPortfolioPositions, type IndexedChainPosition } from '../lib/indexer-api';
+
+function usdc(value: string): string {
+  try { return (Number(BigInt(value)) / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+  catch { return 'Unavailable'; }
+}
 
 export default function Dashboard() {
   const s = useStore();
-  const loading = useLoading(350);
-  if (loading) return <PageSkeleton />;
-  const pf = portfolio(s);
-  const st = agentStatus(s);
-  const pending = s.proposals.filter((p) => p.status === 'pending');
-  const open = s.positions.filter((p) => p.status === 'open' || p.status === 'expired' || p.status === 'pending' || p.status === 'unresolved');
-  const unresolved = s.positions.filter((p) => p.status === 'unresolved');
-  const empty = s.positions.length === 0;
-  const feedDown = s.demo.feed === 'down';
-  const opp = ASSETS.filter((a) => a.signal === 'opportunity' && a.optionsSupported);
-  const unread = s.notices.filter((n) => !n.read && n.tone !== 'info').slice(0, 3);
+  const [positions, setPositions] = useState<IndexedChainPosition[]>([]);
+  const [chainError, setChainError] = useState<string | null>(null);
+  const [chainLoading, setChainLoading] = useState(false);
+  const loading = useLoading(250);
 
-  // Equity curve: demo series ending at the current value
-  const eq = Array.from({ length: 30 }, (_, i) => pf.value - (29 - i) * 38 + Math.sin(i / 2.6) * 210 + (i % 5) * 22 - (empty ? 0 : 0));
-  eq[29] = pf.value;
-  const bars = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'].map((l, i) => ({ label: l, value: [1180, -220, 310, 210, 1120, pf.realized - 2600 + 180][i] ?? 0 }));
-  const byAsset = Object.values(open.reduce<Record<string, { label: string; value: number }>>((a, p) => {
-    const v = p.entryPremium * 100 * p.qty;
-    (a[p.sym] ??= { label: p.sym, value: 0 }).value += v;
-    return a;
-  }, {}));
+  useEffect(() => {
+    let active = true;
+    if (!s.wallet.account) {
+      setPositions([]);
+      setChainError(null);
+      return () => { active = false; };
+    }
+    setChainLoading(true);
+    fetchPortfolioPositions(s.wallet.account)
+      .then(rows => { if (active) { setPositions(rows); setChainError(null); } })
+      .catch(error => { if (active) setChainError(error instanceof Error ? error.message : 'NEAR Testnet read failed'); })
+      .finally(() => { if (active) setChainLoading(false); });
+    return () => { active = false; };
+  }, [s.wallet.account]);
+
+  if (loading) return <PageSkeleton />;
+  const activeStates = new Set(['PendingCollateral', 'PendingCollateralReconciliation', 'CollateralLocked', 'PendingPremium', 'Open', 'PendingSettlement', 'PendingExpiry', 'ReconciliationRequired']);
+  const open = positions.filter(row => activeStates.has(row.state));
+  const pending = positions.filter(row => row.state.startsWith('Pending') || row.state === 'ReconciliationRequired');
+  const unresolved = positions.filter(row => row.state === 'ReconciliationRequired');
+  const sessionEvents = s.activity.slice(0, 5);
+  const modeLabel = s.mode === 'auto' ? 'Delegated' : s.mode === 'advisory' ? 'Advisory' : 'Manual approval';
 
   return (
     <div className="page">
       <PageHead
         title="Dashboard"
-        sub="Your capital, positions and risk at a glance, plus anything the AI needs from you."
-        actions={<><Button icon={<LuMessageSquareText size={15} />} onClick={() => go('/app/assistant')}>Ask the assistant</Button><Button variant="gold" onClick={() => go('/app/markets')}>Explore markets</Button></>}
+        sub="Your actual NEAR Testnet positions, agent authority and recent Handel activity."
+        actions={<><Button icon={<LuMessageSquareText size={15} />} onClick={() => go('/app/assistant')}>Open Assistant</Button><Button variant="gold" onClick={() => go('/app/markets')}>Explore Testnet assets</Button></>}
       />
 
-      {!s.guideDismissed && (
-        <Card className="guide">
-          <div className="row between start wrap gap16">
-            <div className="col gap8" style={{ maxWidth: 620 }}>
-              <div className="row gap8"><Sparkle /><b>Quick tour</b></div>
-              <p className="text2">Start in <b>Markets</b> to read the AI’s analysis, open an options chain, and build a trade. Everything you do is previewed and risk-checked before your wallet is asked to sign. Check <b>Agent</b> to see exactly what the AI may do, which is nothing unless you say so.</p>
-            </div>
-            <Button size="sm" onClick={dismissGuide}>Dismiss</Button>
-          </div>
-        </Card>
-      )}
-
-      {feedDown && <Banner tone="danger"><b>Market data is unavailable.</b> Prices and valuations below are hidden or marked unavailable. The agent will abstain until data returns.</Banner>}
-      {s.demo.feed === 'stale' && <Banner tone="warn"><b>Market data is stale.</b> Pricing is shown as estimated and the agent’s verified-pricing requirement will block new actions.</Banner>}
-      {unresolved.length > 0 && (
-        <Banner tone="warn" action={<Button size="sm" onClick={() => go(`/app/portfolio/${unresolved[0].id}`)}>Review</Button>}>
-          <b>{unresolved.length} transaction{unresolved.length > 1 ? 's' : ''} could not be verified.</b> {unresolved[0].sym} {unresolved[0].strike} {unresolved[0].side} is not counted as open, and its collateral stays reserved.
-        </Banner>
-      )}
+      {!s.wallet.account && <Banner tone="info">Connect your NEAR Testnet wallet to load positions directly from OptionsContract.</Banner>}
+      {chainError && <Banner tone="warn"><b>On-chain portfolio read unavailable.</b> {chainError}</Banner>}
+      {unresolved.length > 0 && <Banner tone="warn" action={<Button size="sm" onClick={() => go('/app/portfolio')}>Review portfolio</Button>}>
+        <b>{unresolved.length} position{unresolved.length === 1 ? '' : 's'} need reconciliation.</b> Their contract state is not treated as settled.
+      </Banner>}
 
       <div className="grid g4">
-        <MCard title="Portfolio value" sub={<span>Collateral + open P&L</span>} tone="gold" href="/app/portfolio">
-          <div className="hero-num">{usd(pf.value)}</div>
-          <div className="row gap8">{empty ? <span className="muted small">No activity yet</span> : <Growth v={(pf.unrealized / pf.balance) * 100} />}<span className="tiny faint">unrealized</span></div>
+        <MCard title="On-chain positions" sub={<span>Writer or holder</span>} tone="gold" href="/app/portfolio">
+          <div className="hero-num">{chainLoading ? '…' : positions.length}</div>
+          <div className="tiny faint">{s.wallet.account ?? 'Wallet not connected'}</div>
         </MCard>
-        <MCard title={<Term k="collateral">Available collateral</Term>} sub={<span>USDC, demo</span>} tone="plain">
-          <div className="mstat"><div className="v" style={{ fontSize: 30 }}>{usd(pf.available)}</div></div>
-          <div className="mcard-f"><MStat sm label="Total balance" value={usd0(pf.balance)} /><MStat sm label="Reserved" value={usd0(pf.locked)} /></div>
+        <MCard title="Active positions" sub={<span>Finalized contract state</span>} href="/app/portfolio">
+          <div className="hero-num">{chainLoading ? '…' : open.length}</div>
+          <div className="tiny faint">Open or in lifecycle</div>
         </MCard>
-        <MCard title="Current exposure" sub={<span>Capital at risk</span>} tone={pf.exposurePct > 30 ? 'neg' : 'plain'} href="/app/portfolio">
-          <div className="hero-num" style={{ fontSize: 34 }}>{pf.exposurePct.toFixed(1)}%</div>
-          <div className="small muted">{usd0(pf.locked)} of {usd0(pf.balance)}. Your agent limit is {s.policy.maxExposurePct}%.</div>
+        <MCard title="Pending / unresolved" sub={<span>Needs lifecycle attention</span>} tone={pending.length ? 'neg' : 'plain'} href="/app/portfolio">
+          <div className="hero-num">{chainLoading ? '…' : pending.length}</div>
+          <div className="tiny faint">Not counted as settled</div>
         </MCard>
-        <MCard title="P&L" sub={<span>Realized and unrealized</span>} tone={pf.unrealized < 0 ? 'neg' : undefined}>
-          <div className="mcard-f" style={{ marginTop: 0 }}>
-            <MStat label="Unrealized" value={<span className={pf.unrealized >= 0 ? 'green' : 'red'}>{feedDown ? '—' : signedUsd(pf.unrealized, 0)}</span>} />
-            <MStat label="Realized" value={<span className={pf.realized >= 0 ? 'green' : 'red'}>{signedUsd(pf.realized, 0)}</span>} />
-          </div>
-          <div className="tiny faint">Unrealized uses {s.demo.feed === 'ok' ? 'verified and estimated' : 'estimated'} demo pricing.</div>
+        <MCard title="Agent execution" sub={<span>Chain-backed mode display</span>} tone="plain" href="/app/agent">
+          <div className="hero-num" style={{ fontSize: 25 }}>{modeLabel}</div>
+          <div className="tiny faint">Authority is controlled by on-chain policy</div>
         </MCard>
       </div>
 
       <div className="grid g-main">
         <div className="col gap16">
-          <Card>
-            <CardHead title="Account value" sub="Last 30 days, demo series" right={<Badge tone="demo" sm>Demo data</Badge>} />
-            {empty ? <EmptyState icon={<LuTrendingUp size={22} />} title="No history yet" body="Your account value chart appears after your first trade settles." action={<Button variant="gold" onClick={() => go('/app/markets')}>Find a trade</Button>} />
-              : <AreaChart data={eq} height={230} fmt={(v) => usd0(v)} subLabels={['30 days ago', 'Today']} />}
-          </Card>
-
           <Card className="flush">
-            <div style={{ padding: 18 }}><CardHead title="Open positions" sub={`${open.length} active or pending`} icon={<LuBriefcase size={16} />} right={<button className="link" onClick={() => go('/app/portfolio')}>View all</button>} /></div>
-            {open.length === 0 ? (
-              <EmptyState title="No open positions" body="When you open an option, it appears here once the network confirms it." action={<Button variant="gold" onClick={() => go('/app/markets')}>Explore markets</Button>} />
+            <div style={{ padding: 18 }}><CardHead title="Your Testnet positions" sub="Actual OptionsContract records; no demo positions or estimated P&amp;L" icon={<LuBriefcase size={16} />} right={<button className="link" onClick={() => go('/app/portfolio')}>View portfolio</button>} /></div>
+            {positions.length === 0 ? (
+              <EmptyState title={chainLoading ? 'Reading NEAR Testnet…' : 'No on-chain positions found'} body={s.wallet.account ? 'No position owned by or held for this account was returned by the contract.' : 'Connect a NEAR Testnet wallet to check the contract.'} action={<Button variant="gold" onClick={() => go('/app/assistant')}>Open Assistant</Button>} />
             ) : (
-              <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Contract</th><th className="r hide-m">Qty</th><th className="r">Value</th><th className="r">P&L</th><th>Status</th></tr></thead><tbody>
-                {open.slice(0, 5).map((p) => {
-                  const m = markPosition(p, s.demo.feed);
-                  return (
-                    <tr key={p.id} className="click" onClick={() => go(`/app/portfolio/${p.id}`)}>
-                      <td><div className="row gap12"><SymBadge sym={p.sym} /><div><div className="semi">{p.sym} {p.strike} {p.side}</div><div className="tiny muted">Exp {fmtShort(p.expiry)}</div></div></div></td>
-                      <td className="r num hide-m">{p.qty}</td>
-                      <td className="r num">{m.valued ? usd0(m.value) : '—'}</td>
-                      <td className={`r num ${m.pnl >= 0 ? 'green' : 'red'}`}>{m.valued ? signedUsd(m.pnl, 0) : '—'}</td>
-                      <td>{p.status === 'pending' ? <TradeStatus stage="pending" sm /> : p.status === 'unresolved' ? <TradeStatus stage="unknown" sm /> : p.status === 'expired' ? <Badge sm tone="amber">Expired</Badge> : <Badge sm tone="green">Open</Badge>}</td>
-                    </tr>
-                  );
-                })}
+              <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Position</th><th>Writer / Holder</th><th>Underlying (base units)</th><th>Strike (USDC)</th><th>Premium (USDC)</th><th>State</th></tr></thead><tbody>
+                {positions.slice(0, 8).map(row => <tr key={row.contract_id + ':' + row.position_id}>
+                  <td><div className="semi">#{row.position_id} · {row.payload.kind}</div><div className="tiny muted">{row.payload.asset_id}</div></td>
+                  <td><div className="tiny">W: {row.writer}</div><div className="tiny">H: {row.holder}</div></td>
+                  <td className="num">{row.payload.underlying_amount}</td>
+                  <td className="num">{usdc(row.payload.strike_amount_usdc)}</td>
+                  <td className="num">{usdc(row.payload.premium_amount_usdc)}</td>
+                  <td><Badge tone="outline">{row.state}</Badge></td>
+                </tr>)}
               </tbody></table></div>
             )}
           </Card>
-
-          <div className="grid g2">
-            <MCard title="Realized P&L" sub={<span>Monthly</span>}>
-              <Bars data={bars} height={130} fmt={(v) => signedUsd(v, 0)} selected={4} />
-            </MCard>
-            <MCard title="Capital at risk" sub={<span>By underlying</span>}>
-              {byAsset.length ? <TickDonut size={150} centerLabel="At risk" centerValue={`${pf.exposurePct.toFixed(0)}%`} data={byAsset} /> : <EmptyState title="Nothing at risk" body="No capital is reserved right now." />}
-            </MCard>
-          </div>
+          <Card>
+            <CardHead title="Testnet trading scope" icon={<LuShieldCheck size={16} />} />
+            <div className="grid g2">
+              <div><div className="semi">Collateral / premium</div><div className="text2">USDC on NEAR Testnet</div><div className="tiny muted">Tidepool sandbox token rail</div></div>
+              <div><div className="semi">Current underlying</div><div className="text2">wNEAR</div><div className="tiny muted">Writer-side Call/Put flow only where contract policy permits</div></div>
+            </div>
+            <p className="tiny faint">Other listed Testnet assets are not automatically enabled for option execution. Live spot prices and option quotes are not connected.</p>
+          </Card>
         </div>
 
         <div className="col gap16">
           <Card className="ai">
-            <CardHead title={<><Sparkle />AI market summary</>} sub={<>Generated {fmtStamp(new Date(Date.UTC(2026, 10, 11, 9, 30)).toISOString())}</>} right={<AgentPill />} />
-            {feedDown ? (
-              <UnavailableState title="Summary unavailable" body="The AI won’t describe the market without current data. It will resume when the feed returns." />
-            ) : (
-              <div className="col gap12">
-                <p className="text2">Large-cap tech is trending up on moderate volume. Volatility is mixed: elevated in TSLA, depressed in AAPL. Two setups currently pass the screen, and the AI is deliberately sitting out AAPL and TSLA.</p>
-                <div className="row gap8 wrap">{opp.map((a) => <Badge key={a.sym} tone="gold">{a.sym} setup</Badge>)}<Badge tone="outline">AAPL no trade</Badge></div>
-                <div className="small muted">Analysing: <b className="text2">{st.key === 'analysing' ? 'in progress…' : 'idle'}</b></div>
-                <div className="row gap8 wrap"><Button size="sm" onClick={() => go('/app/assistant')}>Ask why</Button><Button size="sm" onClick={runAgentCycle} disabled={s.agentActivity !== 'idle'}>{s.agentActivity === 'idle' ? 'Run agent cycle' : 'Working…'}</Button></div>
-              </div>
+            <CardHead title="Unified Handel Assistant" sub="Conversation and trade preparation" right={<AgentPill />} />
+            <p className="text2">The Assistant is the conversational interface for the same agent configured on the Agent screen. It can explain supported Testnet flows and prepare a writer-side proposal; it must not invent live market quotes.</p>
+            <Button size="sm" onClick={() => go('/app/assistant')}>Continue with Assistant</Button>
+          </Card>
+          <Card>
+            <CardHead title="Agent authority" icon={<LuShieldCheck size={16} />} />
+            <div className="row between"><span className="small muted">Execution mode</span><Badge tone={s.mode === 'auto' ? 'gold' : 'outline'}>{modeLabel}</Badge></div>
+            <p className="small muted">Automatic execution is not enabled merely by changing a browser control. The principal must save an enabled on-chain policy and delegated mode.</p>
+            <Button size="sm" onClick={() => go('/app/agent')}>Review permissions</Button>
+          </Card>
+          <Card>
+            <CardHead title="Market data" icon={<LuTriangleAlert size={16} />} />
+            <Banner tone="warn">No verified live spot, option bid/ask, implied-volatility or news provider is configured. Market valuation and P&amp;L remain unavailable.</Banner>
+            <Button size="sm" onClick={() => go('/app/markets')}>View asset catalogue</Button>
+          </Card>
+          <Card>
+            <CardHead title="Recent activity" right={<button className="link" onClick={() => go('/app/activity')}>Open journal</button>} />
+            {sessionEvents.length === 0 ? <EmptyState title="No session events yet" body="Handel records successful actions and decisions made during this browser session." /> : (
+              <div className="col gap8">{sessionEvents.map(event => <div key={event.id} className="list-item"><div className="grow"><div className="semi">{event.title}</div><div className="tiny muted">{event.summary}</div></div>{event.stage && <Badge tone="outline">{event.stage}</Badge>}</div>)}</div>
             )}
           </Card>
-
-          <Card>
-            <CardHead title="Needs your approval" icon={<LuInbox size={16} />} right={<Badge tone={pending.length ? 'gold' : 'outline'}>{pending.length}</Badge>} />
-            {pending.length === 0 ? <p className="muted small">Nothing is waiting. {s.mode === 'advisory' ? 'In Advisory mode the AI only recommends.' : 'New proposals appear here.'}</p> : (
-              <div className="col gap8">
-                {pending.slice(0, 3).map((p) => (
-                  <button key={p.id} className="list-item" onClick={() => go(`/app/proposals?id=${p.id}`)}>
-                    <SymBadge sym={p.sym} />
-                    <div className="grow"><div className="semi">{p.strategy} {p.sym} {p.strike}</div><div className="tiny muted">{p.qty} contract{p.qty > 1 ? 's' : ''} · {Math.round(p.confidence * 100)}% confidence</div></div>
-                    <LuArrowRight size={15} className="muted" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          <Card>
-            <CardHead title="Active opportunities" sub="From the AI screen" />
-            <div className="col gap8">
-              {opp.map((a) => (
-                <button key={a.sym} className="list-item" onClick={() => go(`/app/markets/${a.sym}`)}>
-                  <SymBadge sym={a.sym} />
-                  <div className="grow"><div className="semi">{a.sym}</div><div className="tiny muted ellipsis">{a.summary}</div></div>
-                  <Badge tone="gold" sm>Setup</Badge>
-                </button>
-              ))}
-            </div>
-          </Card>
-
-          {unread.length > 0 && (
-            <Card>
-              <CardHead title="Alerts" icon={<LuTriangleAlert size={16} />} />
-              <div className="col gap8">{unread.map((n) => <button key={n.id} className="list-item" onClick={() => n.href && go(n.href)}><div className="grow"><div className="semi">{n.title}</div><div className="small muted">{n.body}</div></div></button>)}</div>
-            </Card>
-          )}
         </div>
-      </div>
-
-      <div className="grid g2">
-        <Card>
-          <CardHead title="Watchlist" right={<button className="link" onClick={() => go('/app/markets')}>Manage</button>} />
-          {s.watchlist.length === 0 ? <EmptyState title="Watchlist is empty" body="Star an asset in Markets to follow it here." /> : (
-            <div className="col gap4">
-              {s.watchlist.map((sym) => {
-                const a = ASSETS.find((x) => x.sym === sym)!;
-                const ch = (a.price / a.prevClose - 1) * 100;
-                return (
-                  <button key={sym} className="row gap12 between" style={{ padding: '8px 0' }} onClick={() => go(`/app/markets/${sym}`)}>
-                    <span className="row gap12"><SymBadge sym={sym} /><span><div className="semi">{sym}</div><div className="tiny muted">{a.name}</div></span></span>
-                    <Sparkline data={a.series.slice(-30)} />
-                    <span className="right"><div className="semi num">{feedDown ? '—' : usd(a.price)}</div>{!feedDown && <Growth v={ch} />}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-        <Card>
-          <CardHead title="Recent activity" right={<button className="link" onClick={() => go('/app/activity')}>Open journal</button>} />
-          {s.activity.length === 0 ? <EmptyState title="No activity yet" body="Proposals, decisions and transactions are recorded here." /> : (
-            <div className="col gap4">{s.activity.slice(0, 5).map((a) => (
-              <button key={a.id} className="row gap12 start" style={{ padding: '8px 0', textAlign: 'left' }} onClick={() => go(`/app/activity/${a.id}`)}>
-                <div className="grow"><div className="semi small">{a.title}</div><div className="tiny faint">{fmtStamp(a.ts)}</div></div>
-                {a.stage && <TradeStatus stage={a.stage} sm />}
-              </button>
-            ))}</div>
-          )}
-        </Card>
       </div>
     </div>
   );
