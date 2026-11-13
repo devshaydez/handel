@@ -204,7 +204,7 @@ export function hydrateAgentMode(m: Mode, revoked = false) {
   set({
     mode: m,
     revoked,
-    authorization: { status: m === 'auto' ? 'delegated' : m === 'approval' ? 'per-proposal' : 'none', id: m === 'auto' ? 'on-chain-policy' : '' },
+    authorization: { status: revoked ? 'revoked' : m === 'auto' ? 'delegated' : 'none', id: m === 'auto' ? 'on-chain-policy' : '' },
   });
 }
 export function setMode(m: Mode) {
