@@ -31,6 +31,7 @@ export async function signAgentProposalIntent(input: {
   strike: string;
   premium: string;
   expiryNs: string;
+  action?: string;
 }): Promise<AgentProposalAuthorization> {
   const accountId = await currentNearAccount();
   if (!accountId || accountId !== input.principal) throw new Error('Connect the principal wallet that owns this agent before requesting a proposal.');
@@ -46,7 +47,7 @@ export async function signAgentProposalIntent(input: {
   const callbackUrl = window.location.href;
   const message = [
     'Handel agent proposal authorization',
-    'Action: submit one pending options proposal for principal approval',
+    'Action: ' + (input.action || 'submit one pending options proposal for principal approval'),
     'Version: 1',
     'Principal: ' + input.principal,
     'Holder: ' + input.holder,
