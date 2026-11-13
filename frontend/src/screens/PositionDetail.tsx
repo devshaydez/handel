@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LuCheck } from 'react-icons/lu';
 import { PayoffChart } from '../components/charts';
 import { SignModal } from '../components/SignModal';
@@ -11,6 +11,7 @@ import { nowMs, recordEscrowAction, useStore } from '../state/store';
 import { exerciseEscrowPosition, releaseExpiredEscrowPosition } from '../lib/near-wallet';
 import { markPosition } from '../lib/valuation';
 import { CONTRACT_SIZE, breakeven, signedUsd, usd, usd0 } from '../lib/pricing';
+import { fetchPortfolioPositions, type IndexedChainPosition } from '../lib/indexer-api';
 
 type Act = 'exercise' | 'release' | 'close';
 const COPY: Record<Act, { title: string; what: string[]; cta: string }> = {
@@ -25,7 +26,51 @@ export default function PositionDetail({ id }: { id: string }) {
   const p = s.positions.find((x) => x.id === id);
   const [act, setAct] = useState<Act | null>(null);
   const [sign, setSign] = useState(false);
-  if (!p) return <div className="page"><EmptyState title="Position not found" body="It may have been removed by the demo reset." action={<Button onClick={() => go('/app/portfolio')}>Back to Portfolio</Button>} /></div>;
+  const [chainPosition, setChainPosition] = useState<IndexedChainPosition | null>(null);
+  const [chainError, setChainError] = useState<string | null>(null);
+  const [chainLoading, setChainLoading] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (p || !s.wallet.account) return () => { active = false; };
+    setChainLoading(true);
+    fetchPortfolioPositions(s.wallet.account)
+      .then(rows => {
+        if (!active) return;
+        const found = rows.find(row => row.position_id === id);
+        setChainPosition(found ?? null);
+        setChainError(found ? null : 'This account is not listed as writer or holder for that position.');
+      })
+      .catch(error => { if (active) setChainError(error instanceof Error ? error.message : 'NEAR Testnet read failed'); })
+      .finally(() => { if (active) setChainLoading(false); });
+    return () => { active = false; };
+  }, [p, s.wallet.account, id]);
+  if (!p && chainPosition) {
+    const expiry = (() => {
+      try { return new Date(Number(BigInt(String(chainPosition.payload.expiry_ns)) / 1_000_000n)).toLocaleString(); }
+      catch { return 'Unavailable'; }
+    })();
+    const usdcAmount = (value: string) => {
+      try { return (Number(BigInt(value)) / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' USDC'; }
+      catch { return 'Unavailable'; }
+    };
+    return <div className="page">
+      <PageHead title={'Position #' + chainPosition.position_id} sub="Read-only details from the finalized OptionsContract state." actions={<Button onClick={() => go('/app/portfolio')}>Back to Portfolio</Button>} />
+      <Card>
+        <CardHead title={chainPosition.payload.kind + ' · ' + chainPosition.payload.asset_id} right={<Badge tone="outline">{chainPosition.state}</Badge>} />
+        <KV k="Writer" v={chainPosition.writer} />
+        <KV k="Holder" v={chainPosition.holder} />
+        <KV k="Underlying amount" v={chainPosition.payload.underlying_amount + ' base units'} />
+        <KV k="Strike" v={usdcAmount(chainPosition.payload.strike_amount_usdc)} />
+        <KV k="Premium" v={usdcAmount(chainPosition.payload.premium_amount_usdc)} />
+        <KV k="Expiry" v={expiry} />
+        <KV k="Escrow position ID" v={chainPosition.payload.escrow_position_id == null ? 'Not registered' : String(chainPosition.payload.escrow_position_id)} />
+        <KV k="Finalized block" v={String(chainPosition.block_height)} />
+        <KV k="Block hash" v={<span className="mono tiny">{chainPosition.block_hash}</span>} />
+      </Card>
+      <Banner tone="info">This is an on-chain read-only view. Mark price, P&amp;L, exercise eligibility and transaction history are not inferred here. Use the contract's authorised lifecycle flow for any state-changing action.</Banner>
+    </div>;
+  }
+  if (!p) return <div className="page"><EmptyState title={chainLoading ? 'Loading on-chain position…' : 'Position not found'} body={chainError ?? (s.wallet.account ? 'No matching on-chain or current-session position was found.' : 'Connect the writer or holder wallet to inspect this on-chain position.')} action={<Button onClick={() => go('/app/portfolio')}>Back to Portfolio</Button>} /></div>;
   const a = assetBySym(p.sym)!;
   const m = markPosition(p, s.demo.feed);
   const dte = dteOf(p.expiry);
