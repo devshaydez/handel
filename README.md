@@ -16,6 +16,17 @@ Handel has **one AI agent**, surfaced through the Assistant. The Assistant is th
 - **Not yet proven:** independent live code-hash/state comparison after both upgrades; Assistant browser-to-delegated API wiring; one real two-party wallet-signed Testnet lifecycle with create/register receipts, principal collateral and holder premium; over-limit and post-revocation live rejection receipts.
 - Execution remains Testnet-only with synthetic Tidepool assets and fixed demo premium. No Mainnet, live Ondo pricing, or real-asset settlement claim.
 
+## Current delegated Testnet preflight — 2026-11-13
+
+- PR #28 CI run [#784](https://github.com/devshaydez/handel/actions/runs/43348381280) passed all seven jobs, including Rust/Sandbox integration, frontend typecheck/build, SDK tests, read-only Testnet asset checks and live NEAR AI preflight.
+- A Vercel **preview** deployment for commit `8dc4081d40eb6bca66e262d36fdf5e5839b5c259` exposes the read-only [agent status endpoint](https://handel-frontend-pqs0g0gn2-shaydyting-2601s-projects.vercel.app/api/v1/agent/status).
+- The live Testnet check verified the restricted FunctionCall key is installed on `handel-agent.shaydez.testnet`, scoped to `options.shaydez.testnet`, with exactly the four delegated methods and a finite allowance of `1000000000000000000000000` yoctoNEAR.
+- **Blocked:** `get_agent_policy` returned `null` for this agent and `get_agent_execution_mode` returned `ManualApproval`. Therefore no in-limit trade, over-limit rejection, or post-revocation rejection transaction was submitted. No transaction hashes exist for those cases.
+- The principal must save their own limits in Agent settings; the wallet-signed save action also sets `Delegated` mode. Once the preflight confirms an enabled policy and `Delegated`, the live transaction tests can proceed. The principal must sign the later on-chain revocation before the final rejection test.
+- The Agent screen's revoke action now calls OptionsContract `revoke_agent` and verifies `enabled=false`; it no longer treats a frontend-only state change as on-chain revocation.
+- All execution remains NEAR Testnet with synthetic Tidepool assets and the fixed demo premium. No Mainnet or live-market claim is made.
+
+
  Handel
 
 ## Unified Assistant and Agent
