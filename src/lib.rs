@@ -1623,7 +1623,10 @@ impl OptionsContract {
             open_count < policy.max_open_positions as usize,
             "open position limit"
         );
-        assert_ne!(holder, policy.principal, "holder must be distinct from principal");
+        assert_ne!(
+            holder, policy.principal,
+            "holder must be distinct from principal"
+        );
         let position_id = self.create_offer(
             OptionKind::Call,
             policy.principal.clone(),
@@ -2902,7 +2905,10 @@ mod tests {
                 "sha256:same-party".into(),
             )
         }));
-        assert!(same_party.is_err(), "the principal cannot also be the holder");
+        assert!(
+            same_party.is_err(),
+            "the principal cannot also be the holder"
+        );
 
         c.create_agent_proposal(
             "one-time-proposal".into(),
