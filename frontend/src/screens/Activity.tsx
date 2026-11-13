@@ -7,7 +7,7 @@ import { shortHash } from '../data/seed';
 import type { ActKind, Activity as Act } from '../data/types';
 import { go } from '../router';
 import { useStore } from '../state/store';
-import { fetchIndexedActivity, type IndexedPositionActivity } from '../lib/indexer-api';
+import { fetchObservedPositionActivity, type IndexedPositionActivity } from '../lib/indexer-api';
 
 const ICON: Record<ActKind, { i: typeof LuScanSearch; c: string }> = {
   proposal: { i: LuScanSearch, c: 'ai' }, approval: { i: LuThumbsUp, c: 'ok' }, rejection: { i: LuThumbsDown, c: '' }, ai_decision: { i: LuScanSearch, c: 'ai' }, no_trade: { i: LuBan, c: '' },
@@ -32,7 +32,7 @@ export default function Activity({ id }: { id?: string }) {
   useEffect(() => {
     let active = true;
     if (!s.wallet.account) { setChainEvents([]); return () => { active = false; }; }
-    fetchIndexedActivity(s.wallet.account).then(rows => { if (active) { setChainEvents(rows); setChainError(null); } })
+    fetchObservedPositionActivity(s.wallet.account).then(rows => { if (active) { setChainEvents(rows); setChainError(null); } })
       .catch(error => { if (active) setChainError(error instanceof Error ? error.message : 'Indexer unavailable'); });
     return () => { active = false; };
   }, [s.wallet.account]);
@@ -44,11 +44,11 @@ export default function Activity({ id }: { id?: string }) {
   const counts = (k: F) => s.activity.filter(FILTER[k]).length;
   return (
     <div className="page">
-      <PageHead title="Activity and decision journal" sub="Browser-session activity only. Persistent on-chain transaction and position indexing is not connected yet." />
+      <PageHead title="Activity and decision journal" sub="On-chain position changes observed on this device, alongside the unified Assistant decision journal." />
       <Card>
-        <CardHead title="On-chain position lifecycle" sub="Persistent finalized contract-state observations" />
+        <CardHead title="Observed Testnet position lifecycle" sub="Finalized contract state changes observed by this browser" />
         {chainError && <Banner tone="warn">{chainError}. Browser-session activity remains separate.</Banner>}
-        {chainEvents.length === 0 ? <EmptyState title="No indexed lifecycle events" body="Connect a wallet and configure the persistent indexer. This section does not fabricate transaction records." /> : (
+        {chainEvents.length === 0 ? <EmptyState title="No indexed lifecycle events" body="No position changes have been observed yet. Connect a wallet and open this page again after a position is created or changes state." /> : (
           <div className="col gap12">
             {chainEvents.map(event => <div key={event.activity_id} className="row between start gap12">
               <div className="grow">
@@ -60,7 +60,7 @@ export default function Activity({ id }: { id?: string }) {
             </div>)}
           </div>
         )}
-        <p className="tiny faint">These are indexed position-state observations, not the complete transaction/receipt history. Transaction hashes will only appear after the receipt event ingestor is connected.</p>
+        <p className="tiny faint">This free journal persists observations in this browser only. It cannot recover changes that happened while the app was closed, and it is not a complete transaction/receipt history. Transaction hashes are shown only for transactions Handel itself has recorded.</p>
       </Card>
       <Tabs value={f} onChange={setF} tabs={[{ v: 'all', label: 'All', n: counts('all') }, { v: 'ai', label: 'AI decisions', n: counts('ai') }, { v: 'tx', label: 'Transactions', n: counts('tx') }, { v: 'positions', label: 'Positions', n: counts('positions') }, { v: 'permissions', label: 'Permissions', n: counts('permissions') }]} />
       <Card className="flush">
