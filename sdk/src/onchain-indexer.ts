@@ -111,7 +111,8 @@ export class OptionsPositionIndexer {
 
   async reconcile(): Promise<PositionIndexResult> {
     const snapshot = await this.reader.positionCount();
-    // Re-scan from zero on every pass so existing positions are reconciled after state changes.\n    const from = 0;
+    // Re-scan from zero on every pass so existing positions are reconciled after state changes.
+    const from = 0;
     let cursor = from;
     let discovered = 0;
     while (cursor < snapshot.count) {
