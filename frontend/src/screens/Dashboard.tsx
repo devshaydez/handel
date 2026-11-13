@@ -1,7 +1,7 @@
 import { LuArrowRight, LuBriefcase, LuInbox, LuMessageSquareText, LuTriangleAlert, LuTrendingUp } from 'react-icons/lu';
 import { AgentPill, TradeStatus } from '../components/status';
 import { AreaChart, Bars, Sparkline, TickDonut } from '../components/charts';
-import { Badge, Banner, Button, Card, CardHead, EmptyState, MCard, PageHead, PageSkeleton, Sparkle, SymBadge, UnavailableState, useLoading } from '../components/ui';
+import { Badge, Banner, Button, Card, CardHead, EmptyState, Growth, MCard, PageHead, PageSkeleton, Sparkle, SymBadge, UnavailableState, useLoading } from '../components/ui';
 import { ASSETS, fmtStamp, fmtShort } from '../data/mock';
 import { go } from '../router';
 import { agentStatus, dismissGuide, portfolio, useStore } from '../state/store';
