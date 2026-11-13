@@ -146,6 +146,10 @@ const expectedEscrow = process.env.HANDEL_EXPECTED_ESCROW_SHA256;
 const hashesMatch = result =>
   (!expectedOptions || result.optionsCode.codeSha256 === expectedOptions) &&
   (!expectedEscrow || result.escrowCode.codeSha256 === expectedEscrow);
+const rpcErrors = results.flatMap(result =>
+  [...Object.entries(result.optionsViews), ...Object.entries(result.escrowViews), ...Object.entries(result.tokenViews)]
+    .filter(([key]) => key.endsWith(":ERROR"))
+    .map(([key, error]) => ({ endpoint: result.endpoint, key, error })));
 const report = {
   mode: "READ_ONLY",
   transactionsSubmitted: 0,
@@ -153,6 +157,7 @@ const report = {
   independentRpcAgreement: agrees,
   expectedHashesSupplied: Boolean(expectedOptions || expectedEscrow),
   expectedHashesMatchBothRpcs: results.every(hashesMatch),
+  rpcViewErrors: rpcErrors,
   endpoints: results,
   limitations: [
     "Escrow controller and payout-reconciler state have no public view methods in the current contract ABI; this script does not infer them.",
@@ -161,4 +166,4 @@ const report = {
   ],
 };
 process.stdout.write(JSON.stringify(report, null, 2) + "\n");
-if (!agrees || !results.every(hashesMatch)) process.exitCode = 2;
+if (!agrees || !results.every(hashesMatch) || rpcErrors.length > 0) process.exitCode = 2;
