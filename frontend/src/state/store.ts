@@ -194,11 +194,7 @@ export function enterReadOnly() {
   set({ wallet: { connected: false, readOnly: true, account: '', network: NETWORK }, balance: 0 });
 }
 export function startMode(m: Mode) {
-  if (m === 'auto') {
-    toast('warn', 'Automatic execution is not enabled. On-chain proposals require your approval.');
-    return;
-  }
-  set({ mode: m, authorization: { status: m === 'approval' ? 'per-proposal' : 'none', id: '' } });
+  set({ mode: m, authorization: { status: m === 'auto' ? 'delegated' : m === 'approval' ? 'per-proposal' : 'none', id: m === 'auto' ? 'on-chain-policy' : '' } });
 }
 export const dismissGuide = () => set({ guideDismissed: true });
 export const setNotifPref = (k: string, v: boolean) => set((s) => ({ notifPrefs: { ...s.notifPrefs, [k]: v } }));
@@ -206,21 +202,20 @@ export const setTxPref = (p: Partial<State['txPrefs']>) => set((s) => ({ txPrefs
 
 // ── agent permissions ────────────────────────────────────────
 export function setMode(m: Mode) {
-  if (m === 'auto') {
-    toast('warn', 'Automatic execution is not enabled. OptionsContract enforces ManualApproval.');
-    return;
-  }
   const prev = state.mode;
   if (prev === m) return;
-  const grantedAt = nowIso();
   set({
     mode: m,
     revoked: false,
-    authorization: { status: m === 'approval' ? 'per-proposal' : 'none', id: state.authorization.id },
+    authorization: { status: m === 'auto' ? 'delegated' : m === 'approval' ? 'per-proposal' : 'none', id: m === 'auto' ? 'on-chain-policy' : '' },
   });
-  log({ kind: 'permission_change', actor: 'user', title: `Mode changed to ${m === 'approval' ? 'Approval' : 'Advisory'}`, summary: m === 'approval' ? 'The agent creates proposals. Nothing is funded until you approve it in your wallet.' : 'The agent analyses and recommends only.' });
-  notify('info', 'Agent mode updated', `Now in ${m} mode.`, '/app/agent', 'restrictions');
-  toast('success', `Agent mode: ${m === 'approval' ? 'Approval' : 'Advisory'}`);
+  const label = m === 'auto' ? 'Automatic (bounded delegated)' : m === 'approval' ? 'Approval' : 'Advisory';
+  const summary = m === 'auto'
+    ? 'The agent may create options and register Escrow within on-chain policy limits. Principal collateral and holder premium remain separately wallet-signed.'
+    : m === 'approval' ? 'The agent creates proposals. Principal approval and collateral funding remain wallet-signed.' : 'The agent analyses and recommends only.';
+  log({ kind: 'permission_change', actor: 'user', title: `Mode changed to ${label}`, summary });
+  notify('info', 'Agent mode updated', `Now in ${label} mode.`, '/app/agent', 'restrictions');
+  toast('success', `Agent mode: ${label}`);
 }
 export function pauseAgent() {
   set({ paused: true });
