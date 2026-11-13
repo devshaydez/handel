@@ -1,112 +1,72 @@
 # Handel
 
-Handel is a NEAR-based European-style options prototype for Ondo tokenized stocks, paired with an AI agent that can create policy-bounded Testnet trades under hard on-chain limits.
+An AI agent that can trade options on NEAR but provably cannot exceed the limits its owner set on-chain, and cannot touch anyone's funds.
 
-## Current honest status (Nov 13 2026)
+**NEAR Hackathon submission deadline:** 2026-11-14 23:59 UTC.
 
-| Area | Implemented / verified | Boundary |
-|---|---|---|
-| Options | Rust OptionsContract supports Call/Put terms, writer/holder roles, expiry and lifecycle transitions. | The current deployed contract is a policy/lifecycle component, not a complete Ondo custody or settlement system. |
-| Agent | One Assistant/Agent system; delegated Call/Put creation and Escrow registration are implemented. Contract policy is checked on-chain; the restricted key is limited to named contract methods. | A real wallet-authorized delegated Testnet trade and full two-party funding lifecycle have not been evidenced in the public evidence log. |
-| Agent authority | On-chain allowlists, size/premium/collateral/expiry/open-position limits, execution mode and revocation are enforced by contract entrypoints. | The agent does not control the principal's or holder's wallet and cannot transfer their tokens. |
-| Testnet | OptionsContract is deployed at `options.shaydez.testnet`; the user verified its on-chain Wasm SHA-256 against the deployed artifact. Tidepool Testnet assets and read-only checks are used for integration testing. | Tidepool is community-operated. Its test assets are synthetic and do not establish Ondo stock-token support. |
-| Offline | Deterministic proposal fallback, mock Intents payload construction, local Sandbox contracts and mock NEP-141 lifecycle tests are implemented. | Mock payloads and Sandbox balances are not Testnet or Mainnet asset movement. |
-| Pricing | A deterministic Black–Scholes reference engine and evidence-verifier interfaces exist. | No approved live execution oracle or production option-pricing feed is configured. The delegated Testnet path uses a fixed demo premium fixture. |
-| Frontend | Assistant, Agent policy controls, Testnet composer, wallet signing helpers, Portfolio and Activity surfaces exist. | Live market data is unavailable. Portfolio reconstruction is incomplete; Activity persistence depends on optional indexer configuration. |
-| Hosting | Production Vercel alias is live. | It currently serves commit `67f6dd01`, not current `main` commit `0d43cc63`. Do not assume the latest repository changes are live. |
+## Demo
 
-**Verified contract artifact:** `options.shaydez.testnet` deployment transaction [5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz](https://explorer.testnet.near.org/transactions/5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz); Wasm size 425,264 bytes; SHA-256 `1d95e9b75d94c13eea83e708502aff0a4c54c7eee4bb09881482403bb9479ab3`. The matching on-chain hash was checked from the Testnet RPC response on Nov 13.
+- Demo video: `<DEMO_VIDEO_URL>`
+- X post: `<X_POST_URL>`
+- Live app: [handel-live.vercel.app](https://handel-live.vercel.app/) — the deployment recorded in [E-007](docs/EVIDENCE.md) serves commit `67f6dd01c55932f39411c36fdfcc4f46f1a2aefb`, not the current repository `main`. Treat it as an older preview, not the submitted source.
 
-**Latest PR validation:** [run #43458722976](https://github.com/devshaydez/handel/actions/runs/43458722976) passed all seven jobs, including frontend typecheck and production build, on PR head `3d9d992beadb273927781cb0e59732bcc78a15d7` before merge as `f7da7824e8802c8080658949ea74e2b6a6f60a19`. The subsequent main-branch documentation refresh is at `0d43cc63eaf7ddca8480e69bac81af4c1ebf0571`; its latest push workflow [#43462193852](https://github.com/devshaydez/handel/actions/runs/43462193852) was pending at this snapshot.
+## Hackathon tracks
 
-**Not claimed:** no Mainnet deployment, no live Ondo asset custody, no Mainnet NEAR Intents settlement for NVDAon/TSLAon/AAPLon/SPYon, no real-money trade, no independently verified external-chain settlement proof, and no completed production security audit.
+### AI Security & Defense
 
-## What it does
+- **On-chain policy limits and revocation:** principal-bound asset, size, premium, collateral, expiry and open-position limits are checked by contract entrypoints; see [E-006](docs/EVIDENCE.md) and [src/lib.rs](src/lib.rs).
+- **Restricted agent authority:** [near-function-call-signer.ts](sdk/src/near-function-call-signer.ts) verifies a FunctionCall key for the OptionsContract, exactly four delegated methods and a finite allowance; it rejects FullAccess keys. See [E-006](docs/EVIDENCE.md).
+- **Independent screening:** the [System One guard](sdk/src/nearai-systemone.ts) returns allow/block/review and does not authorize execution; the integrated smoke is recorded in [E-005](docs/EVIDENCE.md).
+- **Audit trail and threat model:** the append-only, hash-chained journal is implemented in [decision-journal.ts](sdk/src/decision-journal.ts); trust boundaries and residual risks are in [THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
-Handel is designed for fully collateralized European-style options: Gap calls and Floor puts on Ondo tokenized stocks NVDAon, TSLAon, AAPLon and SPYon. A writer and a distinct holder enter fixed option terms; the intended payoff is physical delivery rather than cash settlement. The intended production asset/settlement rail is NEAR Intents.
+### Privacy & Private AI
 
-The AI agent proposes or initiates trades, but it is not the authority. The OptionsContract checks the current principal-bound policy, asset allowlist, execution mode, expiry, amount and position limits. The delegated agent can create an option and register its Escrow record when Delegated mode is enabled. The principal still signs collateral funding; the holder separately signs premium payment. The agent cannot spend either wallet's tokens.
+- **TEE pinning:** [nearai-stack.ts](sdk/src/nearai-stack.ts) pins approved Gateway/model signers and model compose/OS measurements; the live AI smoke is recorded in [E-005](docs/EVIDENCE.md).
+- **Response verification:** [nearai-provider.ts](sdk/src/nearai-provider.ts) verifies deployment attestations and response signatures before accepting proposals or explanations.
+- **Chat privacy:** the shipped Chat client enables field-level E2EE and Gateway OHTTP in [nearai-provider.ts](sdk/src/nearai-provider.ts).
+- **System One boundary:** [nearai-systemone.ts](sdk/src/nearai-systemone.ts) uses a separate client with E2EE and OHTTP disabled because that path does not support them. Do not read the Chat privacy settings as applying to System One.
 
-The current contracts do not yet reserve Ondo collateral inside the NEAR Intents verifier ledger, and the current Escrow prototype uses NEP-141 transfers rather than a verified NEP-245 Intents custody path. Exact Ondo Intents asset IDs, standards, quote support and per-position reservation are release gates. Today, the executable Testnet example uses Tidepool synthetic wNEAR and a fixed premium fixture—not Ondo stock tokens.
+### Unstoppable DeFi
 
-## Why it matters (positioning)
+- **Options protocol:** the OptionsContract implements Call/Put terms and policy-bounded lifecycle entrypoints; local Escrow/Sandbox scenarios are recorded in [E-005](docs/EVIDENCE.md).
+- **Separate wallet authority:** the agent cannot transfer principal collateral or holder premium; the composer requests the principal's collateral signature and the holder's premium signature separately. See [E-006](docs/EVIDENCE.md) and [TestnetProposalComposer.tsx](frontend/src/components/TestnetProposalComposer.tsx).
+- **Non-custodial agent boundary:** the restricted signer calls only the OptionsContract and never a token contract; the current Escrow prototype uses NEP-141 test-token flows, not verified Intents custody. See [near-function-call-signer.ts](sdk/src/near-function-call-signer.ts) and [E-006](docs/EVIDENCE.md).
+- **NEAR Intents status:** cross-chain settlement is not demonstrated. What exists today is offline illustrative payload construction and Tidepool dry quotes, not committed quotes, fills or transfers. See [E-004](docs/EVIDENCE.md) and [E-005](docs/EVIDENCE.md).
 
-| Project | Primary emphasis | Handel's distinction |
-|---|---|---|
-| Warrant | Intents-native, fully collateralized options with on-chain proof and locked collateral. | Handel combines an options product direction for tokenized equities with a constrained AI agent and explicit policy/revocation controls. Warrant's live Intents settlement and locked-contract evidence are not claims Handel can make. |
-| Intatto | Constrained AI trading vault with public-key/canary and trust-boundary evidence. | Handel applies hard on-chain agent permissions to options creation and lifecycle initiation, with separate writer/holder wallet authority. |
-| Handel | European-style options on Ondo tokenized-stock exposure plus an AI agent that can create bounded Testnet trades. | The combination is the differentiator; the Ondo route and production settlement remain future integration gates. |
+### `<THIRD_TRACK>`
 
-The product distinction is architectural, not a claim of parity with projects that already demonstrate live Mainnet settlement.
+Submission track details to be added.
 
-## Try it (do X → see Y)
+## Quickstart
 
-### Offline lifecycle demo
-
-Requirements: Node.js 24.22.1+, npm, Rust/Cargo, and the repository-pinned cargo-near 0.22.0. The full proof additionally requires a NEAR AI Cloud API key.
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/devshaydez/handel.git
-   cd handel
-   ```
-
-2. Build and test the SDK:
-
-   ```bash
-   npm --prefix sdk ci
-   npm --prefix sdk run build
-   npm --prefix sdk test
-   ```
-
-   **See:** TypeScript compilation and SDK tests complete successfully.
-
-3. Run the deterministic offline proposal and payload demo:
-
-   ```bash
-   npm --prefix sdk run lifecycle
-   ```
-
-   **See:** a deterministic sample proposal, local policy validation, contract-compatible call arguments, and illustrative collateral/premium/settlement payloads. The script submits no transaction and moves no asset.
-
-4. Run the integrated AI → SDK → Sandbox proof. Set `NEARAI_API_KEY` in the shell; do not commit it:
-
-   ```bash
-   # Linux / macOS / WSL
-   ./scripts/run-e2e-proof-demo.sh
-
-   # Windows PowerShell
-   .\scripts\run-e2e-proof-demo.ps1
-   ```
-
-   **See:** live NEAR AI inference and System One screening feed a simulated proposal into local NEAR Sandbox contracts and mock NEP-141 tokens. The test exercises Call/Put registration, approval, collateral/premium deposits and settlement callbacks. This is a local Sandbox proof, not a Testnet trade or Ondo settlement.
-
-### Testnet / Tidepool paths
-
-These checks are read-only or dry-quote checks; they do not commit a quote, create a deposit address, or transfer tokens:
+**Required: Node.js 24.22.1 or newer.** Run from the repository root. No API key, wallet, Rust toolchain or Testnet funds are needed for this offline SDK demo.
 
 ```bash
-node scripts/verify-testnet-assets.mjs
-node scripts/verify-tidepool-verifier.mjs
-node scripts/verify-tidepool-dry-quote.mjs
+npm --prefix sdk ci
+npm --prefix sdk run build
+npm --prefix sdk test
+npm --prefix sdk run lifecycle
 ```
 
-**See:** the configured Tidepool test-token registry/verifier checks and, when the service responds, a dry quote. The latest CI run passed the read-only asset/verifier/dry-quote job. A dry quote is not execution.
+Expected: dependency installation completes, TypeScript compiles, SDK tests run, and the lifecycle script prints a deterministic sample proposal, local policy validation and illustrative contract/payload data. The demo submits no transaction and moves no assets.
 
-The Assistant includes a delegated Testnet composer for synthetic `nep141:wnear.tidepool-sandbox.testnet`. It requires a principal-signed NEP-413 authorization, a distinct holder, a configured server-side restricted agent key, an enabled on-chain policy and Delegated mode.
+## Optional full proof: AI → SDK → Sandbox
 
-**If the prerequisites are satisfied:** the agent creates the option and registers Escrow; the UI then asks the principal to sign collateral funding and the holder to sign premium payment. The agent cannot perform those wallet transfers. Do not use this path with real assets. No complete live two-party lifecycle is currently recorded as evidence.
+This longer proof requires `NEARAI_API_KEY` (optional; not needed for the quickstart). It runs live NEAR AI Chat/System One checks, prepares a proposal through the SDK, then exercises local NEAR Sandbox contracts with mock NEP-141 assets. It is not a live Testnet trade or Ondo settlement.
 
-### What is mocked
+Requirements: Node.js 24.22.1+, npm, Rust/Cargo, and `cargo-near` 0.22.0. The Bash runner checks for the pinned cargo-near version; the PowerShell runner can install its pinned release.
 
-- Offline NEAR Intents payloads are illustrative JSON; no Intents transaction is submitted.
-- Sandbox NEP-141 tokens and local contract state are test fixtures.
-- Delegated Testnet premium is a fixed server-side demo fixture, not a market quote.
-- Tidepool assets are synthetic and Tidepool is a community-operated environment.
-- Ondo ticker labels in product design do not mean the corresponding assets are available on Tidepool or supported by the deployed escrow.
+```bash
+# Linux, macOS or WSL
+./scripts/run-e2e-proof-demo.sh
 
-## Architecture overview
+# Windows PowerShell
+.\\scripts\\run-e2e-proof-demo.ps1
+```
+
+The proof's expected terminal result is `PASS` for the simulated vertical slice. It does not prove live Ondo support, production NEAR Intents settlement, external-chain proof or production custody. See [E-005](docs/EVIDENCE.md).
+
+## Architecture
 
 ```text
 Assistant (single AI interface)
@@ -122,88 +82,25 @@ Escrow registration (Testnet prototype)
 Principal signs collateral ── Holder signs premium
 ```
 
-- `contracts/`: OptionsContract, Escrow and mock NEP-141 token.
-- `sdk/`: policy validation, NEAR signing/execution helpers, pricing references, indexer and offline lifecycle.
-- `agent/` and `api/`: agent instructions and server-side API routes.
-- `frontend/`: React/Vite app, Assistant and Agent configuration surfaces.
-- `scripts/`: build, proof, deployment-safety and read-only Testnet checks.
+**How the agent is constrained**
+1. The principal defines the asset allowlist, numeric limits and execution mode on-chain.
+2. The backend key is a restricted FunctionCall key for one contract and four named methods, with finite allowance.
+3. The SDK re-reads key authority and policy; the contract re-checks policy at delegated entrypoints.
+4. The principal and holder retain their own wallet signatures for collateral and premium transfers.
+5. Disabling/revoking policy blocks subsequent delegated calls; the agent has no token-transfer authority.
 
-Deeper design: [Architecture](docs/ARCHITECTURE.md), [Settlement architecture](docs/SETTLEMENT_ARCHITECTURE.md), [Ondo/Intents route gates](docs/ONDO_NEAR_INTENTS_ROUTE.md), [Pricing gates](docs/MARKET_DATA_AND_PRICING_GATES.md), [Threat model](docs/THREAT_MODEL.md).
+## Status & evidence
 
-## Security & trust assumptions
+| Proven in the evidence ledger | Not demonstrated |
+|---|---|
+| OptionsContract Testnet deployment and exact Wasm match ([E-002](docs/EVIDENCE.md)). | Mainnet deployment, real-money trading or production custody. |
+| Tidepool Testnet asset/verifier checks and dry quote ([E-004](docs/EVIDENCE.md)). | Ondo token support, committed quote, solver fill or asset transfer. |
+| Offline SDK lifecycle and local Sandbox tests ([E-005](docs/EVIDENCE.md)). | Completed live two-party Testnet funding/settlement lifecycle. |
+| Delegated implementation, policy rechecks and restricted-key verification ([E-006](docs/EVIDENCE.md)). | A recorded live agent-created trade with principal collateral and holder premium receipts. |
+| NEAR AI/System One integrated smoke ([E-005](docs/EVIDENCE.md)); trust assumptions are documented in [THREAT_MODEL.md](docs/THREAT_MODEL.md). | Independent security audit, light-client proof or cryptographic proof from the trusted reconciler. |
+| CI run [#43458722976](https://github.com/devshaydez/handel/actions/runs/43458722976) passed six jobs on the commit recorded in [E-001](docs/EVIDENCE.md). | Frontend typecheck/build on that run; the frontend job was skipped. |
 
-| Trust root / boundary | What it can do | What it does not prove |
-|---|---|---|
-| NEAR account owner / wallet | Authorizes policy, upgrades, principal collateral and other wallet actions. | The application cannot replace wallet approval or recover a compromised owner key. |
-| Restricted agent FunctionCall key | Calls only the configured OptionsContract receiver and allowlisted delegated methods, with bounded allowance. | Key compromise can still create policy-compliant trades until the key is revoked or policy disabled. |
-| On-chain OptionsContract policy | Enforces principal binding, enabled state, mode, allowlist, amount/premium/collateral/expiry/open-position bounds and attribution. | It does not itself custody the underlying asset or prove an external transfer. |
-| Server/API runtime | Holds restricted signing material and server-only session/API secrets; performs preflight and orchestration. | Server availability, secret storage, request authentication and operational controls remain trusted components. |
-| Escrow controller / contract owner | Controls configured registration/administrative roles and selected authority transitions. | Two-step ownership transfer is not a multisig, timelock or independent governance system. |
-| Reconciler / evidence attestor | Can resolve specifically configured ambiguous operation states using supplied evidence fields. | A reconciler assertion is not a cryptographic proof, independent chain verification or light-client proof. |
-| NEAR RPC providers | Supply finalized state and receipt observations; SDK can corroborate across RPC origins. | RPC quorum is not a NEAR light client and does not prove remote-chain settlement. |
-| Tidepool | Supplies a community Testnet verifier, token registry and dry-quote environment. | Not official NEAR/1Click infrastructure, not a guarantee of liquidity, and not proof of Ondo support. |
-| NEAR AI provider / model | Produces advice and screening output; CI verifies the configured TEE evidence path. | TEE attestation does not make model output correct, safe or an oracle. |
-| Mock/Sandbox components | Exercise local state transitions and callback behavior. | No live funds, Ondo assets, Mainnet Intents finality or production custody. |
+**Current execution boundary:** Testnet only; Tidepool synthetic assets; fixed demo premium; no live Ondo/NEAR Intents settlement; no evidenced completed live two-party lifecycle. The OptionsContract is a policy/lifecycle component, not an Intents asset custodian. See [EVIDENCE.md](docs/EVIDENCE.md), [THREAT_MODEL.md](docs/THREAT_MODEL.md), and [CUSTODY_AND_SETTLEMENT.md](docs/CUSTODY_AND_SETTLEMENT.md).
 
-The most important custody limitation: the OptionsContract is a policy/lifecycle state machine, not the custodian of NEAR Intents balances. The Escrow prototype handles NEP-141 test-token flows; the current design does not establish enforceable per-position reservation of Ondo assets inside Intents. Escrow payout legs are asynchronous and not atomic. See [Threat model](docs/THREAT_MODEL.md) and [Custody boundary](docs/CUSTODY_AND_SETTLEMENT.md).
+**Differentiator:** Handel combines European-style options lifecycle controls with an AI agent whose delegated authority is bounded by owner-set on-chain policy and separate wallet signatures.
 
-## Evidence
-
-- [Evidence ledger](docs/EVIDENCE.md) — claim-by-claim status, hashes, receipts and what each item proves.
-- [Latest GitHub Actions run](https://github.com/devshaydez/handel/actions/runs/43425939138) — commit `371fe36c3ee376a294714d06b79c73a1170fe70c`; six jobs passed, frontend build/typecheck skipped.
-- [OptionsContract deployment transaction](https://explorer.testnet.near.org/transactions/5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz) — deploy transaction; exact deployed Wasm SHA-256 was subsequently compared with the local artifact.
-- [Escrow deployment transaction](https://explorer.testnet.near.org/transactions/DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR) — deploy-only transaction for the Escrow prototype; does not prove an end-to-end trade.
-- [Production UI audit](docs/PRODUCTION_UI_AUDIT_2026-11-13.md) — read-only audit findings and UI scope.
-
-Evidence labels are deliberately distinct: **implemented**, **unit-tested**, **Sandbox-tested**, **Testnet-deployed**, **Testnet-verified**, and **production-deployed** are not interchangeable.
-
-## Known limitations & non-goals
-
-- No Mainnet deployment or real-money trading.
-- No Mainnet NEAR Intents settlement for Ondo tokenized stocks.
-- No verified Tidepool support for NVDAon, TSLAon, AAPLon or SPYon.
-- No demonstrated Ondo collateral reservation, NEP-245 custody integration or paired-intent physical delivery.
-- No approved live execution oracle, volatility surface or market-derived option premium.
-- The delegated Testnet example uses synthetic wNEAR and a fixed premium fixture.
-- No public evidence of a complete agent-create → principal-collateral → holder-premium Testnet lifecycle.
-- The reconciler/evidence-attestor path remains a trust assumption; RPC corroboration is not a light client.
-- Escrow payout legs are sequential asynchronous transfers, not atomic cross-asset settlement.
-- Portfolio indexing is incomplete; Activity history depends on optional persistent indexer configuration.
-- The current production Vercel alias lags the latest `main` commit.
-- No independent security audit or production custody review is claimed.
-
-Non-goals for this submission: hiding mock paths behind live-looking stock prices, presenting a dry quote as a fill, treating a model response as a price oracle, or describing policy-bounded trade creation as autonomous custody of user funds.
-
-## Tracks
-
-- **Primary — Unstoppable DeFi:** fully collateralized European-style options design, on-chain lifecycle controls and explicit settlement constraints.
-- **Agent Economy / AI Security — conditional:** include only if the submission demonstrates the single agent's on-chain allowlists, bounded restricted key, policy rechecks and revocation behavior with current tests/evidence. Do not claim autonomous token custody or unattended settlement.
-
-## Build & test
-
-Run from the repository root.
-
-```bash
-# Rust formatting and workspace tests
-cargo fmt --all -- --check
-cargo test --workspace
-
-# SDK
-npm --prefix sdk ci
-npm --prefix sdk run build
-npm --prefix sdk test
-npm --prefix sdk run lifecycle
-
-# Frontend
-npm --prefix frontend install --no-audit --no-fund
-npm --prefix frontend run typecheck
-npm --prefix frontend run build
-
-# Full AI -> SDK -> local Sandbox proof (requires NEARAI_API_KEY)
-# Linux/macOS/WSL:
-./scripts/run-e2e-proof-demo.sh
-# Windows PowerShell:
-.\scripts\run-e2e-proof-demo.ps1
-```
-
-The latest CI run did not execute the frontend job (it was skipped), so run the frontend commands above before treating the current frontend build as verified. See [CI workflow](.github/workflows/contract-checks.yml) for the authoritative automated checks.
