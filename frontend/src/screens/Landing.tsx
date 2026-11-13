@@ -88,7 +88,7 @@ export default function Landing() {
           <div className="lp-modes">
             {[
               { n: 'Advisory', t: 'The AI explains. You act.', li: ['Market analysis and education', 'Recommendations and no-trade calls', 'Nothing executes without you'] },
-              { n: 'Manual approval', t: 'Delegated execution is blocked.', li: ['No automatic agent contract calls', 'Principal wallet approval is required', 'Switch to Delegated only after setting on-chain limits'], hl: true },
+              { n: 'Manual approval', t: 'Delegated execution is blocked.', li: ['No automatic agent contract calls', 'Principal wallet approval is required', 'Save enabled on-chain limits to enter Delegated mode'], hl: true },
               { n: 'Automatic', t: 'The AI acts within your limits.', li: ['Only the assets and sizes you allow', 'Every trade passes the policy engine', 'Pause or revoke in one click'] },
             ].map((m) => (
               <div key={m.n} className={`lp-mode ${m.hl ? 'hl' : ''}`}>
