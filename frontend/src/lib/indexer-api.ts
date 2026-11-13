@@ -52,7 +52,7 @@ interface FinalView<T> {
   blockHash: string;
 }
 async function finalView<T>(rpc: string, methodName: string, args: Record<string, unknown>, blockHash?: string): Promise<FinalView<T>> {
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(args))));
+  const encoded = btoa(JSON.stringify(args));
   const response = await fetch(rpc, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -94,7 +94,7 @@ async function readDirectPortfolio(rpc: string, account: string): Promise<Indexe
     for (const position of page.value) {
       if (!position || typeof position.writer !== "string" || typeof position.holder !== "string" ||
           !Number.isSafeInteger(Number(position.id)) || Number(position.id) < fromId ||
-          Number(position.id) >= fromId + 50) throw new Error("OptionsContract returned a malformed position");
+          Number(position.id) >= fromId + Math.min(50, count - fromId)) throw new Error("OptionsContract returned a malformed position");
       if (position.writer !== account && position.holder !== account) continue;
       rows.push({
         contract_id: OPTIONS_CONTRACT,
@@ -219,4 +219,57 @@ export async function fetchPortfolioPositions(account: string): Promise<IndexedC
     // No paid indexer is required for a read-only portfolio view.
   }
   return fetchOnChainPortfolio(account);
+}
+
+
+/**
+ * No-cost local activity journal. It records finalized on-chain state changes
+ * observed while this browser is used; it is not a complete transaction index.
+ */
+export async function fetchObservedPositionActivity(account: string): Promise<IndexedPositionActivity[]> {
+  const positions = await fetchOnChainPortfolio(account);
+  const storageKey = "handel:onchain-position-observations:v1:" + account;
+  type Snapshot = Record<string, { state: string; blockHeight: number | string; blockHash: string }>;
+  type Stored = { snapshot: Snapshot; events: IndexedPositionActivity[] };
+  let stored: Stored = { snapshot: {}, events: [] };
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<Stored>;
+      if (parsed.snapshot && typeof parsed.snapshot === "object" && Array.isArray(parsed.events)) {
+        stored = { snapshot: parsed.snapshot as Snapshot, events: parsed.events };
+      }
+    }
+  } catch {
+    // Private browsing or disabled storage: this visit still renders fresh observations.
+  }
+  const next: Snapshot = {};
+  const events = [...stored.events];
+  for (const row of positions) {
+    const key = row.contract_id + ":" + row.position_id;
+    const previous = stored.snapshot[key];
+    next[key] = { state: row.state, blockHeight: row.block_height, blockHash: row.block_hash };
+    if (!previous || previous.state !== row.state) {
+      const eventType = previous ? "position_state_changed" : "position_discovered";
+      const activityId = [key, eventType, row.state, row.block_hash].join(":");
+      if (!events.some(event => event.activity_id === activityId)) {
+        events.push({
+          activity_id: activityId,
+          position_id: row.position_id,
+          event_type: eventType,
+          previous_state: previous?.state ?? null,
+          current_state: row.state,
+          block_height: row.block_height,
+          block_hash: row.block_hash,
+          occurred_at: new Date().toISOString(),
+          payload: row.payload as unknown as Record<string, unknown>,
+        });
+      }
+    }
+  }
+  const result = { snapshot: next, events: events.slice(-250) };
+  try { localStorage.setItem(storageKey, JSON.stringify(result)); } catch {
+    // The on-chain snapshot is still returned even if local persistence is unavailable.
+  }
+  return [...result.events].sort((left, right) => Number(right.block_height) - Number(left.block_height));
 }
