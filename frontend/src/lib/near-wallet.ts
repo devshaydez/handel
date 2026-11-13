@@ -258,6 +258,10 @@ export async function getOnChainAssetMetadata(assetId: string): Promise<OnChainA
   return view<OnChainAssetMetadata | null>(OPTIONS_CONTRACT, 'get_asset', { asset_id: assetId });
 }
 
+export async function getOnChainEscrowTokenAccount(assetId: string): Promise<string | null> {
+  return view<string | null>(OPTIONS_CONTRACT, 'get_escrow_token_account', { asset_id: assetId });
+}
+
 export async function getOnChainUsdcAssetId(): Promise<string> {
   return view<string>(OPTIONS_CONTRACT, 'get_usdc_asset_id', {});
 }
