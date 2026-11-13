@@ -691,10 +691,13 @@ export function sendChat(text: string, ctx: { sym?: string; positionId?: string 
         try {
           const funding = await authorizeDelegatedCollateralFunding(result.trade.positionId, result.trade.escrowPositionId);
           collateralMessage = 'Principal collateral transfer confirmed: ' + funding.transactionHash + '.';
+          log({ kind: 'tx_confirmed', actor: 'user', title: 'Principal collateral funded for WNEAR ' + reply.trade.type, summary: collateralMessage + ' The holder still needs to sign the separate premium payment.', stage: 'confirmed', sym: 'WNEAR', txHash: funding.transactionHash });
         } catch (fundingError) {
           collateralMessage = 'Option and Escrow were created, but collateral is not funded yet: ' +
             (fundingError instanceof Error ? fundingError.message : 'wallet signature required') + '.';
+          log({ kind: 'tx_unknown', actor: 'system', title: 'WNEAR ' + reply.trade.type + ' awaits principal collateral', summary: collateralMessage, stage: 'unknown', sym: 'WNEAR', txHash: result.trade.createTransactionHash });
         }
+        log({ kind: 'tx_confirmed', actor: 'ai', title: 'WNEAR ' + reply.trade.type + ' created on NEAR Testnet', summary: 'OptionsContract position #' + result.trade.positionId + ' created and Escrow registration confirmed. ' + collateralMessage + ' The holder must separately sign premium.', stage: 'confirmed', sym: 'WNEAR', txHash: result.trade.registrationTransactionHash });
         answer = 'Trade submitted on NEAR Testnet. Position #' + result.trade.positionId +
           ' was created and Escrow registration confirmed. Create tx: ' + result.trade.createTransactionHash +
           '. Escrow tx: ' + result.trade.registrationTransactionHash + '. ' + collateralMessage +
