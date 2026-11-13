@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { LuBookOpen, LuCheck, LuCircleHelp, LuCopy, LuLogOut, LuKeyRound, LuUnplug } from 'react-icons/lu';
-import { DemoControls } from '../components/Shell';
 import { Badge, Banner, Button, Card, CardHead, KV, PageHead, Switch, Tabs } from '../components/ui';
 import { NETWORK } from '../data/mock';
 import { go } from '../router';
-import { agentStatus, connectWallet, disconnectWallet, resetDemo, setNotifPref, setTxPref, toast, useStore } from '../state/store';
+import { agentStatus, connectWallet, disconnectWallet, setNotifPref, setTxPref, toast, useStore } from '../state/store';
 import { usd } from '../lib/pricing';
 import { configureTestnetEscrow, connectNearWallet, getTestnetWnearBalance } from '../lib/near-wallet';
 
@@ -71,7 +70,7 @@ export default function Settings() {
               <div className="field"><span className="label">Price tolerance: {s.txPrefs.maxSlippagePct}%</span><input className="range" type="range" min={0.5} max={5} step={0.5} value={s.txPrefs.maxSlippagePct} onChange={(e) => setTxPref({ maxSlippagePct: Number(e.target.value) })} aria-label="Price tolerance" /></div>
             </div>
           </Card>
-          <Card><CardHead title="Demo controls" sub="Prototype only. Not part of the product." /><DemoControls /></Card>
+          
         </div>
       )}
 
@@ -128,7 +127,7 @@ export default function Settings() {
           <Card>
             <CardHead title="Privacy" icon={<LuCircleHelp size={16} />} />
             <p className="text2 small">This prototype stores nothing outside your browser session. In production Handel will keep your decision journal and policy so you can audit them. It will not sell your data. Final privacy terms will be published before launch.</p>
-            <div className="row gap8 mt16"><Button onClick={resetDemo}>Reset demo data</Button></div>
+            
           </Card>
         </div>
       )}
