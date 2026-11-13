@@ -633,7 +633,7 @@ export function runAgentCycle() {
 
 // ── assistant ────────────────────────────────────────────────
 function decimalBaseUnits(value: string, decimals: number): string {
-  if (!/^\\d+(?:\\.\\d+)?$/.test(value)) throw new Error('Trade amount is not a valid decimal.');
+  if (!/^\d+(?:\.\d+)?$/.test(value)) throw new Error('Trade amount is not a valid decimal.');
   const [whole, fraction = ''] = value.split('.');
   if (fraction.length > decimals) throw new Error('Trade amount has too many decimal places.');
   const amount = BigInt(whole) * (10n ** BigInt(decimals)) + BigInt((fraction + '0'.repeat(decimals)).slice(0, decimals) || '0');
