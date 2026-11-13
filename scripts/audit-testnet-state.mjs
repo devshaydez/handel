@@ -83,6 +83,7 @@ async function auditEndpoint(endpoint) {
   const escrowCode = await viewCode(endpoint, escrowAccount);
   const optionsViews = {};
   const escrowViews = {};
+  const tokenViews = {};
   const readOptions = async (name, args = {}) => {
     try { optionsViews[name + (Object.keys(args).length ? ":" + JSON.stringify(args) : "")] =
       await view(endpoint, optionsAccount, name, args); }
@@ -92,6 +93,11 @@ async function auditEndpoint(endpoint) {
     try { escrowViews[name + (Object.keys(args).length ? ":" + JSON.stringify(args) : "")] =
       await view(endpoint, escrowAccount, name, args); }
     catch (error) { escrowViews[name + ":ERROR"] = String(error); }
+  };
+  const readToken = async (tokenAccount, methodName, args = {}) => {
+    const key = tokenAccount + ":" + methodName;
+    try { tokenViews[key] = await view(endpoint, tokenAccount, methodName, args); }
+    catch (error) { tokenViews[key + ":ERROR"] = String(error); }
   };
   await Promise.all([
     readOptions("get_owner"),
@@ -107,7 +113,19 @@ async function auditEndpoint(endpoint) {
     readEscrow("get_owner"),
     readEscrow("get_pending_owner"),
   ]);
-  return { endpoint, optionsCode, escrowCode, optionsViews, escrowViews };
+  // Resolve each Handel asset ID to its configured NEP-141 token account, then
+  // query the token contract directly for Escrow's registration and balance.
+  const tokenAccounts = assetIds.map(assetId => {
+    const key = "get_escrow_token_account:" + JSON.stringify({ asset_id: assetId });
+    const response = optionsViews[key];
+    return response && typeof response.value === "string" ? response.value : null;
+  }).filter(Boolean);
+  await Promise.all([...new Set(tokenAccounts)].flatMap(tokenAccount => [
+    readToken(tokenAccount, "ft_metadata"),
+    readToken(tokenAccount, "storage_balance_of", { account_id: escrowAccount }),
+    readToken(tokenAccount, "ft_balance_of", { account_id: escrowAccount }),
+  ]));
+  return { endpoint, optionsCode, escrowCode, optionsViews, escrowViews, tokenViews };
 }
 const results = await Promise.all(endpoints.map(auditEndpoint));
 const comparable = result => JSON.stringify(canonical({
@@ -118,6 +136,8 @@ const comparable = result => JSON.stringify(canonical({
   optionsViews: Object.fromEntries(Object.entries(result.optionsViews).map(([key, item]) =>
     [key, typeof item === "object" && item !== null && "value" in item ? item.value : item])),
   escrowViews: Object.fromEntries(Object.entries(result.escrowViews).map(([key, item]) =>
+    [key, typeof item === "object" && item !== null && "value" in item ? item.value : item])),
+  tokenViews: Object.fromEntries(Object.entries(result.tokenViews).map(([key, item]) =>
     [key, typeof item === "object" && item !== null && "value" in item ? item.value : item])),
 }));
 const agrees = comparable(results[0]) === comparable(results[1]);
@@ -137,7 +157,7 @@ const report = {
   limitations: [
     "Escrow controller and payout-reconciler state have no public view methods in the current contract ABI; this script does not infer them.",
     "A successful RPC quorum is independent-provider corroboration, not a cryptographic light-client proof.",
-    "NEP-141 balances and NEP-145 storage registrations are not queried by this contract-state audit.",
+    "The token reads report Escrow's own NEP-141 storage registration and token balance; they do not prove user wallet balances or transfer history.",
   ],
 };
 process.stdout.write(JSON.stringify(report, null, 2) + "\n");
