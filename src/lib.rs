@@ -2836,6 +2836,21 @@ mod tests {
         );
 
         context("agent.testnet");
+        let same_party = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.create_agent_proposal(
+                "same-party-proposal".into(),
+                OptionKind::Call,
+                account("writer.testnet"),
+                "nep141:stock.testnet".into(),
+                10,
+                20,
+                70,
+                5,
+                "sha256:same-party".into(),
+            )
+        }));
+        assert!(same_party.is_err(), "the principal cannot also be the holder");
+
         c.create_agent_proposal(
             "one-time-proposal".into(),
             OptionKind::Call,
