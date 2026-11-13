@@ -79,7 +79,7 @@ export default function Assistant() {
   const send = (t: string) => { sendChat(t); setText(''); };
   return (
     <div className="page">
-      <PageHead title="AI assistant" sub="One Assistant for analysis and trade requests. The Agent tab only configures this same agent; current market examples are demo data and Testnet proposals require a principal wallet signature and separate holder payment." />
+      <PageHead title="AI assistant" sub="One Assistant for analysis and Testnet trading. The Agent tab configures this same agent; delegated option creation and Escrow registration run within on-chain limits, while principal collateral and holder premium remain separately wallet-signed." />
       <div className="chat-wrap">
         <Card className="chat">
           <div className="chat-scroll" aria-live="polite">
@@ -103,7 +103,7 @@ export default function Assistant() {
             <CardHead title="Try asking" />
             <div className="col gap8">{SUGGESTIONS.map((q) => <button key={q} className="chip" style={{ justifyContent: 'flex-start', textAlign: 'left', borderRadius: 14 }} disabled={s.chatBusy} onClick={() => send(q)}>{q}</button>)}</div>
           </Card>
-          <Card><CardHead title="How it behaves" /><ul className="small muted col gap4" style={{ paddingLeft: 16, listStyle: 'disc' }}><li>It can recommend a trade or say no trade.</li><li>Proposals go to the Approval Centre. Nothing executes from chat.</li><li>When market data is down it says so instead of guessing.</li></ul></Card>
+          <Card><CardHead title="How it behaves" /><ul className="small muted col gap4" style={{ paddingLeft: 16, listStyle: 'disc' }}><li>It can recommend a trade or say no trade.</li><li>Demo-market ideas remain proposals. The Testnet trade panel below uses bounded delegated execution when the on-chain mode is Delegated.</li><li>When market data is down it says so instead of guessing. The restricted agent key cannot transfer tokens.</li></ul></Card>
         </div>
       </div>
     </div>
