@@ -6,9 +6,9 @@ import { Badge, Banner, Button, Card, CardHead, KV, Modal, PageHead, QtyStepper,
 import { ASSETS, DEFAULT_POLICY, fmtStamp, SUPPORTED_STRATEGIES, UNSUPPORTED_STRATEGIES } from '../data/mock';
 import type { Mode, Policy } from '../data/types';
 import { go } from '../router';
-import { agentStatus, pauseAgent, resumeAgent, revokeAgent, reauthorize, setMode, updatePolicy, useStore } from '../state/store';
+import { agentStatus, hydrateAgentMode, pauseAgent, resumeAgent, revokeAgent, reauthorize, setMode, updatePolicy, useStore } from '../state/store';
 import { usd0 } from '../lib/pricing';
-import { getOnChainAgentPolicy, saveOnChainAgentPolicy, setOnChainAgentExecutionMode } from '../lib/near-wallet';
+import { getOnChainAgentExecutionMode, getOnChainAgentPolicy, saveOnChainAgentPolicy, setOnChainAgentExecutionMode } from '../lib/near-wallet';
 
 const MODES: { m: Mode; t: string; tag: string; pts: string[]; disabled?: boolean }[] = [
   { m: 'advisory', t: 'Advisory', tag: 'AI recommends', pts: ['Analyses markets and explains options', 'Recommends or rejects opportunities', 'Never executes. You act yourself'] },
@@ -43,7 +43,8 @@ export default function Agent() {
   const [modeSaving, setModeSaving] = useState(false);
   useEffect(() => {
     let active = true;
-    getOnChainAgentPolicy().then((policy) => {
+    Promise.all([getOnChainAgentPolicy(), getOnChainAgentExecutionMode()]).then(([policy, executionMode]) => {
+      hydrateAgentMode(executionMode === 'Delegated' ? 'auto' : executionMode === 'Advisory' || executionMode === 'Education' ? 'advisory' : 'approval');
       if (!active) return;
       setChainPolicy(policy);
       if (policy) {
@@ -62,18 +63,15 @@ export default function Agent() {
     return () => { active = false; };
   }, []);
   const changeMode = async (mode: Mode) => {
-    if (mode === 'auto') {
-      setModeSaving(true); setChainError(''); setChainSuccess('');
-      try {
-        const tx = await setOnChainAgentExecutionMode('Delegated');
-        setMode('auto');
-        setChainSuccess('Delegated mode verified on-chain. Transaction: ' + tx);
-      } catch (error) {
-        setChainError(error instanceof Error ? error.message : 'Could not enable delegated mode on-chain.');
-      } finally { setModeSaving(false); }
-      return;
-    }
-    setMode(mode);
+    setModeSaving(true); setChainError(''); setChainSuccess('');
+    const executionMode = mode === 'auto' ? 'Delegated' : mode === 'approval' ? 'ManualApproval' : 'Advisory';
+    try {
+      const tx = await setOnChainAgentExecutionMode(executionMode);
+      setMode(mode);
+      setChainSuccess(executionMode + ' mode verified on-chain. Transaction: ' + tx);
+    } catch (error) {
+      setChainError(error instanceof Error ? error.message : 'Could not update execution mode on-chain.');
+    } finally { setModeSaving(false); }
   };
   const saveChainPolicy = async () => {
     setChainSaving(true); setChainError(''); setChainSuccess('');
