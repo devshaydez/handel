@@ -2251,7 +2251,7 @@ mod tests {
     #[test]
     fn escrow_token_account_mapping_is_readable() {
         let mut c = contract();
-        let asset_id = "nep141:stock.testnet".to_string();
+        let asset_id = "stock.testnet".to_string();
         assert_eq!(c.get_escrow_token_account(asset_id.clone()), None);
 
         context("owner.testnet");
