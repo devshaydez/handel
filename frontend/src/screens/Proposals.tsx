@@ -43,6 +43,8 @@ export default function Proposals() {
 
   const prepareApproval = async (proposal: Proposal) => {
     if (!s.wallet.connected || !s.wallet.account) { setPrepareError('Connect your NEAR Testnet wallet first.'); return; }
+    setPrepareError('This legacy single-wallet approval path is disabled. Use the two-party Testnet proposal composer in Assistant so the holder and writer sign separately.');
+    return;
     setPreparing(true);
     setPrepareError('');
     try {
@@ -50,11 +52,11 @@ export default function Proposals() {
       const strike = (BigInt(Math.round(proposal.strike * 100)) * BigInt(proposal.qty) * 1_000_000n).toString();
       const expiryNs = (BigInt(Date.parse(proposal.expiry + 'T23:59:59Z')) * 1_000_000n).toString();
       const authorization = await signAgentProposalIntent({
-        holder: s.wallet.account, kind: proposal.side === 'call' ? 'Call' : 'Put',
+        principal: s.wallet.account, holder: s.wallet.account, kind: proposal.side === 'call' ? 'Call' : 'Put',
         assetId: 'nep141:wnear.tidepool-sandbox.testnet', quantity, strike, premium: '5000000', expiryNs,
       });
       const reply = await createAdvisoryProposal({
-        holder: s.wallet.account,
+        principal: s.wallet.account, holder: s.wallet.account,
         authorization,
         request: {
           type: proposal.side === 'call' ? 'Call' : 'Put',
@@ -70,7 +72,7 @@ export default function Proposals() {
       setPreparedCall({ ...reply.prepared, rationale: reply.proposal.rationale, risks: reply.proposal.risks, aiModel: reply.ai.model });
       setSign(true);
     } catch (error) {
-      setPrepareError(error instanceof Error ? error.message : 'Could not prepare the AI proposal.');
+      setPrepareError(String(error));
     } finally {
       setPreparing(false);
     }

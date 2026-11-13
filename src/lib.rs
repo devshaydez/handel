@@ -356,6 +356,59 @@ impl OptionsContract {
                 ProposalState::Approved,
                 "agent proposal not approved"
             );
+            let policy = self
+                .agent_policies
+                .get(&proposal.agent_id)
+                .expect("agent policy missing");
+            assert!(
+                policy.enabled && env::block_timestamp() < policy.expires_at_ns,
+                "agent policy inactive"
+            );
+            assert_eq!(
+                self.agent_execution_mode(&proposal.agent_id),
+                AgentExecutionMode::ManualApproval,
+                "agent is no longer in manual-approval mode"
+            );
+            assert!(
+                policy.allowed_assets.contains(&proposal.asset_id),
+                "proposal asset no longer allowed"
+            );
+            assert!(
+                proposal.underlying_amount <= policy.max_underlying_amount,
+                "proposal underlying cap changed"
+            );
+            assert!(
+                proposal.premium_amount_usdc <= policy.max_premium_usdc,
+                "proposal premium cap changed"
+            );
+            let open_count = self
+                .positions
+                .values()
+                .filter(|open| {
+                    open.writer == proposal.principal
+                        && !matches!(
+                            open.state,
+                            PositionState::Settled
+                                | PositionState::Cancelled
+                                | PositionState::Expired
+                        )
+                })
+                .count();
+            assert!(
+                open_count <= policy.max_open_positions as usize,
+                "proposal open-position limit changed"
+            );
+            if proposal.kind == OptionKind::Put {
+                assert!(
+                    proposal.strike_amount_usdc <= policy.max_collateral_usdc,
+                    "proposal collateral cap changed"
+                );
+            }
+            assert!(
+                proposal.expiry_ns > env::block_timestamp()
+                    && proposal.expiry_ns <= policy.expires_at_ns,
+                "proposal expiry is no longer valid"
+            );
         }
         assert!(
             position.escrow_position_id.is_none(),
@@ -1330,6 +1383,7 @@ impl OptionsContract {
             );
         }
         let principal = policy.principal.clone();
+        assert_ne!(holder, principal, "holder must be distinct from principal");
         let open_count = self
             .positions
             .values()
@@ -1569,6 +1623,10 @@ impl OptionsContract {
             open_count < policy.max_open_positions as usize,
             "open position limit"
         );
+        assert_ne!(
+            holder, policy.principal,
+            "holder must be distinct from principal"
+        );
         let position_id = self.create_offer(
             OptionKind::Call,
             policy.principal.clone(),
@@ -1651,6 +1709,10 @@ impl OptionsContract {
         assert!(
             open_count < policy.max_open_positions as usize,
             "open position limit"
+        );
+        assert_ne!(
+            holder, policy.principal,
+            "holder must be distinct from principal"
         );
         let position_id = self.create_offer(
             OptionKind::Put,
@@ -2815,6 +2877,204 @@ mod tests {
         assert_eq!(
             c.get_agent_proposal("proposal-2".into()).unwrap().state,
             ProposalState::Rejected
+        );
+    }
+
+    #[test]
+    fn agent_proposal_replay_and_two_party_roles_are_enforced() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            2_000,
+            2,
+            80,
+        );
+
+        context("agent.testnet");
+        let same_party = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.create_agent_proposal(
+                "same-party-proposal".into(),
+                OptionKind::Call,
+                account("writer.testnet"),
+                "nep141:stock.testnet".into(),
+                10,
+                20,
+                70,
+                5,
+                "sha256:same-party".into(),
+            )
+        }));
+        assert!(
+            same_party.is_err(),
+            "the principal cannot also be the holder"
+        );
+
+        c.create_agent_proposal(
+            "one-time-proposal".into(),
+            OptionKind::Call,
+            account("buyer.testnet"),
+            "nep141:stock.testnet".into(),
+            10,
+            20,
+            70,
+            5,
+            "sha256:bound-terms".into(),
+        );
+        let position = c.get_position(0).unwrap();
+        assert_eq!(position.writer, account("writer.testnet"));
+        assert_eq!(position.holder, account("buyer.testnet"));
+
+        let replay = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.create_agent_proposal(
+                "one-time-proposal".into(),
+                OptionKind::Call,
+                account("attacker.testnet"),
+                "nep141:stock.testnet".into(),
+                10,
+                20,
+                70,
+                5,
+                "sha256:replayed-terms".into(),
+            )
+        }));
+        assert!(
+            replay.is_err(),
+            "a proposal nonce-derived ID must be one-time"
+        );
+
+        context("buyer.testnet");
+        let holder_cannot_approve = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.approve_agent_proposal("one-time-proposal".into())
+        }));
+        assert!(
+            holder_cannot_approve.is_err(),
+            "only the writer principal may approve"
+        );
+
+        context("writer.testnet");
+        c.approve_agent_proposal("one-time-proposal".into());
+        assert_eq!(
+            c.get_agent_proposal("one-time-proposal".into())
+                .unwrap()
+                .state,
+            ProposalState::Approved
+        );
+    }
+
+    #[test]
+    fn agent_proposal_rejects_policy_limit_breaches_and_revocation() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            5,
+            10,
+            100,
+            2,
+            80,
+        );
+        context("agent.testnet");
+        let over_size = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.create_agent_proposal(
+                "over-size".into(),
+                OptionKind::Call,
+                account("buyer.testnet"),
+                "nep141:stock.testnet".into(),
+                6,
+                20,
+                70,
+                5,
+                "sha256:size".into(),
+            )
+        }));
+        assert!(over_size.is_err());
+        let over_premium = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.create_agent_proposal(
+                "over-premium".into(),
+                OptionKind::Call,
+                account("buyer.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                20,
+                70,
+                11,
+                "sha256:premium".into(),
+            )
+        }));
+        assert!(over_premium.is_err());
+        let over_put_collateral = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.create_agent_proposal(
+                "over-collateral".into(),
+                OptionKind::Put,
+                account("buyer.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                101,
+                70,
+                5,
+                "sha256:collateral".into(),
+            )
+        }));
+        assert!(over_put_collateral.is_err());
+
+        context("writer.testnet");
+        c.revoke_agent(account("agent.testnet"));
+        context("agent.testnet");
+        let revoked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.create_agent_proposal(
+                "revoked-proposal".into(),
+                OptionKind::Call,
+                account("buyer.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                20,
+                70,
+                5,
+                "sha256:revoked".into(),
+            )
+        }));
+        assert!(revoked.is_err());
+    }
+
+    #[test]
+    fn agent_proposal_revocation_after_approval_blocks_escrow_registration() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            2_000,
+            2,
+            80,
+        );
+        context("agent.testnet");
+        c.create_agent_proposal(
+            "revoked-after-approval".into(),
+            OptionKind::Call,
+            account("buyer.testnet"),
+            "nep141:stock.testnet".into(),
+            10,
+            20,
+            70,
+            5,
+            "sha256:revocation-gate".into(),
+        );
+        context("writer.testnet");
+        c.approve_agent_proposal("revoked-after-approval".into());
+        c.revoke_agent(account("agent.testnet"));
+        let registration = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.register_escrow_position(0)
+        }));
+        assert!(
+            registration.is_err(),
+            "revocation after approval must still block escrow registration"
         );
     }
 

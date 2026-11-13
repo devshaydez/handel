@@ -99,6 +99,13 @@ test("advisory-only proposals can be prepared without pretending market data is 
   }
 });
 
+test("proposal preparation rejects the principal as holder", () => {
+  const proposal = stubProposal({ underlyingAssetId: NVDAON_ASSET_ID, daysToExpiry: 2 });
+  const result = prepareAgentProposal({ proposal, holder: permission.owner, permission });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.errors.join(" "), /distinct from the principal/);
+});
+
 test("account IDs reject malformed values", () => {
   assert.equal(isAccountId("buyer.testnet"), true);
   assert.equal(isAccountId("Buyer.testnet"), false);

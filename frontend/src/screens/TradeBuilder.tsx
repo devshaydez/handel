@@ -182,17 +182,19 @@ export default function TradeBuilder() {
 
   async function prepareAndSign() {
     if (!s.wallet.connected || !s.wallet.account) { setPrepareError('Connect your NEAR Testnet wallet first.'); return; }
+    setPrepareError('This legacy single-wallet trade path is disabled. Use the two-party Testnet proposal composer in Assistant so the writer and holder authorize separate funding legs.');
+    return;
     setPreparing(true); setPrepareError('');
     try {
       const quantity = (BigInt(qty) * 100n * 10n ** 24n).toString();
       const strikeAmount = (BigInt(Math.round(k * 100)) * BigInt(qty) * 1_000_000n).toString();
       const expiryNs = (BigInt(Date.parse(expiry + 'T23:59:59Z')) * 1_000_000n).toString();
       const authorization = await signAgentProposalIntent({
-        holder: s.wallet.account, kind: side === 'call' ? 'Call' : 'Put',
+        principal: s.wallet.account, holder: s.wallet.account, kind: side === 'call' ? 'Call' : 'Put',
         assetId: 'nep141:wnear.tidepool-sandbox.testnet', quantity, strike: strikeAmount, premium: '5000000', expiryNs,
       });
       const reply = await createAdvisoryProposal({
-        holder: s.wallet.account,
+        principal: s.wallet.account, holder: s.wallet.account,
         authorization,
         request: {
           type: side === 'call' ? 'Call' : 'Put',
@@ -207,7 +209,7 @@ export default function TradeBuilder() {
       setAiPreview({ rationale: reply.proposal.rationale, risks: reply.proposal.risks, model: reply.ai.model });
       setSign(true);
     } catch (error) {
-      setPrepareError(error instanceof Error ? error.message : 'Could not prepare the Testnet trade.');
+      setPrepareError(String(error));
     } finally {
       setPreparing(false);
     }

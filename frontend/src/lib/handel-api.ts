@@ -54,6 +54,7 @@ export function checkHandelHealth(): Promise<{ ok: boolean; service: string; mod
 
 
 export interface AdvisoryProposalRequest {
+  principal: string;
   holder: string;
   authorization: { message: string; nonce: string; recipient: string; callbackUrl: string; issuedAtMs: string; publicKey: string; signature: string };
   request: {
@@ -69,6 +70,9 @@ export interface AdvisoryProposalRequest {
 export interface AdvisoryProposalReply {
   proposal: {
     proposalId: string;
+    principal: string;
+    holder: string;
+    positionId: string;
     type: 'Call' | 'Put';
     underlyingAssetId: string;
     strike: string;

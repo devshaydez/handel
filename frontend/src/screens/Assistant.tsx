@@ -9,6 +9,7 @@ import type { Block } from '../data/types';
 import { go } from '../router';
 import { createProposalFromDraft, sendChat, useStore } from '../state/store';
 import { CONTRACT_SIZE, usd, usd0, breakeven } from '../lib/pricing';
+import { TestnetProposalComposer } from '../components/TestnetProposalComposer';
 
 function BlockView({ b }: { b: Block }) {
   const s = useStore();
@@ -78,7 +79,7 @@ export default function Assistant() {
   const send = (t: string) => { sendChat(t); setText(''); };
   return (
     <div className="page">
-      <PageHead title="AI assistant" sub="One Assistant for analysis and trade requests. The Agent tab only configures this same agent; current market examples are demo data and delegated submission is not yet activated in this deployment." />
+      <PageHead title="AI assistant" sub="One Assistant for analysis and trade requests. The Agent tab only configures this same agent; current market examples are demo data and Testnet proposals require a principal wallet signature and separate holder payment." />
       <div className="chat-wrap">
         <Card className="chat">
           <div className="chat-scroll" aria-live="polite">
@@ -97,6 +98,7 @@ export default function Assistant() {
           </form>
         </Card>
         <div className="col gap16">
+          <TestnetProposalComposer />
           <Card>
             <CardHead title="Try asking" />
             <div className="col gap8">{SUGGESTIONS.map((q) => <button key={q} className="chip" style={{ justifyContent: 'flex-start', textAlign: 'left', borderRadius: 14 }} disabled={s.chatBusy} onClick={() => send(q)}>{q}</button>)}</div>

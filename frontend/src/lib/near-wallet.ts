@@ -23,6 +23,7 @@ export interface AgentProposalAuthorization {
   signature: string;
 }
 export async function signAgentProposalIntent(input: {
+  principal: string;
   holder: string;
   kind: 'Call' | 'Put';
   assetId: string;
@@ -32,7 +33,7 @@ export async function signAgentProposalIntent(input: {
   expiryNs: string;
 }): Promise<AgentProposalAuthorization> {
   const accountId = await currentNearAccount();
-  if (!accountId || accountId !== input.holder) throw new Error('Connect the principal wallet that owns this agent before requesting a proposal.');
+  if (!accountId || accountId !== input.principal) throw new Error('Connect the principal wallet that owns this agent before requesting a proposal.');
   const s = await selector();
   const wallet = await s.wallet();
   if (typeof wallet.signMessage !== 'function') {
@@ -47,7 +48,8 @@ export async function signAgentProposalIntent(input: {
     'Handel agent proposal authorization',
     'Action: submit one pending options proposal for principal approval',
     'Version: 1',
-    'Principal: ' + input.holder,
+    'Principal: ' + input.principal,
+    'Holder: ' + input.holder,
     'Option type: ' + input.kind,
     'Asset ID: ' + input.assetId,
     'Underlying amount (base units): ' + input.quantity,
@@ -57,7 +59,7 @@ export async function signAgentProposalIntent(input: {
     'Issued at (milliseconds): ' + issuedAtMs,
   ].join('\n');
   const signed = await wallet.signMessage({ message, recipient, nonce: nonceBytes as never, callbackUrl });
-  if (!signed || !signed.signature || !signed.publicKey || signed.accountId !== input.holder) {
+  if (!signed || !signed.signature || !signed.publicKey || signed.accountId !== input.principal) {
     throw new Error('The wallet did not return a verifiable NEP-413 signature. No proposal was submitted.');
   }
   const signatureValue = signed.signature as unknown;
@@ -287,16 +289,17 @@ async function transferCall(
  * collateral and premium using NEP-141 transfer_call, then pay the premium
  * through the escrow's callback-verified NEP-141 transfer.
  */
-async function fundExistingEscrowPosition(positionId: string, methodName: 'create_call' | 'create_put', args: Record<string, unknown>, accountId: string, initialSteps: { hash: string; label: string }[]) {
+async function fundExistingEscrowPosition(positionId: string, methodName: 'create_call' | 'create_put', args: Record<string, unknown>, accountId: string, initialSteps: { hash: string; label: string }[], includePremium = true) {
   let lastHash = initialSteps.at(-1)?.hash || '';
   const transactionSteps = [...initialSteps];
   try {
-    let option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT!, 'get_position', { position_id: Number(positionId) });
+    let option = await view<{ escrow_position_id?: number | string | null; escrow_registration_pending?: boolean }>(OPTIONS_CONTRACT!, 'get_position', { id: Number(positionId) });
     if (option.escrow_position_id === undefined || option.escrow_position_id === null) {
-      const registerTx = await send(OPTIONS_CONTRACT!, 'register_escrow_position', { position_id: Number(positionId) });
+      const registrationMethod = option.escrow_registration_pending ? 'retry_escrow_registration' : 'register_escrow_position';
+      const registerTx = await send(OPTIONS_CONTRACT!, registrationMethod, { position_id: Number(positionId) });
       lastHash = registerTx.transactionHash;
-      transactionSteps.push({ hash: registerTx.transactionHash, label: 'Escrow registration' });
-      option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT!, 'get_position', { position_id: Number(positionId) });
+      transactionSteps.push({ hash: registerTx.transactionHash, label: option.escrow_registration_pending ? 'Escrow registration retry' : 'Escrow registration' });
+      option = await view<{ escrow_position_id?: number | string | null; escrow_registration_pending?: boolean }>(OPTIONS_CONTRACT!, 'get_position', { id: Number(positionId) });
     }
     if (option.escrow_position_id === undefined || option.escrow_position_id === null) {
       throw new Error('Escrow registration is not confirmed by OptionsContract yet.');
@@ -316,6 +319,12 @@ async function fundExistingEscrowPosition(positionId: string, methodName: 'creat
     }
     if (escrowState?.collateral_received !== true) {
       throw new Error('Escrow has not confirmed collateral receipt. Position remains pending; transaction ' + lastHash);
+    }
+    if (!includePremium) {
+      const optionState = await view<{ state?: string | Record<string, unknown> }>(OPTIONS_CONTRACT!, 'get_position', { id: Number(positionId) });
+      const stateName = typeof optionState.state === 'string' ? optionState.state : optionState.state && typeof optionState.state === 'object' ? Object.keys(optionState.state)[0] : '';
+      if (stateName !== 'PendingCollateral') throw new Error('Principal collateral is confirmed but the option is not in the expected pending state.');
+      return { transactionHash: lastHash, transactionSteps, accountId, positionId, escrowPositionId };
     }
     const premiumAmount = String(args.premium_amount_usdc);
     let premiumStatus = await view<{ received?: boolean; paid?: boolean } | null>(ESCROW_CONTRACT!, 'get_premium_status', { position_id: Number(escrowPositionId) });
@@ -392,7 +401,10 @@ async function approveAndFundAgentProposal(args: Record<string, unknown>): Promi
   } else if (proposal.state !== 'Approved') {
     throw new Error('This agent proposal is no longer pending approval.');
   }
-  return fundExistingEscrowPosition(positionId, methodName, optionArgs, accountId, initialSteps);
+  const optionBeforeFunding = await view<{ escrow_position_id?: string | number | null }>(OPTIONS_CONTRACT, 'get_position', { id: Number(positionId) });
+  const funded = await fundExistingEscrowPosition(positionId, methodName, optionArgs, accountId, initialSteps, false);
+  if (!funded.escrowPositionId) throw new Error('Escrow registration did not return an escrow position ID.');
+  return funded;
 }
 /**
  * Principal-authorized collateral funding for an agent-created Testnet option.
@@ -489,6 +501,9 @@ export async function authorizeDelegatedPremiumPayment(
     });
   }
   if (!status.paid) throw new Error('Escrow has not confirmed premium settlement.');
+  const optionState = await view<{ state?: string | Record<string, unknown> }>(OPTIONS_CONTRACT, 'get_position', { id: Number(positionId) });
+  const stateName = typeof optionState.state === 'string' ? optionState.state : optionState.state && typeof optionState.state === 'object' ? Object.keys(optionState.state)[0] : '';
+  if (stateName !== 'Open') throw new Error('Escrow premium is settled but OptionsContract has not confirmed Open state.');
   return {
     transactionHash: steps.at(-1)?.hash ?? '',
     accountId: holder,
