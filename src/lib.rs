@@ -356,6 +356,42 @@ impl OptionsContract {
                 ProposalState::Approved,
                 "agent proposal not approved"
             );
+            let policy = self
+                .agent_policies
+                .get(&proposal.agent_id)
+                .expect("agent policy missing");
+            assert!(
+                policy.enabled && env::block_timestamp() < policy.expires_at_ns,
+                "agent policy inactive"
+            );
+            assert_eq!(
+                self.agent_execution_mode(&proposal.agent_id),
+                AgentExecutionMode::ManualApproval,
+                "agent is no longer in manual-approval mode"
+            );
+            assert!(
+                policy.allowed_assets.contains(&proposal.asset_id),
+                "proposal asset no longer allowed"
+            );
+            assert!(
+                proposal.underlying_amount <= policy.max_underlying_amount,
+                "proposal underlying cap changed"
+            );
+            assert!(
+                proposal.premium_amount_usdc <= policy.max_premium_usdc,
+                "proposal premium cap changed"
+            );
+            if proposal.kind == OptionKind::Put {
+                assert!(
+                    proposal.strike_amount_usdc <= policy.max_collateral_usdc,
+                    "proposal collateral cap changed"
+                );
+            }
+            assert!(
+                proposal.expiry_ns > env::block_timestamp()
+                    && proposal.expiry_ns <= policy.expires_at_ns,
+                "proposal expiry is no longer valid"
+            );
         }
         assert!(
             position.escrow_position_id.is_none(),
@@ -2977,6 +3013,43 @@ mod tests {
             )
         }));
         assert!(revoked.is_err());
+    }
+
+    #[test]
+    fn agent_proposal_revocation_after_approval_blocks_escrow_registration() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            2_000,
+            2,
+            80,
+        );
+        context("agent.testnet");
+        c.create_agent_proposal(
+            "revoked-after-approval".into(),
+            OptionKind::Call,
+            account("buyer.testnet"),
+            "nep141:stock.testnet".into(),
+            10,
+            20,
+            70,
+            5,
+            "sha256:revocation-gate".into(),
+        );
+        context("writer.testnet");
+        c.approve_agent_proposal("revoked-after-approval".into());
+        c.revoke_agent(account("agent.testnet"));
+        let registration = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.register_escrow_position(0)
+        }));
+        assert!(
+            registration.is_err(),
+            "revocation after approval must still block escrow registration"
+        );
     }
 
     #[test]
