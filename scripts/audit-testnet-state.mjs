@@ -84,7 +84,6 @@ async function auditEndpoint(endpoint) {
   const optionsViews = {};
   const escrowViews = {};
   const tokenViews = {};
-  const escrowPositions = {};
   const readOptions = async (name, args = {}) => {
     try { optionsViews[name + (Object.keys(args).length ? ":" + JSON.stringify(args) : "")] =
       await view(endpoint, optionsAccount, name, args); }
@@ -94,11 +93,6 @@ async function auditEndpoint(endpoint) {
     try { escrowViews[name + (Object.keys(args).length ? ":" + JSON.stringify(args) : "")] =
       await view(endpoint, escrowAccount, name, args); }
     catch (error) { escrowViews[name + ":ERROR"] = String(error); }
-  };
-  const readEscrowPosition = async (methodName, args = {}) => {
-    const key = methodName + ":" + JSON.stringify(args);
-    try { escrowPositions[key] = await view(endpoint, escrowAccount, methodName, args); }
-    catch (error) { escrowPositions[key + ":ERROR"] = String(error); }
   };
   const readToken = async (tokenAccount, methodName, args = {}) => {
     const key = tokenAccount + ":" + methodName;
@@ -126,33 +120,17 @@ async function auditEndpoint(endpoint) {
     const response = optionsViews[key];
     return response && typeof response.value === "string" ? response.value : null;
   }).filter(Boolean);
-  const optionsCount = optionsViews.get_position_count;
-  const positionCount = optionsCount && Number(optionsCount.value);
-  if (Number.isSafeInteger(positionCount) && positionCount >= 0 && positionCount <= 5000) {
-    for (let positionId = 0; positionId < positionCount; positionId += 1) {
-      await Promise.all([
-        readEscrowPosition("get_position", { position_id: positionId }),
-        readEscrowPosition("get_storage_economics", { position_id: positionId }),
-        readEscrowPosition("get_latest_lifecycle_sequence", { position_id: positionId }),
-        ...["exercise_payment", "exercise_collateral", "expiry_collateral", "premium_payout", "premium_refund"]
-          .map(leg => readEscrowPosition("get_payout_reconciliation", { position_id: positionId, leg })),
-      ]);
-      const seqKey = "get_latest_lifecycle_sequence:" + JSON.stringify({ position_id: positionId });
-      const seq = escrowPositions[seqKey]?.value;
-      const eventCount = Number(seq);
-      if (Number.isSafeInteger(eventCount) && eventCount > 0 && eventCount <= 1000) {
-        for (let sequence = 1; sequence <= eventCount; sequence += 1) {
-          await readEscrowPosition("get_lifecycle_event", { position_id: positionId, sequence });
-        }
-      }
-    }
-  }
+  // Escrow exposes no position-count or ID-enumeration view. OptionsContract
+  // position IDs are not a valid bound for Escrow's independent ID space, so
+  // this audit deliberately does not guess Escrow IDs or invoke panic-on-missing
+  // position views. Escrow records require IDs obtained from trusted lifecycle
+  // receipts or a future explicit enumeration view.
   await Promise.all([...new Set(tokenAccounts)].flatMap(tokenAccount => [
     readToken(tokenAccount, "ft_metadata"),
     readToken(tokenAccount, "storage_balance_of", { account_id: escrowAccount }),
     readToken(tokenAccount, "ft_balance_of", { account_id: escrowAccount }),
   ]));
-  return { endpoint, optionsCode, escrowCode, optionsViews, escrowViews, tokenViews, escrowPositions };
+  return { endpoint, optionsCode, escrowCode, optionsViews, escrowViews, tokenViews };
 }
 const results = await Promise.all(endpoints.map(auditEndpoint));
 const comparable = result => JSON.stringify(canonical({
@@ -166,8 +144,6 @@ const comparable = result => JSON.stringify(canonical({
     [key, typeof item === "object" && item !== null && "value" in item ? item.value : item])),
   tokenViews: Object.fromEntries(Object.entries(result.tokenViews).map(([key, item]) =>
     [key, typeof item === "object" && item !== null && "value" in item ? item.value : item])),
-  escrowPositions: Object.fromEntries(Object.entries(result.escrowPositions).map(([key, item]) =>
-    [key, typeof item === "object" && item !== null && "value" in item ? item.value : item])),
 }));
 const agrees = comparable(results[0]) === comparable(results[1]);
 const expectedOptions = process.env.HANDEL_EXPECTED_OPTIONS_SHA256;
@@ -176,7 +152,7 @@ const hashesMatch = result =>
   (!expectedOptions || result.optionsCode.codeSha256 === expectedOptions) &&
   (!expectedEscrow || result.escrowCode.codeSha256 === expectedEscrow);
 const rpcErrors = results.flatMap(result =>
-  [...Object.entries(result.optionsViews), ...Object.entries(result.escrowViews), ...Object.entries(result.tokenViews), ...Object.entries(result.escrowPositions)]
+  [...Object.entries(result.optionsViews), ...Object.entries(result.escrowViews), ...Object.entries(result.tokenViews),  ]
     .filter(([key]) => key.endsWith(":ERROR"))
     .map(([key, error]) => ({ endpoint: result.endpoint, key, error })));
 const report = {
@@ -189,6 +165,7 @@ const report = {
   rpcViewErrors: rpcErrors,
   endpoints: results,
   limitations: [
+    "Escrow exposes no safe public position-ID enumeration; this script does not guess its independent ID space from OptionsContract IDs.",
     "Escrow controller and payout-reconciler state have no public view methods in the current contract ABI; this script does not infer them.",
     "A successful RPC quorum is independent-provider corroboration, not a cryptographic light-client proof.",
     "The token reads report Escrow's own NEP-141 storage registration and token balance; they do not prove user wallet balances or transfer history.",
