@@ -7,7 +7,7 @@ import { shortHash } from '../data/seed';
 import type { ActKind, Activity as Act } from '../data/types';
 import { go } from '../router';
 import { useStore } from '../state/store';
-import { fetchObservedPositionActivity, type IndexedPositionActivity } from '../lib/indexer-api';
+import { fetchObservedPositionActivity, fetchPersistentReceipts, type IndexedPositionActivity, type IndexedChainReceipt } from '../lib/indexer-api';
 
 const ICON: Record<ActKind, { i: typeof LuScanSearch; c: string }> = {
   proposal: { i: LuScanSearch, c: 'ai' }, approval: { i: LuThumbsUp, c: 'ok' }, rejection: { i: LuThumbsDown, c: '' }, ai_decision: { i: LuScanSearch, c: 'ai' }, no_trade: { i: LuBan, c: '' },
@@ -28,12 +28,16 @@ export default function Activity({ id }: { id?: string }) {
   const [f, setF] = useState<F>('all');
   const [sel, setSel] = useState<string | null>(id ?? null);
   const [chainEvents, setChainEvents] = useState<IndexedPositionActivity[]>([]);
+  const [receipts, setReceipts] = useState<IndexedChainReceipt[]>([]);
+  const [receiptHistoryError, setReceiptHistoryError] = useState<string | null>(null);
   const [chainError, setChainError] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     if (!s.wallet.account) { setChainEvents([]); return () => { active = false; }; }
     fetchObservedPositionActivity(s.wallet.account).then(rows => { if (active) { setChainEvents(rows); setChainError(null); } })
       .catch(error => { if (active) setChainError(error instanceof Error ? error.message : 'Indexer unavailable'); });
+    fetchPersistentReceipts(s.wallet.account).then(rows => { if (active) { setReceipts(rows); setReceiptHistoryError(null); } })
+      .catch(error => { if (active) setReceiptHistoryError(error instanceof Error ? error.message : 'Persistent receipt history unavailable'); });
     return () => { active = false; };
   }, [s.wallet.account]);
   const loading = useLoading(300);
@@ -60,7 +64,25 @@ export default function Activity({ id }: { id?: string }) {
             </div>)}
           </div>
         )}
-        <p className="tiny faint">This free journal persists observations in this browser only. It cannot recover changes that happened while the app was closed, and it is not a complete transaction/receipt history. Transaction hashes are shown only for transactions Handel itself has recorded.</p>
+        <p className="tiny faint">Position observations in this panel are browser-local. Finalized transaction and receipt records are shown separately above when the persistent block indexer is configured and running.</p>
+      </Card>
+      <Card>
+        <CardHead title="Finalized transactions and receipts" sub="Persistent chain history indexed from the configured deployment block" />
+        {receiptHistoryError && <Banner tone="warn">{receiptHistoryError}. This is separate from browser-observed position changes.</Banner>}
+        {receipts.length === 0 ? <EmptyState title="No indexed receipts available" body="Persistent receipt history appears after the backend indexer is configured with the correct contract deployment start height and has scanned finalized blocks." /> : (
+          <div className="col gap12">
+            {receipts.map(receipt => <div key={receipt.receipt_id} className="row between start gap12">
+              <div className="grow">
+                <div className="semi">{receipt.execution_status === "success" ? "Receipt succeeded" : receipt.execution_status === "failure" ? "Receipt failed" : "Receipt outcome unknown"}</div>
+                <div className="small muted">Tx {receipt.transaction_hash} · Receipt {receipt.receipt_id}</div>
+                <div className="tiny faint">Signer {receipt.signer_id} · Executor {receipt.executor_id}</div>
+                <div className="tiny faint">Finalized block {receipt.block_height} · {receipt.block_hash}</div>
+                {receipt.logs.length > 0 && <details className="tiny"><summary>Receipt logs ({receipt.logs.length})</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{receipt.logs.join("\n")}</pre></details>}
+              </div>
+              <Badge tone={receipt.finalized ? "success" : "warn"}>{receipt.finalized ? "Finalized" : "Unfinalized"}</Badge>
+            </div>)}
+          </div>
+        )}
       </Card>
       <Tabs value={f} onChange={setF} tabs={[{ v: 'all', label: 'All', n: counts('all') }, { v: 'ai', label: 'AI decisions', n: counts('ai') }, { v: 'tx', label: 'Transactions', n: counts('tx') }, { v: 'positions', label: 'Positions', n: counts('positions') }, { v: 'permissions', label: 'Permissions', n: counts('permissions') }]} />
       <Card className="flush">
