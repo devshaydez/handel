@@ -2878,6 +2878,54 @@ mod tests {
     }
 
     #[test]
+    fn agent_proposal_rejects_policy_limit_breaches_and_revocation() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            5,
+            10,
+            100,
+            2,
+            80,
+        );
+        context("agent.testnet");
+        let over_size = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.create_agent_proposal(
+                "over-size".into(), OptionKind::Call, account("buyer.testnet"),
+                "nep141:stock.testnet".into(), 6, 20, 70, 5, "sha256:size".into(),
+            )
+        }));
+        assert!(over_size.is_err());
+        let over_premium = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.create_agent_proposal(
+                "over-premium".into(), OptionKind::Call, account("buyer.testnet"),
+                "nep141:stock.testnet".into(), 5, 20, 70, 11, "sha256:premium".into(),
+            )
+        }));
+        assert!(over_premium.is_err());
+        let over_put_collateral = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.create_agent_proposal(
+                "over-collateral".into(), OptionKind::Put, account("buyer.testnet"),
+                "nep141:stock.testnet".into(), 5, 101, 70, 5, "sha256:collateral".into(),
+            )
+        }));
+        assert!(over_put_collateral.is_err());
+
+        context("writer.testnet");
+        c.revoke_agent(account("agent.testnet"));
+        context("agent.testnet");
+        let revoked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.create_agent_proposal(
+                "revoked-proposal".into(), OptionKind::Call, account("buyer.testnet"),
+                "nep141:stock.testnet".into(), 5, 20, 70, 5, "sha256:revoked".into(),
+            )
+        }));
+        assert!(revoked.is_err());
+    }
+
+    #[test]
     fn agent_proposal_cannot_bypass_principal_approval_through_escrow_registration() {
         let mut c = contract();
         context("writer.testnet");
