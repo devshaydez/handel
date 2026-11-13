@@ -500,6 +500,9 @@ export async function authorizeDelegatedPremiumPayment(
     });
   }
   if (!status.paid) throw new Error('Escrow has not confirmed premium settlement.');
+  const optionState = await view<{ state?: string | Record<string, unknown> }>(OPTIONS_CONTRACT, 'get_position', { id: Number(positionId) });
+  const stateName = typeof optionState.state === 'string' ? optionState.state : optionState.state && typeof optionState.state === 'object' ? Object.keys(optionState.state)[0] : '';
+  if (stateName !== 'Open') throw new Error('Escrow premium is settled but OptionsContract has not confirmed Open state.');
   return {
     transactionHash: steps.at(-1)?.hash ?? '',
     accountId: holder,
