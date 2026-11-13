@@ -48,7 +48,7 @@ export async function signAgentSessionIntent(principal: string): Promise<Delegat
     'Principal: ' + principal,
     "Scope: execute trades only within the principal's active on-chain delegated policy",
     'Issued at (milliseconds): ' + issuedAtMs,
-  ].join('\\n');
+  ].join('\n');
   const signed = await wallet.signMessage({ message, recipient, nonce: nonceBytes as never, callbackUrl });
   if (!signed || !signed.signature || !signed.publicKey || signed.accountId !== principal) {
     throw new Error('The wallet did not return a verifiable NEP-413 session signature.');
