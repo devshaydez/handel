@@ -94,7 +94,7 @@ async function readDirectPortfolio(rpc: string, account: string): Promise<{ rows
     for (const position of page.value) {
       if (!position || typeof position.writer !== "string" || typeof position.holder !== "string" ||
           !Number.isSafeInteger(Number(position.id)) || Number(position.id) < fromId ||
-          Number(position.id) >= fromId + Math.min(50, count - fromId)) throw new Error("OptionsContract returned a malformed position");
+          Number(position.id) >= fromId + Math.min(50, total - fromId)) throw new Error("OptionsContract returned a malformed position");
       if (position.writer !== account && position.holder !== account) continue;
       rows.push({
         contract_id: OPTIONS_CONTRACT,
