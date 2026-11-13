@@ -3,7 +3,7 @@ import { LuBan, LuKeyRound, LuPause, LuPlay } from 'react-icons/lu';
 import { AgentPill } from '../components/status';
 import { Badge, Banner, Button, Card, CardHead, KV, Modal, PageHead } from '../components/ui';
 import { agentStatus, hydrateAgentMode, revokeAgent, useStore } from '../state/store';
-import { getOnChainAgentExecutionMode, getOnChainAgentPolicy, revokeOnChainAgentAccess, saveOnChainAgentPolicy, setOnChainAgentExecutionMode } from '../lib/near-wallet';
+import { getOnChainAgentExecutionMode, getOnChainAgentPolicy, getOnChainAssetMetadata, getOnChainUsdcAssetId, revokeOnChainAgentAccess, saveOnChainAgentPolicy, setOnChainAgentExecutionMode, type OnChainAssetMetadata } from '../lib/near-wallet';
 
 function formatBaseUnits(value: string | number, decimals: number): string {
   const amount = BigInt(value);
@@ -24,7 +24,16 @@ export default function Agent() {
   const st = agentStatus(s);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [chainPolicy, setChainPolicy] = useState<Awaited<ReturnType<typeof getOnChainAgentPolicy>>>(null);
+  const [chainAssets, setChainAssets] = useState<{ wnear: OnChainAssetMetadata | null; usdc: OnChainAssetMetadata | null; usdcAssetId: string } | null>(null);
   const [chainDraft, setChainDraft] = useState({ maxUnderlyingWnear: '', maxPremiumUsdc: '', maxCollateralUsdc: '', maxOpenPositions: '', validityDays: '' });
+  const wnearAssetId = 'nep141:wnear.tidepool-sandbox.testnet';
+  const expectedUsdcAssetId = 'nep141:usdc.tidepool-sandbox.testnet';
+  const assetReady = Boolean(
+    chainAssets &&
+    chainAssets.wnear?.asset_id === wnearAssetId && chainAssets.wnear.enabled && chainAssets.wnear.decimals === 24 &&
+    chainAssets.usdcAssetId === expectedUsdcAssetId &&
+    chainAssets.usdc?.asset_id === expectedUsdcAssetId && chainAssets.usdc.enabled && chainAssets.usdc.decimals === 6
+  );
   const [chainLoading, setChainLoading] = useState(true);
   const [chainSaving, setChainSaving] = useState(false);
   const [chainRevoking, setChainRevoking] = useState(false);
@@ -32,11 +41,18 @@ export default function Agent() {
   const [chainSuccess, setChainSuccess] = useState('');
   useEffect(() => {
     let active = true;
-    Promise.all([getOnChainAgentPolicy(), getOnChainAgentExecutionMode()]).then(([policy, executionMode]) => {
+    Promise.all([
+      getOnChainAgentPolicy(),
+      getOnChainAgentExecutionMode(),
+      getOnChainAssetMetadata(wnearAssetId),
+      getOnChainUsdcAssetId(),
+    ]).then(async ([policy, executionMode, wnear, usdcAssetId]) => {
+      const usdc = await getOnChainAssetMetadata(usdcAssetId);
       const delegated = policy?.enabled === true && executionMode === 'Delegated';
       hydrateAgentMode(delegated ? 'auto' : executionMode === 'Advisory' || executionMode === 'Education' ? 'advisory' : 'approval', policy?.enabled === false);
       if (!active) return;
       setChainPolicy(policy);
+      setChainAssets({ wnear, usdc, usdcAssetId });
       if (policy) {
         const remaining = (BigInt(policy.expires_at_ns) - BigInt(Date.now()) * 1_000_000n + 86_400_000_000_000n - 1n) / 86_400_000_000_000n;
         setChainDraft({
@@ -53,6 +69,10 @@ export default function Agent() {
     return () => { active = false; };
   }, []);
   const saveChainPolicy = async () => {
+    if (!assetReady) {
+      setChainError('Automatic execution cannot be enabled yet. The OptionsContract must have the exact wNEAR asset enabled at 24 decimals and the configured USDC asset enabled at 6 decimals. No token transfer is made by this check.');
+      return;
+    }
     setChainSaving(true); setChainError(''); setChainSuccess('');
     try {
       const result = await saveOnChainAgentPolicy({
@@ -129,7 +149,7 @@ export default function Agent() {
         <div className="row between wrap">
           <div>
             <b>Automatic execution</b>
-            <p className="small muted mt4">Saving your on-chain limits also activates Delegated mode in the same wallet transaction. You do not need to switch modes before chatting or trading.</p>
+            <p className="small muted mt4">Saving your on-chain limits also activates Delegated mode in the same wallet transaction. It only stores permissions; it does not transfer USDC or wNEAR or create a position. The principal still signs collateral and the holder separately signs premium.</p>
           </div>
           <Badge tone={s.mode === 'auto' && !s.revoked ? 'green' : 'outline'}>{s.mode === 'auto' && !s.revoked ? 'Enabled on-chain' : 'Enable when saving limits'}</Badge>
         </div>
@@ -141,6 +161,11 @@ export default function Agent() {
           <>
             {chainPolicy && <div className="small muted mb12">Principal: <b>{chainPolicy.principal}</b> · Allowed asset: wNEAR · Current policy expiry: {new Date(Number(chainPolicy.expires_at_ns) / 1_000_000).toLocaleString()}</div>}
             <div className="banner info mb12">Only the Tidepool Testnet wNEAR token is allowlisted for this agent. These permissions do not authorize stock shares or live-market assets.</div>
+            {chainAssets && <div className="row gap8 wrap mb12">
+              <Badge tone={chainAssets.wnear?.enabled && chainAssets.wnear.decimals === 24 ? 'green' : 'red'}>wNEAR registry: {chainAssets.wnear?.enabled && chainAssets.wnear.decimals === 24 ? 'enabled · 24 decimals' : 'not enabled / mismatch'}</Badge>
+              <Badge tone={chainAssets.usdcAssetId === expectedUsdcAssetId && chainAssets.usdc?.enabled && chainAssets.usdc.decimals === 6 ? 'green' : 'red'}>USDC registry: {chainAssets.usdcAssetId === expectedUsdcAssetId && chainAssets.usdc?.enabled && chainAssets.usdc.decimals === 6 ? 'enabled · 6 decimals' : 'not configured / mismatch'}</Badge>
+            </div>}
+            {!chainLoading && !assetReady && <Banner tone="warn">The contract asset registry must confirm wNEAR and USDC before automatic policy creation. If wNEAR is not enabled, the contract owner must enable it first. This check is read-only and moves no tokens.</Banner>}
             <div className="grid g2">
               <div className="field"><span className="label">Maximum underlying per trade (wNEAR)</span><input className="input" type="number" min="0" step="0.000000000000000000000001" value={chainDraft.maxUnderlyingWnear} onChange={(e) => setChainDraft({ ...chainDraft, maxUnderlyingWnear: e.target.value })} placeholder="Set your wNEAR limit" /></div>
               <div className="field"><span className="label">Maximum premium per trade (USDC)</span><input className="input" type="number" min="0" step="0.000001" value={chainDraft.maxPremiumUsdc} onChange={(e) => setChainDraft({ ...chainDraft, maxPremiumUsdc: e.target.value })} placeholder="Set your USDC limit" /></div>
@@ -151,7 +176,7 @@ export default function Agent() {
             {chainError && <Banner tone="danger">{chainError}</Banner>}
             {chainSuccess && <Banner tone="info">{chainSuccess}</Banner>}
             <div className="row gap8 wrap mt12">
-              <Button variant="gold" disabled={chainSaving || !chainDraft.maxUnderlyingWnear || !chainDraft.maxPremiumUsdc || !chainDraft.maxCollateralUsdc || !chainDraft.maxOpenPositions || !chainDraft.validityDays} onClick={() => void saveChainPolicy()}>{chainSaving ? 'Waiting for wallet…' : chainPolicy ? 'Update on-chain policy' : 'Create on-chain policy'}</Button>
+              <Button variant="gold" disabled={chainSaving || !assetReady || !chainDraft.maxUnderlyingWnear || !chainDraft.maxPremiumUsdc || !chainDraft.maxCollateralUsdc || !chainDraft.maxOpenPositions || !chainDraft.validityDays} onClick={() => void saveChainPolicy()}>{chainSaving ? 'Waiting for wallet…' : chainPolicy ? 'Update on-chain policy' : 'Create on-chain policy'}</Button>
               <span className="tiny muted">This submits one wallet-signed transaction that saves your limits and enables bounded Delegated execution together.</span>
             </div>
           </>
