@@ -381,6 +381,23 @@ impl OptionsContract {
                 proposal.premium_amount_usdc <= policy.max_premium_usdc,
                 "proposal premium cap changed"
             );
+            let open_count = self
+                .positions
+                .values()
+                .filter(|open| {
+                    open.writer == proposal.principal
+                        && !matches!(
+                            open.state,
+                            PositionState::Settled
+                                | PositionState::Cancelled
+                                | PositionState::Expired
+                        )
+                })
+                .count();
+            assert!(
+                open_count <= policy.max_open_positions as usize,
+                "proposal open-position limit changed"
+            );
             if proposal.kind == OptionKind::Put {
                 assert!(
                     proposal.strike_amount_usdc <= policy.max_collateral_usdc,
