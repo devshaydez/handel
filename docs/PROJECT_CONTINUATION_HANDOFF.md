@@ -4,8 +4,8 @@
 
 ## Current verified close-out — 2026-11-13 16:58 UTC+1
 
-- **Current main:** `371fe36c3ee376a294714d06b79c73a1170fe70c` (latest observed commit).
-- **Latest CI:** [run #43425939138](https://github.com/devshaydez/handel/actions/runs/43425939138) completed successfully: six jobs passed; frontend typecheck/build was skipped.
+- **Current main:** `f7da7824e8802c8080658949ea74e2b6a6f60a19` (latest observed commit).
+- **Latest CI:** [run #43425939138](https://github.com/devshaydez/handel/actions/runs/43425939138) completed successfully: all seven PR jobs passed, including frontend typecheck/build; the post-merge main push workflow was still running.
 - **OptionsContract:** deployed to `options.shaydez.testnet`; transaction [5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz](https://explorer.testnet.near.org/transactions/5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz). User-run RPC `view_code` check returned 425,264 bytes and exact SHA-256 `1d95e9b75d94c13eea83e708502aff0a4c54c7eee4bb09881482403bb9479ab3`.
 - **Escrow:** deployment transaction [DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR](https://explorer.testnet.near.org/transactions/DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR); its deployed code hash has not yet been independently re-read in this close-out.
 - **Delegated agent:** contract entrypoints, restricted FunctionCall signer/executor, server API route and Assistant Testnet composer are present in current source. Agent creation/registration is distinct from principal collateral and holder premium transfers.
