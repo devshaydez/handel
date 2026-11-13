@@ -5,12 +5,12 @@
 
 ## Current verified state
 
-- Latest `main`: `f7da7824e8802c8080658949ea74e2b6a6f60a19`.
-- Latest CI: [PR validation run #43458722976](https://github.com/devshaydez/handel/actions/runs/43458722976) passed all seven jobs, including frontend typecheck/build. Post-merge main workflow [#43461978187](https://github.com/devshaydez/handel/actions/runs/43461978187) was running at this snapshot.
+- Latest `main` at this snapshot: `b07eeafcdcaadf8c1b397e61eb4cbb9638369a36`.
+- Latest main CI: [run #43474798000](https://github.com/devshaydez/handel/actions/runs/43474798000) completed successfully for the backend, SDK, Testnet asset, PowerShell and live AI/Sandbox jobs. The frontend typecheck/build job was **skipped** because the workflow only enabled it for pull requests. PR [#33](https://github.com/devshaydez/handel/pull/33) changes that condition so main pushes and manual dispatches run the frontend checks too; do not mark this gap closed until its run passes.
 - OptionsContract Testnet code hash was checked against the local 425,264-byte Wasm artifact; SHA-256 matched `1d95e9b75d94c13eea83e708502aff0a4c54c7eee4bb09881482403bb9479ab3`.
 - Delegated Testnet Call/Put create-and-register implementation, restricted signer and Assistant composer exist in source.
 - No complete live two-party Testnet lifecycle is recorded. No Ondo asset settlement is established.
-- Vercel production alias is behind `main`; it was last inspected at `67f6dd01c55932f39411c36fdfcc4f46f1a2aefb`.
+- Vercel custom domain `handel-live.vercel.app` is verified and returned HTTP 200. The latest READY production deployment inspected is commit `12c8222ab639cce05ee01ea27bae43a2e95f8eb0`, behind the current `main` snapshot above. Redeploy after the frontend CI fix is merged and all checks pass.
 
 ## P0 — Before claiming a live Ondo options product
 
@@ -32,9 +32,9 @@
 
 ## P1 — Before treating hosting as current
 
-1. Deploy current `main` commit `371fe36c3ee376a294714d06b79c73a1170fe70c` to Vercel.
-2. Verify the production alias points to that commit and run production health plus safe route smoke checks.
-3. Run frontend typecheck and production build; latest CI skipped this job.
+1. Merge PR #33 only after frontend typecheck and production build pass.
+2. Deploy the resulting current `main` commit to Vercel.
+3. Verify `handel-live.vercel.app` points to that exact commit and run production health plus safe route smoke checks.
 4. Verify server-only token/session configuration and restricted key scopes without exposing secrets.
 
 ## P2 — Hardening and governance

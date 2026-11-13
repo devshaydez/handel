@@ -8,8 +8,8 @@
 
 | Field | Value |
 |---|---|
-| Workflow | [PR checks, run #43458722976](https://github.com/devshaydez/handel/actions/runs/43458722976) |
-| Commit | `371fe36c3ee376a294714d06b79c73a1170fe70c` |
+| Workflow | [Handel backend checks, run #43474798000](https://github.com/devshaydez/handel/actions/runs/43474798000) |
+| Commit | `b07eeafcdcaadf8c1b397e61eb4cbb9638369a36` |
 | Date | 2026-11-13 |
 | Result | 6 jobs succeeded; frontend typecheck/build job was skipped |
 
@@ -21,7 +21,7 @@ Successful jobs:
 - NEAR AI credential and model-catalogue preflight
 - Live NEAR AI → SDK → Sandbox contract proof
 
-**Proves:** these named CI jobs passed on the recorded commit.  
+**Proves:** these named CI jobs passed on the recorded commit. PR [#33](https://github.com/devshaydez/handel/pull/33) adds frontend checks to main pushes; its result must be recorded separately after completion.  
 **Does not prove:** frontend build/typecheck on this commit, a real Testnet trade, Ondo asset support, Mainnet settlement, production custody or security audit.
 
 ## E-002 — OptionsContract Testnet deployment and exact Wasm match
@@ -86,7 +86,7 @@ Successful jobs:
 
 ## E-007 — Production deployment lag
 
-The latest inspected production alias `handel-live.vercel.app` points to Vercel deployment `dpl_3jXS5nLAFZnwLopwWkzYK8UA7Noc`, Git commit `67f6dd01c55932f39411c36fdfcc4f46f1a2aefb`. The repository `main` commit at this evidence snapshot is `371fe36c3ee376a294714d06b79c73a1170fe70c`.
+The latest inspected READY production deployment is `dpl_3kuxaHaxroUCmHzzWrbfMptDtRSt`, Git commit `12c8222ab639cce05ee01ea27bae43a2e95f8eb0`. The verified custom domain `handel-live.vercel.app` returned HTTP 200. The repository `main` commit at this evidence snapshot is `b07eeafcdcaadf8c1b397e61eb4cbb9638369a36`, so production is behind main and needs redeployment after CI passes.
 
 **Proves:** production alias is behind current `main` at the time checked.  
 **Does not prove:** the latest source is deployed or the current UI matches repository source.
@@ -108,6 +108,6 @@ See [THREAT_MODEL.md](THREAT_MODEL.md), [CUSTODY_AND_SETTLEMENT.md](CUSTODY_AND_
 - [ ] Record an authorized delegated Testnet create + Escrow registration with transaction hashes and final state.
 - [ ] Record principal-signed collateral and holder-signed premium transactions using Tidepool test tokens.
 - [ ] Record policy-limit and post-revocation failed receipts from Testnet.
-- [ ] Run frontend typecheck and production build against the latest `main` commit.
+- [ ] Run frontend typecheck and production build against the latest `main` commit (PR #33 enables this on main pushes).
 - [ ] Deploy current `main` to Vercel and verify the production alias commit.
 - [ ] For Ondo: archive the exact 1Click token registry entries, asset IDs/decimals/standards, route quotes, enforceable reservation proof and paired settlement evidence. Do not attempt to substitute Tidepool assets for Ondo.
