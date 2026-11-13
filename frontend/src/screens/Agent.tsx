@@ -3,7 +3,7 @@ import { LuBan, LuKeyRound, LuPause, LuPlay } from 'react-icons/lu';
 import { AgentPill } from '../components/status';
 import { Badge, Banner, Button, Card, CardHead, KV, Modal, PageHead } from '../components/ui';
 import { agentStatus, hydrateAgentMode, revokeAgent, useStore } from '../state/store';
-import { getOnChainAgentExecutionMode, getOnChainAgentPolicy, getOnChainAssetMetadata, getOnChainEscrowTokenAccount, getOnChainUsdcAssetId, revokeOnChainAgentAccess, saveOnChainAgentPolicy, setOnChainAgentExecutionMode, type OnChainAssetMetadata } from '../lib/near-wallet';
+import { getOnChainAgentExecutionMode, getOnChainAgentPolicy, getOnChainAssetMetadata, getOnChainEscrowTokenAccount, getOnChainTokenStorageBalance, getOnChainUsdcAssetId, revokeOnChainAgentAccess, saveOnChainAgentPolicy, setOnChainAgentExecutionMode, type OnChainAssetMetadata } from '../lib/near-wallet';
 
 function formatBaseUnits(value: string | number, decimals: number): string {
   const amount = BigInt(value);
@@ -30,6 +30,8 @@ export default function Agent() {
     usdcAssetId: string;
     wnearTokenAccount: string | null;
     usdcTokenAccount: string | null;
+    wnearStorageBalance: { total: string; available: string } | null;
+    usdcStorageBalance: { total: string; available: string } | null;
   } | null>(null);
   const [chainDraft, setChainDraft] = useState({ maxUnderlyingWnear: '', maxPremiumUsdc: '', maxCollateralUsdc: '', maxOpenPositions: '', validityDays: '' });
   const wnearAssetId = 'nep141:wnear.tidepool-sandbox.testnet';
@@ -37,10 +39,12 @@ export default function Agent() {
   const expectedWnearTokenAccount = 'wnear.tidepool-sandbox.testnet';
   const expectedUsdcTokenAccount = 'usdc.tidepool-sandbox.testnet';
   const wnearReady = Boolean(chainAssets?.wnear?.asset_id === wnearAssetId && chainAssets.wnear.enabled &&
-    chainAssets.wnear.decimals === 24 && chainAssets.wnearTokenAccount === expectedWnearTokenAccount);
+    chainAssets.wnear.decimals === 24 && chainAssets.wnearTokenAccount === expectedWnearTokenAccount &&
+    chainAssets.wnearStorageBalance !== null && BigInt(chainAssets.wnearStorageBalance.total) > 0n);
   const usdcReady = Boolean(chainAssets?.usdcAssetId === expectedUsdcAssetId &&
     chainAssets.usdc?.asset_id === expectedUsdcAssetId && chainAssets.usdc.enabled &&
-    chainAssets.usdc.decimals === 6 && chainAssets.usdcTokenAccount === expectedUsdcTokenAccount);
+    chainAssets.usdc.decimals === 6 && chainAssets.usdcTokenAccount === expectedUsdcTokenAccount &&
+    chainAssets.usdcStorageBalance !== null && BigInt(chainAssets.usdcStorageBalance.total) > 0n);
   const assetReady = wnearReady && usdcReady;
   const [chainLoading, setChainLoading] = useState(true);
   const [chainSaving, setChainSaving] = useState(false);
@@ -77,7 +81,11 @@ export default function Agent() {
         getOnChainEscrowTokenAccount(wnearAssetId),
         getOnChainEscrowTokenAccount(usdcAssetId),
       ]);
-      if (active) setChainAssets({ wnear, usdc, usdcAssetId, wnearTokenAccount, usdcTokenAccount });
+      const [wnearStorageBalance, usdcStorageBalance] = await Promise.all([
+        wnearTokenAccount ? getOnChainTokenStorageBalance(wnearTokenAccount, 'escrow.shaydez.testnet') : Promise.resolve(null),
+        usdcTokenAccount ? getOnChainTokenStorageBalance(usdcTokenAccount, 'escrow.shaydez.testnet') : Promise.resolve(null),
+      ]);
+      if (active) setChainAssets({ wnear, usdc, usdcAssetId, wnearTokenAccount, usdcTokenAccount, wnearStorageBalance, usdcStorageBalance });
     })().catch(error => {
       if (active) setChainError(error instanceof Error ? error.message : 'Could not verify the on-chain asset and escrow registry.');
     });
@@ -86,7 +94,7 @@ export default function Agent() {
   }, []);
   const saveChainPolicy = async () => {
     if (!assetReady) {
-      setChainError('Automatic execution cannot be enabled yet. The OptionsContract must have wNEAR enabled at 24 decimals, USDC enabled at 6 decimals, and both NEP-141 escrow token-account mappings configured. This check moves no tokens.');
+      setChainError('Automatic execution cannot be enabled yet. The OptionsContract must have wNEAR enabled at 24 decimals, USDC enabled at 6 decimals, both escrow token-account mappings configured, and the Escrow account registered with both NEP-141 tokens. This check moves no tokens.');
       return;
     }
     setChainSaving(true); setChainError(''); setChainSuccess('');
@@ -178,10 +186,10 @@ export default function Agent() {
             {chainPolicy && <div className="small muted mb12">Principal: <b>{chainPolicy.principal}</b> · Allowed asset: wNEAR · Current policy expiry: {new Date(Number(chainPolicy.expires_at_ns) / 1_000_000).toLocaleString()}</div>}
             <div className="banner info mb12">Only the Tidepool Testnet wNEAR token is allowlisted for this agent. These permissions do not authorize stock shares or live-market assets.</div>
             {chainAssets && <div className="row gap8 wrap mb12">
-              <Badge tone={wnearReady ? 'green' : 'red'}>wNEAR: {wnearReady ? 'enabled · 24 decimals · escrow mapped' : 'asset or escrow mapping not ready'}</Badge>
-              <Badge tone={usdcReady ? 'green' : 'red'}>USDC: {usdcReady ? 'enabled · 6 decimals · escrow mapped' : 'asset or escrow mapping not ready'}</Badge>
+              <Badge tone={wnearReady ? 'green' : 'red'}>wNEAR: {wnearReady ? 'enabled · escrow mapped · Escrow registered' : 'asset, mapping or storage not ready'}</Badge>
+              <Badge tone={usdcReady ? 'green' : 'red'}>USDC: {usdcReady ? 'enabled · escrow mapped · Escrow registered' : 'asset, mapping or storage not ready'}</Badge>
             </div>}
-            {!chainLoading && !assetReady && <Banner tone="warn">The contract must confirm both enabled assets and their NEP-141 escrow token-account mappings before automatic policy creation. The contract owner may need to enable wNEAR and map its token account. This check is read-only and moves no tokens.</Banner>}
+            {!chainLoading && !assetReady && <Banner tone="warn">The contract must confirm both enabled assets and their NEP-141 escrow token-account mappings before automatic policy creation. The contract owner may need to enable wNEAR and map its token account. The Escrow contract must also have NEP-145 storage registration on both token contracts. That is a Testnet NEAR storage prerequisite, not a USDC or wNEAR transfer. These checks are read-only.</Banner>}
             <div className="grid g2">
               <div className="field"><span className="label">Maximum underlying per trade (wNEAR)</span><input className="input" type="number" min="0" step="0.000000000000000000000001" value={chainDraft.maxUnderlyingWnear} onChange={(e) => setChainDraft({ ...chainDraft, maxUnderlyingWnear: e.target.value })} placeholder="Set your wNEAR limit" /></div>
               <div className="field"><span className="label">Maximum premium per trade (USDC)</span><input className="input" type="number" min="0" step="0.000001" value={chainDraft.maxPremiumUsdc} onChange={(e) => setChainDraft({ ...chainDraft, maxPremiumUsdc: e.target.value })} placeholder="Set your USDC limit" /></div>
