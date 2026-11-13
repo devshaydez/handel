@@ -141,7 +141,8 @@ jobs:
         run: node scripts/verify-tidepool-dry-quote.mjs
 
   frontend:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    # Run frontend checks for PRs and every main push/release dispatch; never silently skip main.
     name: Frontend typecheck and production build
     runs-on: ubuntu-latest
     defaults:
