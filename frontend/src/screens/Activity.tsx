@@ -7,6 +7,7 @@ import { shortHash } from '../data/seed';
 import type { ActKind, Activity as Act } from '../data/types';
 import { go } from '../router';
 import { useStore } from '../state/store';
+import { fetchIndexedActivity, type IndexedPositionActivity } from '../lib/indexer-api';
 
 const ICON: Record<ActKind, { i: typeof LuScanSearch; c: string }> = {
   proposal: { i: LuScanSearch, c: 'ai' }, approval: { i: LuThumbsUp, c: 'ok' }, rejection: { i: LuThumbsDown, c: '' }, ai_decision: { i: LuScanSearch, c: 'ai' }, no_trade: { i: LuBan, c: '' },
@@ -26,6 +27,15 @@ export default function Activity({ id }: { id?: string }) {
   const s = useStore();
   const [f, setF] = useState<F>('all');
   const [sel, setSel] = useState<string | null>(id ?? null);
+  const [chainEvents, setChainEvents] = useState<IndexedPositionActivity[]>([]);
+  const [chainError, setChainError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (!s.wallet.account) { setChainEvents([]); return () => { active = false; }; }
+    fetchIndexedActivity(s.wallet.account).then(rows => { if (active) { setChainEvents(rows); setChainError(null); } })
+      .catch(error => { if (active) setChainError(error instanceof Error ? error.message : 'Indexer unavailable'); });
+    return () => { active = false; };
+  }, [s.wallet.account]);
   const loading = useLoading(300);
   useEffect(() => { setSel(id ?? null); }, [id]);
   if (loading) return <PageSkeleton />;
@@ -35,6 +45,23 @@ export default function Activity({ id }: { id?: string }) {
   return (
     <div className="page">
       <PageHead title="Activity and decision journal" sub="Browser-session activity only. Persistent on-chain transaction and position indexing is not connected yet." />
+      <Card>
+        <CardHead title="On-chain position lifecycle" sub="Persistent finalized contract-state observations" />
+        {chainError && <Banner tone="warn">{chainError}. Browser-session activity remains separate.</Banner>}
+        {chainEvents.length === 0 ? <EmptyState title="No indexed lifecycle events" body="Connect a wallet and configure the persistent indexer. This section does not fabricate transaction records." /> : (
+          <div className="col gap12">
+            {chainEvents.map(event => <div key={event.activity_id} className="row between start gap12">
+              <div className="grow">
+                <div className="semi">Position #{event.position_id} · {event.event_type.replaceAll('_', ' ')}</div>
+                <div className="small muted">{event.previous_state ? event.previous_state + " → " : ""}{event.current_state}</div>
+                <div className="tiny faint">Finalized block {event.block_height} · {event.block_hash}</div>
+              </div>
+              <Badge tone="outline">On-chain</Badge>
+            </div>)}
+          </div>
+        )}
+        <p className="tiny faint">These are indexed position-state observations, not the complete transaction/receipt history. Transaction hashes will only appear after the receipt event ingestor is connected.</p>
+      </Card>
       <Tabs value={f} onChange={setF} tabs={[{ v: 'all', label: 'All', n: counts('all') }, { v: 'ai', label: 'AI decisions', n: counts('ai') }, { v: 'tx', label: 'Transactions', n: counts('tx') }, { v: 'positions', label: 'Positions', n: counts('positions') }, { v: 'permissions', label: 'Permissions', n: counts('permissions') }]} />
       <Card className="flush">
         {list.length === 0 ? <EmptyState title="Nothing recorded yet" body="This journal only contains events recorded in the current browser session. Reloading clears this local history." action={<Button variant="gold" onClick={() => go('/app/assistant')}>Open Assistant</Button>} /> : (
