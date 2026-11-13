@@ -1,10 +1,10 @@
 import { LuArrowRight, LuBriefcase, LuInbox, LuMessageSquareText, LuTriangleAlert, LuTrendingUp } from 'react-icons/lu';
 import { AgentPill, TradeStatus } from '../components/status';
-import { AreaChart, Bars, Sparkline, TickDonut } from '../components/charts';
+import { TickDonut } from '../components/charts';
 import { Badge, Banner, Button, Card, CardHead, EmptyState, Growth, MCard, MStat, PageHead, PageSkeleton, Sparkle, SymBadge, Term, UnavailableState, useLoading } from '../components/ui';
-import { ASSETS, fmtStamp, fmtShort } from '../data/mock';
+import { fmtStamp, fmtShort } from '../data/mock';
 import { go } from '../router';
-import { agentStatus, dismissGuide, portfolio, runAgentCycle, useStore } from '../state/store';
+import { agentStatus, dismissGuide, portfolio, useStore } from '../state/store';
 import { signedUsd, usd, usd0 } from '../lib/pricing';
 import { markPosition } from '../lib/valuation';
 
@@ -17,15 +17,9 @@ export default function Dashboard() {
   const pending = s.proposals.filter((p) => p.status === 'pending');
   const open = s.positions.filter((p) => p.status === 'open' || p.status === 'expired' || p.status === 'pending' || p.status === 'unresolved');
   const unresolved = s.positions.filter((p) => p.status === 'unresolved');
-  const empty = s.positions.length === 0;
   const feedDown = s.demo.feed === 'down';
-  const opp = ASSETS.filter((a) => a.signal === 'opportunity' && a.optionsSupported);
   const unread = s.notices.filter((n) => !n.read && n.tone !== 'info').slice(0, 3);
 
-  // Equity curve: demo series ending at the current value
-  const eq = Array.from({ length: 30 }, (_, i) => pf.value - (29 - i) * 38 + Math.sin(i / 2.6) * 210 + (i % 5) * 22 - (empty ? 0 : 0));
-  eq[29] = pf.value;
-  const bars = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'].map((l, i) => ({ label: l, value: [1180, -220, 310, 210, 1120, pf.realized - 2600 + 180][i] ?? 0 }));
   const byAsset = Object.values(open.reduce<Record<string, { label: string; value: number }>>((a, p) => {
     const v = p.entryPremium * 100 * p.qty;
     (a[p.sym] ??= { label: p.sym, value: 0 }).value += v;
@@ -65,7 +59,7 @@ export default function Dashboard() {
           <div className="hero-num">{usd(pf.value)}</div>
           <div className="row gap8">{empty ? <span className="muted small">No activity yet</span> : <Growth v={(pf.unrealized / pf.balance) * 100} />}<span className="tiny faint">unrealized</span></div>
         </MCard>
-        <MCard title={<Term k="collateral">Available collateral</Term>} sub={<span>USDC, demo</span>} tone="plain">
+        <MCard title={<Term k="collateral">Available collateral</Term>} sub={<span>Testnet USDC</span>} tone="plain">
           <div className="mstat"><div className="v" style={{ fontSize: 30 }}>{usd(pf.available)}</div></div>
           <div className="mcard-f"><MStat sm label="Total balance" value={usd0(pf.balance)} /><MStat sm label="Reserved" value={usd0(pf.locked)} /></div>
         </MCard>
@@ -78,16 +72,15 @@ export default function Dashboard() {
             <MStat label="Unrealized" value={<span className={pf.unrealized >= 0 ? 'green' : 'red'}>{feedDown ? '—' : signedUsd(pf.unrealized, 0)}</span>} />
             <MStat label="Realized" value={<span className={pf.realized >= 0 ? 'green' : 'red'}>{signedUsd(pf.realized, 0)}</span>} />
           </div>
-          <div className="tiny faint">Unrealized uses {s.demo.feed === 'ok' ? 'verified and estimated' : 'estimated'} demo pricing.</div>
+          <div className="tiny faint">Unrealized P&amp;L is shown only when supported pricing evidence exists.</div>
         </MCard>
       </div>
 
       <div className="grid g-main">
         <div className="col gap16">
           <Card>
-            <CardHead title="Account value" sub="Last 30 days, demo series" right={<Badge tone="demo" sm>Demo data</Badge>} />
-            {empty ? <EmptyState icon={<LuTrendingUp size={22} />} title="No history yet" body="Your account value chart appears after your first trade settles." action={<Button variant="gold" onClick={() => go('/app/markets')}>Find a trade</Button>} />
-              : <AreaChart data={eq} height={230} fmt={(v) => usd0(v)} subLabels={['30 days ago', 'Today']} />}
+            <CardHead title="Account value" sub="Verified account history" />
+            <EmptyState icon={<LuTrendingUp size={22} />} title="No verified history yet" body="Historical account-value indexing is not connected. Handel will not draw a synthetic performance chart." />
           </Card>
 
           <Card className="flush">
@@ -113,8 +106,9 @@ export default function Dashboard() {
           </Card>
 
           <div className="grid g2">
-            <MCard title="Realized P&L" sub={<span>Monthly</span>}>
-              <Bars data={bars} height={130} fmt={(v) => signedUsd(v, 0)} selected={4} />
+            <MCard title="Realized P&amp;L" sub={<span>Verified settlements</span>}>
+              <div className="hero-num" style={{ fontSize: 28 }}>{signedUsd(pf.realized, 0)}</div>
+              <div className="tiny faint">No synthetic monthly performance history is displayed.</div>
             </MCard>
             <MCard title="Capital at risk" sub={<span>By underlying</span>}>
               {byAsset.length ? <TickDonut size={150} centerLabel="At risk" centerValue={`${pf.exposurePct.toFixed(0)}%`} data={byAsset} /> : <EmptyState title="Nothing at risk" body="No capital is reserved right now." />}
@@ -124,17 +118,8 @@ export default function Dashboard() {
 
         <div className="col gap16">
           <Card className="ai">
-            <CardHead title={<><Sparkle />AI market summary</>} sub={<>Generated {fmtStamp(new Date(Date.UTC(2026, 10, 11, 9, 30)).toISOString())}</>} right={<AgentPill />} />
-            {feedDown ? (
-              <UnavailableState title="Summary unavailable" body="The AI won’t describe the market without current data. It will resume when the feed returns." />
-            ) : (
-              <div className="col gap12">
-                <p className="text2">Large-cap tech is trending up on moderate volume. Volatility is mixed: elevated in TSLA, depressed in AAPL. Two setups currently pass the screen, and the AI is deliberately sitting out AAPL and TSLA.</p>
-                <div className="row gap8 wrap">{opp.map((a) => <Badge key={a.sym} tone="gold">{a.sym} setup</Badge>)}<Badge tone="outline">AAPL no trade</Badge></div>
-                <div className="small muted">Analysing: <b className="text2">{st.key === 'analysing' ? 'in progress…' : 'idle'}</b></div>
-                <div className="row gap8 wrap"><Button size="sm" onClick={() => go('/app/assistant')}>Ask why</Button><Button size="sm" onClick={runAgentCycle} disabled={s.agentActivity !== 'idle'}>{s.agentActivity === 'idle' ? 'Run agent cycle' : 'Working…'}</Button></div>
-              </div>
-            )}
+            <CardHead title={<><Sparkle />Handel Assistant</>} right={<AgentPill />} />
+            <UnavailableState title="Live market feed is not connected" body="The current Testnet integration supports bounded wNEAR Call/Put creation, but it does not provide live equity prices, option quotes, volatility or news. The assistant will not invent market evidence." action={<Button size="sm" onClick={() => go('/app/assistant')}>Open Assistant</Button>} />
           </Card>
 
           <Card>
@@ -153,16 +138,9 @@ export default function Dashboard() {
           </Card>
 
           <Card>
-            <CardHead title="Active opportunities" sub="From the AI screen" />
-            <div className="col gap8">
-              {opp.map((a) => (
-                <button key={a.sym} className="list-item" onClick={() => go(`/app/markets/${a.sym}`)}>
-                  <SymBadge sym={a.sym} />
-                  <div className="grow"><div className="semi">{a.sym}</div><div className="tiny muted ellipsis">{a.summary}</div></div>
-                  <Badge tone="gold" sm>Setup</Badge>
-                </button>
-              ))}
-            </div>
+            <CardHead title="Testnet execution scope" sub="What is actually connected" />
+            <p className="small muted">The delegated contract path is limited to Tidepool Testnet wNEAR Call/Put positions. Equity tickers, prices and sample opportunities are not connected instruments.</p>
+            <Button size="sm" onClick={() => go('/app/agent')}>Review on-chain limits</Button>
           </Card>
 
           {unread.length > 0 && (
@@ -176,22 +154,8 @@ export default function Dashboard() {
 
       <div className="grid g2">
         <Card>
-          <CardHead title="Watchlist" right={<button className="link" onClick={() => go('/app/markets')}>Manage</button>} />
-          {s.watchlist.length === 0 ? <EmptyState title="Watchlist is empty" body="Star an asset in Markets to follow it here." /> : (
-            <div className="col gap4">
-              {s.watchlist.map((sym) => {
-                const a = ASSETS.find((x) => x.sym === sym)!;
-                const ch = (a.price / a.prevClose - 1) * 100;
-                return (
-                  <button key={sym} className="row gap12 between" style={{ padding: '8px 0' }} onClick={() => go(`/app/markets/${sym}`)}>
-                    <span className="row gap12"><SymBadge sym={sym} /><span><div className="semi">{sym}</div><div className="tiny muted">{a.name}</div></span></span>
-                    <Sparkline data={a.series.slice(-30)} />
-                    <span className="right"><div className="semi num">{feedDown ? '—' : usd(a.price)}</div>{!feedDown && <Growth v={ch} />}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <CardHead title="Market coverage" right={<button className="link" onClick={() => go('/app/markets')}>Details</button>} />
+          <p className="small muted">No live market-data provider is connected. NVDA, AAPL, MSFT and other equity examples are illustrative only and cannot be used as real underlying assets.</p>
         </Card>
         <Card>
           <CardHead title="Recent activity" right={<button className="link" onClick={() => go('/app/activity')}>Open journal</button>} />
