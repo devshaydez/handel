@@ -17,7 +17,7 @@ The principal can revoke the agent directly on-chain.
 
 - Demo video: `<DEMO_VIDEO_URL>`
 - X post: `<X_POST_URL>`
-- Live app: [handel-live.vercel.app](https://handel-live.vercel.app/) — production deployment is READY on `main`, commit `acf159b3a4346f804064733e65c9a33bcb9456a`.
+- Live app: [handel-live.vercel.app](https://handel-live.vercel.app/) — latest verified production deployment is READY at commit `acf159b3a4346f804064733e65c9a33bcb9456a`; this README-only commit is newer.
 
 ## Claim -> Proof
 
