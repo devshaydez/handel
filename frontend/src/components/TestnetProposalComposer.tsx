@@ -30,6 +30,7 @@ export function TestnetProposalComposer() {
       let principal = await currentNearAccount();
       if (!principal) principal = (await connectNearWallet()).accountId;
       const expiryNs = (BigInt(Date.now() + 7 * 86_400_000) * 1_000_000n).toString();
+      if (holder.trim() === principal) throw new Error('The holder must be a different NEAR account from the principal/writer.');
       const terms = { principal, holder: holder.trim(), kind, assetId: ASSET_ID, quantity, strike, premium: PREMIUM, expiryNs };
       const authorization = await signAgentProposalIntent(terms);
       const result = await createAdvisoryProposal({
