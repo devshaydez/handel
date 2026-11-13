@@ -13,11 +13,11 @@ Handel is a NEAR-based European-style options prototype for Ondo tokenized stock
 | Offline | Deterministic proposal fallback, mock Intents payload construction, local Sandbox contracts and mock NEP-141 lifecycle tests are implemented. | Mock payloads and Sandbox balances are not Testnet or Mainnet asset movement. |
 | Pricing | A deterministic Black–Scholes reference engine and evidence-verifier interfaces exist. | No approved live execution oracle or production option-pricing feed is configured. The delegated Testnet path uses a fixed demo premium fixture. |
 | Frontend | Assistant, Agent policy controls, Testnet composer, wallet signing helpers, Portfolio and Activity surfaces exist. | Live market data is unavailable. Portfolio reconstruction is incomplete; Activity persistence depends on optional indexer configuration. |
-| Hosting | Production Vercel alias is live. | It currently serves commit `67f6dd01`, not current `main` commit `371fe36c`. Do not assume the latest repository changes are live. |
+| Hosting | Production Vercel alias is live. | It currently serves commit `67f6dd01`, not current `main` commit `0d43cc63`. Do not assume the latest repository changes are live. |
 
 **Verified contract artifact:** `options.shaydez.testnet` deployment transaction [5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz](https://explorer.testnet.near.org/transactions/5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz); Wasm size 425,264 bytes; SHA-256 `1d95e9b75d94c13eea83e708502aff0a4c54c7eee4bb09881482403bb9479ab3`. The matching on-chain hash was checked from the Testnet RPC response on Nov 13.
 
-**Latest repository CI:** [run #43425939138](https://github.com/devshaydez/handel/actions/runs/43425939138), commit `371fe36c3ee376a294714d06b79c73a1170fe70c`: six jobs passed; the frontend typecheck/build job was skipped. This is not evidence of a successful frontend build on that commit.
+**Latest PR validation:** [run #43458722976](https://github.com/devshaydez/handel/actions/runs/43458722976) passed all seven jobs, including frontend typecheck and production build, on PR head `3d9d992beadb273927781cb0e59732bcc78a15d7` before merge as `f7da7824e8802c8080658949ea74e2b6a6f60a19`. The subsequent main-branch documentation refresh is at `0d43cc63eaf7ddca8480e69bac81af4c1ebf0571`; its latest push workflow [#43462193852](https://github.com/devshaydez/handel/actions/runs/43462193852) was pending at this snapshot.
 
 **Not claimed:** no Mainnet deployment, no live Ondo asset custody, no Mainnet NEAR Intents settlement for NVDAon/TSLAon/AAPLon/SPYon, no real-money trade, no independently verified external-chain settlement proof, and no completed production security audit.
 
