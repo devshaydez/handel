@@ -111,10 +111,14 @@ async function auditEndpoint(endpoint) {
 }
 const results = await Promise.all(endpoints.map(auditEndpoint));
 const comparable = result => JSON.stringify(canonical({
-  optionsCode: result.optionsCode,
-  escrowCode: result.escrowCode,
-  optionsViews: result.optionsViews,
-  escrowViews: result.escrowViews,
+  // Finalized heads may differ by a few blocks across independent providers.
+  // Compare contract bytes and view values, not provider-local block metadata.
+  optionsCode: { codeSha256: result.optionsCode.codeSha256, wasmBytes: result.optionsCode.wasmBytes },
+  escrowCode: { codeSha256: result.escrowCode.codeSha256, wasmBytes: result.escrowCode.wasmBytes },
+  optionsViews: Object.fromEntries(Object.entries(result.optionsViews).map(([key, item]) =>
+    [key, typeof item === "object" && item !== null && "value" in item ? item.value : item])),
+  escrowViews: Object.fromEntries(Object.entries(result.escrowViews).map(([key, item]) =>
+    [key, typeof item === "object" && item !== null && "value" in item ? item.value : item])),
 }));
 const agrees = comparable(results[0]) === comparable(results[1]);
 const expectedOptions = process.env.HANDEL_EXPECTED_OPTIONS_SHA256;
