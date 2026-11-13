@@ -319,6 +319,22 @@ export async function saveOnChainAgentPolicy(input: {
   return { transactionHash: tx.transactionHash, policy };
 }
 
+export async function revokeOnChainAgentAccess(): Promise<string> {
+  if (!OPTIONS_CONTRACT) throw new Error('VITE_HANDEL_OPTIONS_CONTRACT_ID is not configured.');
+  const principal = await currentNearAccount();
+  if (!principal) throw new Error('Connect the principal NEAR Testnet wallet before revoking agent access.');
+  const policy = await getOnChainAgentPolicy();
+  if (!policy || policy.principal !== principal) {
+    throw new Error('Only the principal registered on the on-chain agent policy can revoke this agent.');
+  }
+  const result = await send(OPTIONS_CONTRACT, 'revoke_agent', { agent_id: AGENT_ACCOUNT });
+  const confirmed = await getOnChainAgentPolicy();
+  if (!confirmed || confirmed.principal !== principal || confirmed.enabled !== false) {
+    throw new Error('The revoke transaction was submitted, but enabled=false could not be verified on-chain. Transaction: ' + result.transactionHash);
+  }
+  return result.transactionHash;
+}
+
 function returnedId(outcome: { status?: { SuccessValue?: string } }): string {
   const encoded = outcome.status?.SuccessValue;
   if (!encoded) throw new Error('OptionsContract did not return a position ID.');
