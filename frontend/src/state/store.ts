@@ -16,7 +16,7 @@ import { overall, runChecks } from '../lib/policy';
 import { CONTRACT_SIZE, usd0 } from '../lib/pricing';
 import { markPosition } from '../lib/valuation';
 import { askHandelAssistant, createDelegatedSession, createDelegatedTrade } from '../lib/handel-api';
-import { authorizeDelegatedCollateralFunding, connectNearWallet, currentNearAccount, disconnectNearWallet, getTestnetUsdcBalance, signAgentSessionIntent, type WalletTransactionResult } from '../lib/near-wallet';
+import { authorizeDelegatedCollateralFunding, connectNearWallet, currentNearAccount, disconnectNearWallet, ensureDelegatedAgentReady, getTestnetUsdcBalance, signAgentSessionIntent, type WalletTransactionResult } from '../lib/near-wallet';
 
 export interface AgentRun {
   id: string;
@@ -659,7 +659,9 @@ export function sendChat(text: string, ctx: { sym?: string; positionId?: string 
   if (!t || state.chatBusy) return;
   const u: ChatMsg = { id: nid('M'), role: 'user', blocks: [{ t: 'p', text: t }], ts: nowIso() };
   set((s) => ({ chat: [...s.chat, u], chatBusy: true }));
+  const history = state.chat.slice(-12).map((message) => ({ role: message.role, text: message.blocks.map((block) => block.t === 'p' ? block.text : '').filter(Boolean).join(' ') }));
   const context = {
+    history,
     ...(ctx.sym ? { symbol: ctx.sym } : {}),
     ...(ctx.positionId ? { positionId: ctx.positionId } : {}),
   };
@@ -670,6 +672,7 @@ export function sendChat(text: string, ctx: { sym?: string; positionId?: string 
       if (reply.kind === 'trade_intent' && reply.trade) {
         let principal = await currentNearAccount();
         if (!principal) principal = (await connectNearWallet()).accountId;
+        await ensureDelegatedAgentReady();
         const sessionToken = await delegatedSessionFor(principal);
         const assetId = 'nep141:wnear.tidepool-sandbox.testnet';
         const quantity = decimalBaseUnits(reply.trade.quantityWnear, 24);
