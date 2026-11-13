@@ -31,7 +31,7 @@ The principal can revoke the agent directly on-chain.
 | Inference requests reserve against a total budget, per-request cap, request-count cap and prompt/token limits. | [nearai-provider.ts](sdk/src/nearai-provider.ts), test `budget reservations are conservative and never refunded` in [nearai-provider.test.ts](sdk/src/nearai-provider.test.ts) |
 | Decision records are append-only and hash-chained; tampering and broken chains fail verification. | [decision-journal.ts](sdk/src/decision-journal.ts), [decision-journal.test.ts](sdk/src/decision-journal.test.ts) |
 | Chat uses field-level E2EE and Gateway OHTTP, pins Gateway/model identities and TEE measurements, and verifies response signatures before accepting results. | [nearai-provider.ts](sdk/src/nearai-provider.ts), [nearai-stack.ts](sdk/src/nearai-stack.ts), [nearai-provider.test.ts](sdk/src/nearai-provider.test.ts), [E-001](docs/EVIDENCE.md#e-001--latest-main-ci) |
-| Six named CI jobs passed; frontend typecheck/build was skipped on that run. | [E-001](docs/EVIDENCE.md#e-001--latest-main-ci), [CI run #43458722976](https://github.com/devshaydez/handel/actions/runs/43458722976) |
+| Frontend typecheck and production build are configured to run on `main` pushes and pull requests (merged PR [#33](https://github.com/devshaydez/handel/pull/33)); check the current Actions run for its result. | [CI workflow](.github/workflows/contract-checks.yml), [E-001](docs/EVIDENCE.md#e-001--latest-main-ci) |
 
 ## AI Security & Defense
 
