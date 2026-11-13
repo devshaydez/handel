@@ -11,7 +11,7 @@
 | Workflow | [Handel backend checks, run #43474798000](https://github.com/devshaydez/handel/actions/runs/43474798000) |
 | Commit | `b07eeafcdcaadf8c1b397e61eb4cbb9638369a36` |
 | Date | 2026-11-13 |
-| Result | 6 jobs succeeded; frontend typecheck/build job was skipped |
+| Result | Historical run: 6 jobs succeeded; frontend typecheck/build was skipped on this commit. PR [#33](https://github.com/devshaydez/handel/pull/33) later changed the workflow to run frontend checks on `main` pushes. |
 
 Successful jobs:
 - Rust format, unit tests and Wasm build
@@ -21,7 +21,7 @@ Successful jobs:
 - NEAR AI credential and model-catalogue preflight
 - Live NEAR AI → SDK → Sandbox contract proof
 
-**Proves:** these named CI jobs passed on the recorded commit. PR [#33](https://github.com/devshaydez/handel/pull/33) adds frontend checks to main pushes; its result must be recorded separately after completion.  
+**Proves:** the named jobs passed on the recorded commit. The frontend check configuration has since changed in merged PR [#33](https://github.com/devshaydez/handel/pull/33); consult the latest Actions run for its result.  
 **Does not prove:** frontend build/typecheck on this commit, a real Testnet trade, Ondo asset support, Mainnet settlement, production custody or security audit.
 
 ## E-002 — OptionsContract Testnet deployment and exact Wasm match
@@ -108,6 +108,6 @@ See [THREAT_MODEL.md](THREAT_MODEL.md), [CUSTODY_AND_SETTLEMENT.md](CUSTODY_AND_
 - [ ] Record an authorized delegated Testnet create + Escrow registration with transaction hashes and final state.
 - [ ] Record principal-signed collateral and holder-signed premium transactions using Tidepool test tokens.
 - [ ] Record policy-limit and post-revocation failed receipts from Testnet.
-- [ ] Run frontend typecheck and production build against the latest `main` commit (PR #33 enables this on main pushes).
+- [ ] Record the latest `main` frontend typecheck and production-build result after PR #33.
 - [ ] Deploy current `main` to Vercel and verify the production alias commit.
 - [ ] For Ondo: archive the exact 1Click token registry entries, asset IDs/decimals/standards, route quotes, enforceable reservation proof and paired settlement evidence. Do not attempt to substitute Tidepool assets for Ondo.
