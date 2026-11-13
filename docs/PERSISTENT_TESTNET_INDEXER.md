@@ -73,3 +73,18 @@ The scanner starts at that height and advances a durable database cursor only af
 This is an RPC-backed historical index, not a consensus light client. It depends on an RPC provider retaining the requested historical blocks, chunks and transaction status. Use an archival-capable Testnet RPC for a long backfill and compare results against a second independent provider before relying on the history for settlement decisions. The current service uses one configured RPC for indexing; independent quorum verification remains a separate control.
 
 If `HANDEL_RECEIPT_INDEXER_START_HEIGHT` is unset, the service leaves the receipt scanner disabled and `/v1/receipts` returns an explicit configuration error. It does not silently claim complete history. The exact deployment height is deliberately an operator-supplied value because guessing it could omit early transactions.
+
+Receipt outcomes returned by current Testnet RPCs include a receipt `block_hash` but no `block_height`. When the height is absent the scanner resolves it by querying that block hash and fails closed if the block is unavailable or does not match. It never substitutes the enclosing transaction's height.
+
+### Verified heights for the current Testnet deployment
+
+| Deployment | Transaction | Finalized height |
+|---|---|---|
+| OptionsContract | `5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz` | 277440947 |
+| Escrow | `DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR` | 277435463 |
+
+The Escrow height is the earlier of the two, so use it as the start height when both contracts must be covered: `HANDEL_RECEIPT_INDEXER_START_HEIGHT='277435463'`.
+
+### Local verification against PostgreSQL 16
+
+A read-only run against a local PostgreSQL 16 container, `https://rpc.testnet.fastnear.com` and the height above indexed exactly one finalized transaction (`DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR`) with two receipts at heights 277435463 and 277435464. `/v1/receipts` and `/v1/activity` returned those rows. Resetting the durable cursor to 277435463 and re-running left the row counts unchanged (1 transaction, 2 receipts), confirming `ON CONFLICT` idempotency, and the cursor advanced to 277435473. This verifies receipt persistence and replay; it is not evidence that the position snapshot path works, because the deployed OptionsContract still lacks `get_position_count()` and `/health` reports that gap.

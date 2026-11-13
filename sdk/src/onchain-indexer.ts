@@ -21,7 +21,10 @@ export interface PositionIndexResult {
   blockHash: string;
 }
 interface RpcViewResult {
-  result?: { result?: number[]; block_height?: number; block_hash?: string };
+  // Contract execution failures are returned as result.error, separately from a
+  // top-level JSON-RPC error. Ignoring that field hides a real MethodNotFound or
+  // panic behind an unhelpful "no result bytes" message.
+  result?: { result?: number[]; block_height?: number; block_hash?: string; error?: string };
   error?: { message?: string };
 }
 type Fetcher = (input: string | URL, init?: RequestInit) => Promise<Response>;
@@ -61,8 +64,11 @@ export class NearOptionsPositionReader {
     });
     if (!response.ok) throw new Error("NEAR RPC returned HTTP " + response.status);
     const body = await response.json() as RpcViewResult;
-    if (body.error || !body.result?.block_hash || typeof body.result.block_height !== "number") {
-      throw new Error("NEAR final view call failed: " + (body.error?.message ?? "missing block identity"));
+    if (body.error || body.result?.error) {
+      throw new Error("NEAR final view call failed: " + (body.error?.message ?? body.result?.error));
+    }
+    if (!body.result?.block_hash || typeof body.result.block_height !== "number") {
+      throw new Error("NEAR final view call failed: missing block identity");
     }
     return {
       value: decode<T>(body.result.result),

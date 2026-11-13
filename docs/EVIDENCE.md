@@ -101,13 +101,50 @@ See [THREAT_MODEL.md](THREAT_MODEL.md), [CUSTODY_AND_SETTLEMENT.md](CUSTODY_AND_
 - Tidepool is community-operated; test assets are synthetic.
 - No per-position Ondo collateral reservation inside Intents is demonstrated.
 
+## E-009 — Read-only dual-RPC audit of the deployed Testnet contracts
+
+| Field | Value |
+|---|---|
+| Script | [scripts/audit-testnet-state.mjs](../scripts/audit-testnet-state.mjs) — view calls only, no transactions |
+| RPCs | `https://rpc.testnet.fastnear.com`, `https://near-testnet.drpc.org` |
+| Agreement | Both providers returned identical code hashes, view values and execution outcomes |
+| Options code | `1d95e9b75d94c13eea83e708502aff0a4c54c7eee4bb09881482403bb9479ab3`, 425,264 bytes |
+| Escrow code | `a7d7f1184d813a94c5d1c431ebef01489720e906b4a6d4cf89b957d7245ab604`, 302,940 bytes |
+| Deployed-code gaps | `get_position_count()`, `get_escrow_token_account({"asset_id":"nep141:usdc…"})`, `get_escrow_token_account({"asset_id":"nep141:wnear…"})` all return `MethodResolveError(MethodNotFound)` |
+| Escrow state | `get_owner` = `escrow.shaydez.testnet`, `get_pending_owner` = null, `get_demo_self_trade` = false |
+| Options state | `get_owner` = `options.shaydez.testnet`, USDC/WNEAR assets enabled with 6/24 decimals; agent policy = null; execution mode = `ManualApproval` |
+| Token state | Escrow, Options and agent accounts have `storage_balance_of` = null and `ft_balance_of` = 0 for both test tokens; the principal holds 100 USDC and 40 wNEAR |
+| Agent keys | 5 total; 2 scoped to `create_agent_proposal`, 2 FunctionCall keys restricted to `agent_create_call`, `agent_create_put`, `agent_begin_collateral_lock`, `agent_register_escrow_position` with a 1 NEAR allowance, and 1 `FullAccess` key `ed25519:65juguXQ8RSvCry9mHiQWBpAFZ2v8qgJ38WWFRy3dt62` |
+| Exit code | 2 (strict failure while the deployed code lacks required views) |
+
+**Proves:** the deployed Wasm, view state, token registration and agent key set at audit time, agreed by two independent RPC providers, and that the deployed OptionsContract predates the read-only views added to `src/lib.rs`.  
+**Does not prove:** that the source on `main` is deployed, that the Escrow controller/paused state is correct (no public getter exists), or that any authorized trade has occurred. The `FullAccess` agent key is a policy violation that only the agent account owner can remove.
+
+## E-010 — Receipt indexer verified against PostgreSQL
+
+| Field | Value |
+|---|---|
+| Database | Local PostgreSQL 16 (`postgres:16-alpine`) |
+| RPC | `https://rpc.testnet.fastnear.com` |
+| Start height | 277435463 (Escrow deployment, resolved from its transaction receipt) |
+| Indexed transaction | `DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR`, two receipts, heights 277435463 and 277435464 |
+| Replay | Cursor reset to 277435463 and re-run; counts unchanged at 1 transaction / 2 receipts; cursor advanced to 277435473 |
+| Health | `/health` reports `ok:false` with `NEAR final view call failed: wasm execution failed with error: MethodResolveError(MethodNotFound)` |
+
+**Proves:** finalized transactions and receipt outcomes persist to PostgreSQL with real block heights, `/v1/receipts` and `/v1/activity` serve them, the cursor survives a process restart and replay is idempotent.  
+**Does not prove:** position snapshot indexing (blocked by the deployed-code gap), event history beyond the configured start height, or operation against a hosted production database.
+
 ## Evidence still required before stronger claims
 
-- [ ] Record the Escrow account's independently fetched deployed code hash and compare it to the intended artifact.
+- [x] Record the Escrow account's independently fetched deployed code hash and compare it to the intended artifact. See E-009.
+- [x] Record the latest `main` frontend typecheck and production-build result after PR #33.
+- [x] Verify receipt indexing, cursor persistence and idempotent replay against PostgreSQL. See E-010.
+- [ ] Upgrade `options.shaydez.testnet` so `get_position_count` and `get_escrow_token_account` exist (owner-signed Wasm upgrade).
+- [ ] Remove the agent account's `FullAccess` key and set the agent policy (agent-account owner signature).
+- [ ] Register Escrow and Options accounts in both Testnet tokens with a storage deposit (account-owner signature).
 - [ ] Record finalized Testnet policy, execution mode, agent FunctionCall key scope/allowance and Escrow controller state.
 - [ ] Record an authorized delegated Testnet create + Escrow registration with transaction hashes and final state.
 - [ ] Record principal-signed collateral and holder-signed premium transactions using Tidepool test tokens.
 - [ ] Record policy-limit and post-revocation failed receipts from Testnet.
-- [ ] Record the latest `main` frontend typecheck and production-build result after PR #33.
 - [ ] Deploy current `main` to Vercel and verify the production alias commit.
 - [ ] For Ondo: archive the exact 1Click token registry entries, asset IDs/decimals/standards, route quotes, enforceable reservation proof and paired settlement evidence. Do not attempt to substitute Tidepool assets for Ondo.
