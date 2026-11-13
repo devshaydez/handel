@@ -14,7 +14,6 @@ export default function Dashboard() {
   if (loading) return <PageSkeleton />;
   const pf = portfolio(s);
   const st = agentStatus(s);
-  const pending = s.proposals.filter((p) => p.status === 'pending');
   const open = s.positions.filter((p) => p.status === 'open' || p.status === 'expired' || p.status === 'pending' || p.status === 'unresolved');
   const unresolved = s.positions.filter((p) => p.status === 'unresolved');
   const feedDown = s.demo.feed === 'down';
@@ -122,20 +121,7 @@ export default function Dashboard() {
             <UnavailableState title="Live market feed is not connected" body="The current Testnet integration supports bounded wNEAR Call/Put creation, but it does not provide live equity prices, option quotes, volatility or news. The assistant will not invent market evidence." action={<Button size="sm" onClick={() => go('/app/assistant')}>Open Assistant</Button>} />
           </Card>
 
-          <Card>
-            <CardHead title="Needs your approval" icon={<LuInbox size={16} />} right={<Badge tone={pending.length ? 'gold' : 'outline'}>{pending.length}</Badge>} />
-            {pending.length === 0 ? <p className="muted small">Nothing is waiting. {s.mode === 'advisory' ? 'In Advisory mode the AI only recommends.' : 'New proposals appear here.'}</p> : (
-              <div className="col gap8">
-                {pending.slice(0, 3).map((p) => (
-                  <button key={p.id} className="list-item" onClick={() => go(`/app/proposals?id=${p.id}`)}>
-                    <SymBadge sym={p.sym} />
-                    <div className="grow"><div className="semi">{p.strategy} {p.sym} {p.strike}</div><div className="tiny muted">{p.qty} contract{p.qty > 1 ? 's' : ''} · {Math.round(p.confidence * 100)}% confidence</div></div>
-                    <LuArrowRight size={15} className="muted" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </Card>
+
 
           <Card>
             <CardHead title="Testnet execution scope" sub="What is actually connected" />
