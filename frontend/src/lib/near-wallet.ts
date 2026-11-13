@@ -166,6 +166,22 @@ async function send(receiverId: string, methodName: string, args: Record<string,
   if (!transactionHash) throw new Error('Wallet returned without a transaction hash.');
   return { transactionHash, accountId, outcome };
 }
+async function sendBatch(receiverId: string, calls: { methodName: string; args: Record<string, unknown>; deposit?: string; gas?: string }[]) {
+  const s = await selector();
+  const accountId = s.store.getState().accounts.find((item) => item.active)?.accountId ?? s.store.getState().accounts[0]?.accountId;
+  if (!accountId) throw new Error('Connect your NEAR Testnet wallet before approving.');
+  const wallet = await s.wallet();
+  const result = await wallet.signAndSendTransaction({
+    receiverId,
+    actions: calls.map((call) => actionCreators.functionCall(
+      call.methodName, call.args, BigInt(call.gas ?? '30000000000000'), BigInt(call.deposit ?? '0'),
+    )),
+  });
+  if (!result) throw new Error('This wallet completed a redirect-based signing flow. Reopen Handel and verify the transaction before retrying.');
+  const outcome = result as unknown as { transaction?: { hash?: string } };
+  if (!outcome.transaction?.hash) throw new Error('Wallet returned without a transaction hash.');
+  return { transactionHash: outcome.transaction.hash, accountId };
+}
 function stableJson(value: unknown): string {
   if (Array.isArray(value)) return '[' + value.map(stableJson).join(',') + ']';
   if (value && typeof value === 'object') {
@@ -256,40 +272,35 @@ export async function saveOnChainAgentPolicy(input: {
   if (!principal) throw new Error('Connect the principal NEAR Testnet wallet before saving agent permissions.');
   if (!input.allowedAssets.length) throw new Error('Select at least one enabled asset.');
   for (const [label, value] of [['underlying', input.maxUnderlyingAmount], ['premium', input.maxPremiumUsdc], ['collateral', input.maxCollateralUsdc]] as const) {
-    if (!/^\d+$/.test(value) || BigInt(value) <= 0n) throw new Error('The maximum ' + label + ' amount must be a positive integer in base units.');
+    if (!/^\\d+$/.test(value) || BigInt(value) <= 0n) throw new Error('The maximum ' + label + ' amount must be a positive integer in base units.');
   }
   if (!Number.isInteger(input.maxOpenPositions) || input.maxOpenPositions < 1) throw new Error('Maximum open positions must be a positive whole number.');
   if (!Number.isInteger(input.validityDays) || input.validityDays < 1 || input.validityDays > 365) throw new Error('Policy validity must be between 1 and 365 days.');
   const expiresAtNs = (BigInt(Date.now()) + BigInt(input.validityDays) * 86_400_000n) * 1_000_000n;
-  const tx = await send(OPTIONS_CONTRACT, 'set_agent_policy_exact', {
-    agent_id: AGENT_ACCOUNT,
-    allowed_assets: input.allowedAssets,
-    max_underlying_amount: input.maxUnderlyingAmount,
-    max_premium_usdc: input.maxPremiumUsdc,
-    max_collateral_usdc: input.maxCollateralUsdc,
-    max_open_positions: input.maxOpenPositions,
-    expires_at_ns: expiresAtNs.toString(),
-  });
-  const policy = await getOnChainAgentPolicy();
+  const tx = await sendBatch(OPTIONS_CONTRACT, [
+    { methodName: 'set_agent_policy_exact', args: {
+      agent_id: AGENT_ACCOUNT, allowed_assets: input.allowedAssets,
+      max_underlying_amount: input.maxUnderlyingAmount, max_premium_usdc: input.maxPremiumUsdc,
+      max_collateral_usdc: input.maxCollateralUsdc, max_open_positions: input.maxOpenPositions,
+      expires_at_ns: expiresAtNs.toString(),
+    }, gas: '50000000000000' },
+    { methodName: 'set_agent_execution_mode', args: { agent_id: AGENT_ACCOUNT, mode: 'Delegated' }, gas: '30000000000000' },
+  ]);
+  const [policy, mode] = await Promise.all([getOnChainAgentPolicy(), getOnChainAgentExecutionMode()]);
   const policyExpiryNs = policy ? BigInt(policy.expires_at_ns) : 0n;
-  const expiryDifferenceNs = policyExpiryNs >= expiresAtNs
-    ? policyExpiryNs - expiresAtNs
-    : expiresAtNs - policyExpiryNs;
+  const expiryDifferenceNs = policyExpiryNs >= expiresAtNs ? policyExpiryNs - expiresAtNs : expiresAtNs - policyExpiryNs;
   const expectedAssets = [...input.allowedAssets].sort();
   const actualAssets = policy ? [...policy.allowed_assets].sort() : [];
-  if (!policy || policy.principal !== principal || policy.enabled !== true ||
-      policy.max_underlying_amount !== input.maxUnderlyingAmount ||
-      policy.max_premium_usdc !== input.maxPremiumUsdc ||
-      policy.max_collateral_usdc !== input.maxCollateralUsdc ||
-      policy.max_open_positions !== input.maxOpenPositions ||
-      actualAssets.length !== expectedAssets.length ||
-      actualAssets.some((asset, index) => asset !== expectedAssets[index]) ||
-      policyExpiryNs <= BigInt(Date.now()) * 1_000_000n ||
-      expiryDifferenceNs > 1_000n) {
-    throw new Error('The wallet transaction was submitted, but the on-chain agent policy could not be independently verified. Transaction: ' + tx.transactionHash);
+  if (!policy || policy.principal !== principal || policy.enabled !== true || mode !== 'Delegated' ||
+      policy.max_underlying_amount !== input.maxUnderlyingAmount || policy.max_premium_usdc !== input.maxPremiumUsdc ||
+      policy.max_collateral_usdc !== input.maxCollateralUsdc || policy.max_open_positions !== input.maxOpenPositions ||
+      actualAssets.length !== expectedAssets.length || actualAssets.some((asset, index) => asset !== expectedAssets[index]) ||
+      policyExpiryNs <= BigInt(Date.now()) * 1_000_000n || expiryDifferenceNs > 1_000n) {
+    throw new Error('The wallet transaction was submitted, but the Delegated policy could not be independently verified. Transaction: ' + tx.transactionHash);
   }
   return { transactionHash: tx.transactionHash, policy };
 }
+
 function returnedId(outcome: { status?: { SuccessValue?: string } }): string {
   const encoded = outcome.status?.SuccessValue;
   if (!encoded) throw new Error('OptionsContract did not return a position ID.');
