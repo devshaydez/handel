@@ -10,7 +10,7 @@ The principal can revoke the agent directly on-chain.
 
 1. Read the three-line pitch above.
 2. Run the [no-secret quickstart](#quickstart-no-secrets).
-3. Open the [threat model](docs/THREAT_MODEL.md) and [policy-check tests](src/lib.rs#L3800).
+3. Open the [threat model](docs/THREAT_MODEL.md), [policy-check tests](src/lib.rs#L3800) and [Privacy & Private AI proof](#privacy--private-ai).
 4. Open the [evidence ledger](docs/EVIDENCE.md).
 
 ## Demo links
@@ -30,7 +30,7 @@ The principal can revoke the agent directly on-chain.
 | SDK rejects malformed, expired, oversized, disabled and unsupported proposals. | [policy-adversarial.test.ts](sdk/src/policy-adversarial.test.ts) |
 | Inference requests reserve against a total budget, per-request cap, request-count cap and prompt/token limits. | [nearai-provider.ts](sdk/src/nearai-provider.ts), test `budget reservations are conservative and never refunded` in [nearai-provider.test.ts](sdk/src/nearai-provider.test.ts) |
 | Decision records are append-only and hash-chained; tampering and broken chains fail verification. | [decision-journal.ts](sdk/src/decision-journal.ts), [decision-journal.test.ts](sdk/src/decision-journal.test.ts) |
-| Chat verifies allowlisted Gateway/model TEE measurements and response signatures; System One is Gateway-signed, not model-TEE-attested. | [nearai-provider.ts](sdk/src/nearai-provider.ts), [nearai-stack.ts](sdk/src/nearai-stack.ts), [nearai-provider.test.ts](sdk/src/nearai-provider.test.ts) |
+| Chat uses field-level E2EE and Gateway OHTTP, pins Gateway/model identities and TEE measurements, and verifies response signatures before accepting results. | [nearai-provider.ts](sdk/src/nearai-provider.ts), [nearai-stack.ts](sdk/src/nearai-stack.ts), [nearai-provider.test.ts](sdk/src/nearai-provider.test.ts), [E-001](docs/EVIDENCE.md#e-001--latest-main-ci) |
 | Six named CI jobs passed; frontend typecheck/build was skipped on that run. | [E-001](docs/EVIDENCE.md#e-001--latest-main-ci), [CI run #43458722976](https://github.com/devshaydez/handel/actions/runs/43458722976) |
 
 ## AI Security & Defense
@@ -43,6 +43,16 @@ Handel places model output behind an owner-defined on-chain policy, a restricted
 - **Attested Chat model:** [nearai-stack.ts](sdk/src/nearai-stack.ts) pins Chat model signer and TEE measurements; [nearai-provider.ts](sdk/src/nearai-provider.ts) verifies deployment evidence and response signatures. System One uses Gateway signature verification only.
 
 **Honest limit:** these controls are source- and test-backed, not an independent security audit or a cryptographic proof of every external service.
+
+## Privacy & Private AI
+
+The Chat inference path uses field-level E2EE and Gateway OHTTP, with pinned TEE evidence so the configured model identity and runtime measurements can be checked.
+
+- **Encrypted Chat transport:** the Chat client enables field-level E2EE and Gateway OHTTP in [nearai-provider.ts](sdk/src/nearai-provider.ts#L92-L145); [provider tests](sdk/src/nearai-provider.test.ts#L20-L31) assert both flags in the returned privacy metadata.
+- **Pinned deployment identity:** [nearai-stack.ts](sdk/src/nearai-stack.ts#L20-L42) pins Gateway/model signers and compose/OS measurements; [nearai-provider.ts](sdk/src/nearai-provider.ts#L99-L145) rejects empty allowlists and non-allowlisted measurements.
+- **Verified responses and CI smoke:** [nearai-provider.ts](sdk/src/nearai-provider.ts#L220-L235) verifies response signatures before returning explanations, and [proposal handling](sdk/src/nearai-provider.ts#L255-L314) applies verification before returning proposals; [provider tests](sdk/src/nearai-provider.test.ts#L20-L70) cover rejection paths. [E-001](docs/EVIDENCE.md#e-001--latest-main-ci) records the successful live NEAR AI → SDK → Sandbox CI job.
+
+**Honest limit:** System One screening uses a separate client with E2EE/OHTTP disabled because that endpoint does not support them, and its configured proof is Gateway-signature verification rather than model TEE attestation; TEE evidence identifies the runtime, not the correctness of model output; NEAR trades and positions remain public.
 
 ## Agent Economy
 
