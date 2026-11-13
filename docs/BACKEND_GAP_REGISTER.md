@@ -5,8 +5,8 @@
 
 ## Current verified state
 
-- Latest `main`: `371fe36c3ee376a294714d06b79c73a1170fe70c`.
-- Latest CI: [run #43425939138](https://github.com/devshaydez/handel/actions/runs/43425939138). Six jobs passed; frontend typecheck/build was skipped.
+- Latest `main`: `f7da7824e8802c8080658949ea74e2b6a6f60a19`.
+- Latest CI: [PR validation run #43458722976](https://github.com/devshaydez/handel/actions/runs/43458722976) passed all seven jobs, including frontend typecheck/build. Post-merge main workflow [#43461978187](https://github.com/devshaydez/handel/actions/runs/43461978187) was running at this snapshot.
 - OptionsContract Testnet code hash was checked against the local 425,264-byte Wasm artifact; SHA-256 matched `1d95e9b75d94c13eea83e708502aff0a4c54c7eee4bb09881482403bb9479ab3`.
 - Delegated Testnet Call/Put create-and-register implementation, restricted signer and Assistant composer exist in source.
 - No complete live two-party Testnet lifecycle is recorded. No Ondo asset settlement is established.
