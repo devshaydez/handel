@@ -38,6 +38,7 @@ export class NearFinalizedReceiptIndexer {
     private readonly pool: Pool,
     private readonly rpcUrl: string,
     private readonly startHeight: number,
+    private readonly watchedAccounts: readonly string[] = [],
     fetcher: Fetcher = fetch,
   ) {
     const url = new URL(rpcUrl);
@@ -125,6 +126,8 @@ export class NearFinalizedReceiptIndexer {
           const chunk = await this.rpc<ChunkResult>("chunk", { chunk_id: chunkMeta.chunk_hash, block_id: height });
           for (const tx of chunk.transactions ?? []) {
             if (!tx.hash || !tx.signer_id) throw new Error("NEAR chunk contains malformed transaction");
+            if (this.watchedAccounts.length > 0 && !this.watchedAccounts.includes(tx.signer_id) &&
+                !this.watchedAccounts.includes((tx as { receiver_id?: string }).receiver_id ?? "")) continue;
             const result = await this.rpc<TxResult>("tx", {
               tx_hash: tx.hash, sender_account_id: tx.signer_id, wait_until: "FINAL",
             });
