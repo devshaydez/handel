@@ -99,7 +99,7 @@ export default function Agent() {
               <Badge tone={s.authorization.status === 'delegated' ? 'amber' : s.authorization.status === 'revoked' ? 'red' : 'outline'}>{s.authorization.status === 'delegated' ? `Delegated · ${s.authorization.id}` : s.authorization.status === 'revoked' ? 'Revoked' : s.authorization.status === 'per-proposal' ? 'Per-proposal approval' : 'No trading authority'}</Badge>
               <Badge tone="outline">{st.label}</Badge>
             </div>
-            <p className="small muted" style={{ maxWidth: '62ch' }}>{s.mode === 'auto' ? 'After a principal-signed trade intent, the agent creates options and registers Escrow within your on-chain caps. The principal separately signs collateral and the holder signs premium. No token transfers are delegated.' : s.mode === 'approval' ? 'The agent writes proposals. Nothing is funded until you approve it in your wallet, and approved trades are checked against the on-chain contract and escrow.' : 'The agent has no ability to trade. It analyses and recommends only.'}</p>
+            <p className="small muted" style={{ maxWidth: '62ch' }}>{s.mode === 'auto' ? 'After one wallet-bound session authorization, the agent creates options and registers Escrow within your on-chain caps without per-trade approval. The principal separately signs collateral and the holder signs premium. No token transfers are delegated.' : s.mode === 'approval' ? 'The agent writes proposals. Nothing is funded until you approve it in your wallet, and approved trades are checked against the on-chain contract and escrow.' : 'The agent has no ability to trade. It analyses and recommends only.'}</p>
           </div>
           <div className="col gap8" style={{ minWidth: 200 }}>
             {s.paused ? <Button variant="gold" icon={<LuPlay size={14} />} onClick={resumeAgent} disabled={s.revoked}>Resume agent</Button> : <Button icon={<LuPause size={14} />} onClick={pauseAgent} disabled={s.revoked}>Pause automation</Button>}
@@ -175,7 +175,7 @@ export default function Agent() {
             {chainSuccess && <Banner tone="info">{chainSuccess}</Banner>}
             <div className="row gap8 wrap mt12">
               <Button variant="gold" disabled={chainSaving || !chainDraft.maxUnderlyingWnear || !chainDraft.maxPremiumUsdc || !chainDraft.maxCollateralUsdc || !chainDraft.maxOpenPositions || !chainDraft.validityDays} onClick={() => void saveChainPolicy()}>{chainSaving ? 'Waiting for wallet…' : chainPolicy ? 'Update on-chain policy' : 'Create on-chain policy'}</Button>
-              <span className="tiny muted">This submits one wallet-signed transaction. New policies default to Manual Approval. Select Automatic above to switch the on-chain mode to Delegated.</span>
+              <span className="tiny muted">This submits one wallet-signed transaction that saves your limits and enables bounded Delegated execution together.</span>
             </div>
           </>
         )}
