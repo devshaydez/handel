@@ -120,7 +120,7 @@ export default function Agent() {
           </div>
           <div className="col gap8" style={{ minWidth: 200 }}>
             {s.mode === 'auto' ? <Button icon={<LuPause size={14} />} onClick={() => void changeOnChainExecutionMode('ManualApproval')} disabled={chainSaving}>Pause automatic execution</Button> : chainPolicy?.enabled ? <Button variant="gold" icon={<LuPlay size={14} />} onClick={() => void changeOnChainExecutionMode('Delegated')} disabled={chainSaving || s.revoked}>Resume automatic execution</Button> : null}
-            <Button variant="danger" icon={<LuBan size={14} />} onClick={() => setConfirmRevoke(true)} disabled={s.revoked}>Revoke agent access</Button>
+            <Button variant="danger" icon={<LuBan size={14} />} onClick={() => setConfirmRevoke(true)} disabled={!chainPolicy?.enabled || s.revoked || chainRevoking}>Revoke agent access</Button>
           </div>
         </div>
       </Card>
