@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { LuArrowLeft, LuCheck, LuCircleCheck, LuEye, LuGauge, LuLock, LuWallet, LuX, LuLoader } from 'react-icons/lu';
 import { HeroArt } from '../components/HeroArt';
 import { Brand } from '../components/Shell';
-import { Accordion, Badge, Banner, Button } from '../components/ui';
+import { Accordion, Badge, Banner, Button, Card } from '../components/ui';
 import { NETWORK } from '../data/mock';
 import { go } from '../router';
 import { connectWallet, enterReadOnly, useStore } from '../state/store';
