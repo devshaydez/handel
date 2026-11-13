@@ -54,3 +54,22 @@ Every pass re-scans the full monotonic position-ID range. This discovers histori
 - Restrict network ingress and configure CORS/authentication before exposing these endpoints publicly.
 - Configure two independently operated NEAR RPC endpoints and compare finalized reads before treating this as production-grade. The current reader uses one endpoint and is an infrastructure trust assumption.
 - The optional Activity output is a position-state journal, not a full transaction event history. Add a block/receipt log ingestor from the known contract deployment height before claiming complete Activity coverage.
+
+
+## Finalized transaction and receipt history
+
+The persistent indexer can additionally scan finalized NEAR blocks, their chunks, and transaction receipt outcomes. It stores transaction hashes, signer/receiver accounts, receipt IDs, receipt executors, finalized block identity, execution status, and raw receipt logs. Activity reads these records from `GET /v1/receipts?account=...` and displays them separately from the position-state journal.
+
+Enable this scanner only after obtaining the exact finalized block height of the deployed OptionsContract deployment transaction. Do not estimate the height or use the current block. Configure:
+
+```sh
+HANDEL_RECEIPT_INDEXER_START_HEIGHT='<exact options deployment block height>'
+HANDEL_RECEIPT_INDEXER_WATCH_ACCOUNTS='options.shaydez.testnet,escrow.shaydez.testnet,handel-agent.shaydez.testnet,wnear.tidepool-sandbox.testnet,usdc.tidepool-sandbox.testnet'
+HANDEL_RECEIPT_INDEXER_POLL_MS='15000'
+```
+
+The scanner starts at that height and advances a durable database cursor only after a block has been processed. It filters chunk transactions by configured signer/receiver accounts, then retrieves each matching finalized transaction's complete receipt outcomes. Reprocessing a block is idempotent. The watch list should include the OptionsContract, Escrow, agent and token accounts; add any other accounts whose transactions must appear in Activity.
+
+This is an RPC-backed historical index, not a consensus light client. It depends on an RPC provider retaining the requested historical blocks, chunks and transaction status. Use an archival-capable Testnet RPC for a long backfill and compare results against a second independent provider before relying on the history for settlement decisions. The current service uses one configured RPC for indexing; independent quorum verification remains a separate control.
+
+If `HANDEL_RECEIPT_INDEXER_START_HEIGHT` is unset, the service leaves the receipt scanner disabled and `/v1/receipts` returns an explicit configuration error. It does not silently claim complete history. The exact deployment height is deliberately an operator-supplied value because guessing it could omit early transactions.
