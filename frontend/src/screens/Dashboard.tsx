@@ -52,6 +52,7 @@ export default function Dashboard() {
         </Card>
       )}
 
+      <Banner tone="warn"><b>Account data is not fabricated.</b> This dashboard does not display demo balances or claim a complete on-chain position index. Market research below uses simulated fixtures.</Banner>
       {feedDown && <Banner tone="danger"><b>Market data is unavailable.</b> Prices and valuations below are hidden or marked unavailable. The agent will abstain until data returns.</Banner>}
       {s.demo.feed === 'stale' && <Banner tone="warn"><b>Market data is stale.</b> Pricing is shown as estimated and the agent’s verified-pricing requirement will block new actions.</Banner>}
       {unresolved.length > 0 && (
@@ -61,34 +62,15 @@ export default function Dashboard() {
       )}
 
       <div className="grid g4">
-        <MCard title="Portfolio value" sub={<span>Collateral + open P&L</span>} tone="gold" href="/app/portfolio">
-          <div className="hero-num">{usd(pf.value)}</div>
-          <div className="row gap8">{empty ? <span className="muted small">No activity yet</span> : <Growth v={(pf.unrealized / pf.balance) * 100} />}<span className="tiny faint">unrealized</span></div>
-        </MCard>
-        <MCard title={<Term k="collateral">Available collateral</Term>} sub={<span>USDC, demo</span>} tone="plain">
-          <div className="mstat"><div className="v" style={{ fontSize: 30 }}>{usd(pf.available)}</div></div>
-          <div className="mcard-f"><MStat sm label="Total balance" value={usd0(pf.balance)} /><MStat sm label="Reserved" value={usd0(pf.locked)} /></div>
-        </MCard>
-        <MCard title="Current exposure" sub={<span>Capital at risk</span>} tone={pf.exposurePct > 30 ? 'neg' : 'plain'} href="/app/portfolio">
-          <div className="hero-num" style={{ fontSize: 34 }}>{pf.exposurePct.toFixed(1)}%</div>
-          <div className="small muted">{usd0(pf.locked)} of {usd0(pf.balance)}. Your agent limit is {s.policy.maxExposurePct}%.</div>
-        </MCard>
-        <MCard title="P&L" sub={<span>Realized and unrealized</span>} tone={pf.unrealized < 0 ? 'neg' : undefined}>
-          <div className="mcard-f" style={{ marginTop: 0 }}>
-            <MStat label="Unrealized" value={<span className={pf.unrealized >= 0 ? 'green' : 'red'}>{feedDown ? '—' : signedUsd(pf.unrealized, 0)}</span>} />
-            <MStat label="Realized" value={<span className={pf.realized >= 0 ? 'green' : 'red'}>{signedUsd(pf.realized, 0)}</span>} />
-          </div>
-          <div className="tiny faint">Unrealized uses {s.demo.feed === 'ok' ? 'verified and estimated' : 'estimated'} demo pricing.</div>
-        </MCard>
+        <MCard title="Testnet wallet" sub={<span>Live token balances</span>} tone="gold" href="/app/settings"><div className="hero-num" style={{ fontSize: 26 }}>Open wallet</div><div className="tiny faint">Connect and verify USDC / wNEAR balances in Settings</div></MCard>
+        <MCard title="Positions" sub={<span>Contract state</span>} tone="plain" href="/app/portfolio"><div className="hero-num" style={{ fontSize: 26 }}>Not indexed</div><div className="tiny faint">Persistent chain indexing is not yet configured</div></MCard>
+        <MCard title="Market data" sub={<span>Research and simulation</span>} tone="plain" href="/app/markets"><div className="hero-num" style={{ fontSize: 26 }}>Simulated</div><div className="tiny faint">No live market-data provider is connected</div></MCard>
+        <MCard title="Agent authority" sub={<span>On-chain permissions</span>} tone="plain" href="/app/agent"><div className="hero-num" style={{ fontSize: 26 }}>{s.mode === 'auto' ? 'Delegated' : 'Approval'}</div><div className="tiny faint">Configured execution mode; verify on-chain policy</div></MCard>
       </div>
 
       <div className="grid g-main">
         <div className="col gap16">
-          <Card>
-            <CardHead title="Account value" sub="Last 30 days, demo series" right={<Badge tone="demo" sm>Demo data</Badge>} />
-            {empty ? <EmptyState icon={<LuTrendingUp size={22} />} title="No history yet" body="Your account value chart appears after your first trade settles." action={<Button variant="gold" onClick={() => go('/app/markets')}>Find a trade</Button>} />
-              : <AreaChart data={eq} height={230} fmt={(v) => usd0(v)} subLabels={['30 days ago', 'Today']} />}
-          </Card>
+          <Card><CardHead title="Account value" sub="Unavailable until persistent Testnet balance and position indexing is configured" /><EmptyState icon={<LuTrendingUp size={22} />} title="No verified account history" body="Handel will show this chart when it can reconstruct balances and positions from Testnet records." action={<Button variant="gold" onClick={() => go('/app/portfolio')}>View session activity</Button>} /></Card>
 
           <Card className="flush">
             <div style={{ padding: 18 }}><CardHead title="Open positions" sub={`${open.length} active or pending`} icon={<LuBriefcase size={16} />} right={<button className="link" onClick={() => go('/app/portfolio')}>View all</button>} /></div>
@@ -132,7 +114,7 @@ export default function Dashboard() {
                 <p className="text2">Large-cap tech is trending up on moderate volume. Volatility is mixed: elevated in TSLA, depressed in AAPL. Two setups currently pass the screen, and the AI is deliberately sitting out AAPL and TSLA.</p>
                 <div className="row gap8 wrap">{opp.map((a) => <Badge key={a.sym} tone="gold">{a.sym} setup</Badge>)}<Badge tone="outline">AAPL no trade</Badge></div>
                 <div className="small muted">Analysing: <b className="text2">{st.key === 'analysing' ? 'in progress…' : 'idle'}</b></div>
-                <div className="row gap8 wrap"><Button size="sm" onClick={() => go('/app/assistant')}>Ask why</Button><Button size="sm" onClick={runAgentCycle} disabled={s.agentActivity !== 'idle'}>{s.agentActivity === 'idle' ? 'Run agent cycle' : 'Working…'}</Button></div>
+                <div className="row gap8 wrap"><Button size="sm" onClick={() => go('/app/assistant')}>Ask why</Button></div>
               </div>
             )}
           </Card>
