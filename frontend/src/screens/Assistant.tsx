@@ -9,7 +9,6 @@ import type { Block } from '../data/types';
 import { go } from '../router';
 import { createProposalFromDraft, sendChat, useStore } from '../state/store';
 import { CONTRACT_SIZE, usd, usd0, breakeven } from '../lib/pricing';
-import { TestnetProposalComposer } from '../components/TestnetProposalComposer';
 
 function BlockView({ b }: { b: Block }) {
   const s = useStore();
@@ -79,7 +78,7 @@ export default function Assistant() {
   const send = (t: string) => { sendChat(t); setText(''); };
   return (
     <div className="page">
-      <PageHead title="AI assistant" sub="One Assistant for analysis and Testnet trading. The Agent tab configures this same agent; delegated option creation and Escrow registration run within on-chain limits, while principal collateral and holder premium remain separately wallet-signed." />
+      <PageHead title="AI assistant" sub="Ask questions, analyse options, and place eligible NEAR Testnet trades in this same conversation. Handel executes within your saved on-chain limits; token transfers still require the relevant wallet signatures." />
       <div className="chat-wrap">
         <Card className="chat">
           <div className="chat-scroll" aria-live="polite">
@@ -93,17 +92,16 @@ export default function Assistant() {
             <div ref={end} />
           </div>
           <form className="chat-input" onSubmit={(e) => { e.preventDefault(); send(text); }}>
-            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask about NVDA, an option, or your risk…" aria-label="Message" />
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask a question or tell Handel to create a Testnet Call or Put…" aria-label="Message" />
             <Button type="submit" variant="gold" icon={<LuSend size={15} />} disabled={!text.trim() || s.chatBusy}>Send</Button>
           </form>
         </Card>
         <div className="col gap16">
-          <TestnetProposalComposer />
           <Card>
             <CardHead title="Try asking" />
             <div className="col gap8">{SUGGESTIONS.map((q) => <button key={q} className="chip" style={{ justifyContent: 'flex-start', textAlign: 'left', borderRadius: 14 }} disabled={s.chatBusy} onClick={() => send(q)}>{q}</button>)}</div>
           </Card>
-          <Card><CardHead title="How it behaves" /><ul className="small muted col gap4" style={{ paddingLeft: 16, listStyle: 'disc' }}><li>It can recommend a trade or say no trade.</li><li>Demo-market ideas remain proposals. The Testnet trade panel below uses bounded delegated execution when the on-chain mode is Delegated.</li><li>When market data is down it says so instead of guessing. The restricted agent key cannot transfer tokens.</li></ul></Card>
+          <Card><CardHead title="How it behaves" /><ul className="small muted col gap4" style={{ paddingLeft: 16, listStyle: 'disc' }}><li>It answers questions, evaluates trade ideas, asks for missing order details, and submits explicit eligible orders from chat.</li><li>Explicit, complete Testnet trade instructions are executed by the delegated agent within your saved on-chain limits. Incomplete instructions trigger a clarification question.</li><li>After initial wallet session authorization, the agent does not ask you to switch execution modes or approve each contract call. The principal signs collateral and the holder signs premium.</li><li>Testnet prices use a demo fixture, not live market data. The restricted agent key cannot transfer tokens.</li></ul></Card>
         </div>
       </div>
     </div>
