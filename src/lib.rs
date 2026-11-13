@@ -1141,6 +1141,11 @@ impl OptionsContract {
         self.asset_registry.get(&asset_id).cloned()
     }
 
+    /// Read the NEP-141 token account pinned to an enabled Handel asset.
+    pub fn get_escrow_token_account(&self, asset_id: String) -> Option<AccountId> {
+        self.escrow_token_accounts.get(&asset_id).cloned()
+    }
+
     /// Select the USDC asset identifier used for premiums and strike settlement.
     /// The selected asset must already be enabled and use six decimal places.
     /// This allows isolated Testnet USDC registries without changing the default
@@ -2241,6 +2246,18 @@ mod tests {
         let invalid =
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.get_positions_page(0, 51)));
         assert!(invalid.is_err());
+    }
+
+    #[test]
+    fn escrow_token_account_mapping_is_readable() {
+        let mut c = contract();
+        let asset_id = "nep141:stock.testnet".to_string();
+        assert_eq!(c.get_escrow_token_account(asset_id.clone()), None);
+
+        context("owner.testnet");
+        let token_account = account("wnear.tidepool-sandbox.testnet");
+        c.set_escrow_token_account(asset_id.clone(), token_account.clone());
+        assert_eq!(c.get_escrow_token_account(asset_id), Some(token_account));
     }
 
     #[test]
