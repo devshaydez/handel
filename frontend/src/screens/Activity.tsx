@@ -79,7 +79,7 @@ export default function Activity({ id }: { id?: string }) {
                 <div className="tiny faint">Finalized block {receipt.block_height} · {receipt.block_hash}</div>
                 {receipt.logs.length > 0 && <details className="tiny"><summary>Receipt logs ({receipt.logs.length})</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{receipt.logs.join("\n")}</pre></details>}
               </div>
-              <Badge tone={receipt.finalized ? "success" : "warn"}>{receipt.finalized ? "Finalized" : "Unfinalized"}</Badge>
+              <Badge tone={receipt.finalized ? "green" : "amber"}>{receipt.finalized ? "Finalized" : "Unfinalized"}</Badge>
             </div>)}
           </div>
         )}
