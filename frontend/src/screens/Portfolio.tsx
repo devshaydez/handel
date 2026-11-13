@@ -7,7 +7,7 @@ import { go } from '../router';
 import { portfolio, useStore } from '../state/store';
 import { markPosition } from '../lib/valuation';
 import { CONTRACT_SIZE, signedUsd, usd, usd0 } from '../lib/pricing';
-import { fetchIndexedPortfolio, type IndexedChainPosition } from '../lib/indexer-api';
+import { fetchPortfolioPositions, type IndexedChainPosition } from '../lib/indexer-api';
 
 type Tab = 'open' | 'pending' | 'closed';
 export default function Portfolio() {
@@ -18,7 +18,7 @@ export default function Portfolio() {
   useEffect(() => {
     let active = true;
     if (!s.wallet.account) { setChainPositions([]); return () => { active = false; }; }
-    fetchIndexedPortfolio(s.wallet.account).then(rows => { if (active) { setChainPositions(rows); setChainError(null); } })
+    fetchPortfolioPositions(s.wallet.account).then(rows => { if (active) { setChainPositions(rows); setChainError(null); } })
       .catch(error => { if (active) setChainError(error instanceof Error ? error.message : 'Indexer unavailable'); });
     return () => { active = false; };
   }, [s.wallet.account]);
@@ -59,7 +59,7 @@ export default function Portfolio() {
             </tr>)}
           </tbody></table></div>
         )}
-        <p className="tiny faint">Chain snapshots are authoritative for contract terms and state. No live mark price or P&amp;L is inferred. The indexer must be deployed and connected before data appears here.</p>
+        <p className="tiny faint">Finalized contract reads are authoritative for terms and state. No live mark price or P&amp;L is inferred. This direct RPC view needs no paid database; it becomes available once the read-only contract views are deployed.</p>
       </Card>
       <div className="grid g4">
         <MCard title="Open value" tone="gold"><div className="hero-num" style={{ fontSize: 30 }}>{usd0(pf.openValue)}</div><div className="tiny faint">{pf.openCount} position{pf.openCount === 1 ? '' : 's'}</div></MCard>
