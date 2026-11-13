@@ -6,15 +6,10 @@ import { Badge, Banner, Button, Card, CardHead, KV, Modal, PageHead, QtyStepper,
 import { ASSETS, DEFAULT_POLICY, fmtStamp, SUPPORTED_STRATEGIES, UNSUPPORTED_STRATEGIES } from '../data/mock';
 import type { Mode, Policy } from '../data/types';
 import { go } from '../router';
-import { agentStatus, hydrateAgentMode, pauseAgent, resumeAgent, revokeAgent, reauthorize, setMode, updatePolicy, useStore } from '../state/store';
+import { agentStatus, hydrateAgentMode, pauseAgent, resumeAgent, revokeAgent, reauthorize, updatePolicy, useStore } from '../state/store';
 import { usd0 } from '../lib/pricing';
-import { getOnChainAgentExecutionMode, getOnChainAgentPolicy, saveOnChainAgentPolicy, setOnChainAgentExecutionMode } from '../lib/near-wallet';
+import { getOnChainAgentExecutionMode, getOnChainAgentPolicy, saveOnChainAgentPolicy } from '../lib/near-wallet';
 
-const MODES: { m: Mode; t: string; tag: string; pts: string[]; disabled?: boolean }[] = [
-  { m: 'advisory', t: 'Advisory', tag: 'AI recommends', pts: ['Analyses markets and explains options', 'Recommends or rejects opportunities', 'Never executes. You act yourself'] },
-  { m: 'approval', t: 'Approval', tag: 'You approve each trade', pts: ['Writes structured trade proposals', 'You approve or reject each one', 'Approved trades still pass every check'] },
-  { m: 'auto', t: 'Automatic', tag: 'Bounded delegated execution', pts: ['After principal signs the exact trade intent, agent creates Call / Put options and registers Escrow within the on-chain policy', 'Principal wallet signs collateral; holder wallet signs premium', 'Restricted FunctionCall key cannot transfer tokens or perform sensitive holder actions'] },
-];
 function formatBaseUnits(value: string | number, decimals: number): string {
   const amount = BigInt(value);
   const scale = 10n ** BigInt(decimals);
@@ -40,7 +35,6 @@ export default function Agent() {
   const [chainSaving, setChainSaving] = useState(false);
   const [chainError, setChainError] = useState('');
   const [chainSuccess, setChainSuccess] = useState('');
-  const [modeSaving, setModeSaving] = useState(false);
   useEffect(() => {
     let active = true;
     Promise.all([getOnChainAgentPolicy(), getOnChainAgentExecutionMode()]).then(([policy, executionMode]) => {
@@ -62,17 +56,6 @@ export default function Agent() {
     }).finally(() => { if (active) setChainLoading(false); });
     return () => { active = false; };
   }, []);
-  const changeMode = async (mode: Mode) => {
-    setModeSaving(true); setChainError(''); setChainSuccess('');
-    const executionMode = mode === 'auto' ? 'Delegated' : mode === 'approval' ? 'ManualApproval' : 'Advisory';
-    try {
-      const tx = await setOnChainAgentExecutionMode(executionMode);
-      setMode(mode);
-      setChainSuccess(executionMode + ' mode verified on-chain. Transaction: ' + tx);
-    } catch (error) {
-      setChainError(error instanceof Error ? error.message : 'Could not update execution mode on-chain.');
-    } finally { setModeSaving(false); }
-  };
   const saveChainPolicy = async () => {
     setChainSaving(true); setChainError(''); setChainSuccess('');
     try {
@@ -85,7 +68,8 @@ export default function Agent() {
         validityDays: Number(chainDraft.validityDays),
       });
       setChainPolicy(result.policy);
-      setChainSuccess('On-chain policy verified. Transaction: ' + result.transactionHash);
+      hydrateAgentMode('auto');
+      setChainSuccess('On-chain limits saved and bounded automatic execution enabled in the same wallet transaction. Transaction: ' + result.transactionHash);
     } catch (error) {
       setChainError(error instanceof Error ? error.message : 'Could not save the on-chain agent policy.');
     } finally { setChainSaving(false); }
@@ -100,7 +84,7 @@ export default function Agent() {
 
   return (
     <div className="page">
-      <PageHead title="Agent permissions" sub="Configure the same AI agent you speak to in Assistant. Set its on-chain limits, execution mode and revocation; this screen is not a separate agent. Wallet connection alone grants nothing." actions={<AgentPill />} />
+      <PageHead title="Agent permissions" sub="Configure the same AI agent you speak to in Assistant. Saving bounded on-chain limits enables automatic delegated execution; pause or revoke it here." actions={<AgentPill />} />
 
       {s.revoked && <Banner tone="danger" action={<Button size="sm" variant="gold" onClick={reauthorize}>Re-enable in Advisory</Button>}><b>Agent access is revoked.</b> The agent cannot analyse, propose or act until you re-enable it.</Banner>}
       {s.paused && !s.revoked && <Banner tone="warn" action={<Button size="sm" variant="gold" onClick={resumeAgent}>Resume</Button>}><b>The agent is paused.</b> Your permissions are unchanged, but nothing runs until you resume.</Banner>}
@@ -124,14 +108,15 @@ export default function Agent() {
         </div>
       </Card>
 
-      <div className="grid g3">
-        {MODES.map((o) => (
-          <button key={o.m} className={`radio-card ${s.mode === o.m && !s.revoked ? 'on' : ''}`} onClick={() => void changeMode(o.m)} aria-pressed={s.mode === o.m} disabled={modeSaving}>
-            <div className="row between"><b className="big">{o.t}</b>{s.mode === o.m && !s.revoked ? <Badge tone="gold" sm><LuCheck size={11} />Current</Badge> : <Badge tone="outline" sm>{o.tag}</Badge>}</div>
-            <ul>{o.pts.map((p) => <li key={p}><LuCheck size={13} className="green" />{p}</li>)}</ul>
-          </button>
-        ))}
-      </div>
+      <Card>
+        <div className="row between wrap">
+          <div>
+            <b>Automatic execution</b>
+            <p className="small muted mt4">Saving your on-chain limits also activates Delegated mode in the same wallet transaction. You do not need to switch modes before chatting or trading.</p>
+          </div>
+          <Badge tone={s.mode === 'auto' && !s.revoked ? 'green' : 'outline'}>{s.mode === 'auto' && !s.revoked ? 'Enabled on-chain' : 'Enable when saving limits'}</Badge>
+        </div>
+      </Card>
 
       <div className="grid g-main">
         <Card>
