@@ -151,7 +151,7 @@ export default function Agent() {
 
       <div className="grid g-main">
         <Card>
-          <CardHead title="Local advisory preferences" sub="These browser-side preferences do not grant authority or change the on-chain Testnet limits below." right={<div className="row gap8">{dirty && <Button size="sm" onClick={() => setDraft(s.policy)}>Discard</Button>}<Button size="sm" variant="gold" disabled={!dirty} onClick={() => updatePolicy(draft)}>Save policy</Button></div>} />
+          <CardHead title="Local advisory preferences" sub="These browser-side preferences do not grant authority or change the on-chain Testnet limits below." right={<div className="row gap8">{dirty && <Button size="sm" onClick={() => setDraft(s.policy)}>Discard</Button>}<Button size="sm" variant="gold" disabled={!dirty} onClick={() => updatePolicy(draft)}>Save local preferences</Button></div>} />
           <div className="col gap20" style={{ gap: 20 }}>
             <div className="field"><span className="label">Allowed assets</span><div className="pill-row">{tradable.map((a) => <button key={a.sym} className={`chip ${draft.assets.includes(a.sym) ? 'on' : ''}`} onClick={() => setDraft({ ...draft, assets: tgl(draft.assets, a.sym) })} aria-pressed={draft.assets.includes(a.sym)}>{a.sym}</button>)}</div></div>
             <div className="field"><span className="label">Option types</span><div className="pill-row">{(['call', 'put'] as const).map((x) => <button key={x} className={`chip ${draft.sides.includes(x) ? 'on' : ''}`} onClick={() => setDraft({ ...draft, sides: tgl(draft.sides, x), strategies: tgl(draft.strategies, x === 'call' ? 'Long call' : 'Long put') })}>{x === 'call' ? 'Calls' : 'Puts'}</button>)}</div></div>
