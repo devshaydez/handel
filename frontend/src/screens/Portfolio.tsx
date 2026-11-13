@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Badge, Banner, Button, Card, CardHead, EmptyState, MCard, PageHead, PageSkeleton } from '../components/ui';
 import { useStore } from '../state/store';
 import { go } from '../router';
-import { fetchIndexedPortfolio, type IndexedChainPosition } from '../lib/indexer-api';
+import { fetchPortfolioPositions, type IndexedChainPosition } from '../lib/indexer-api';
 
 function usdc(raw: string): string {
   try {
@@ -31,7 +31,7 @@ export default function Portfolio() {
       return () => { active = false; };
     }
     setLoading(true);
-    fetchIndexedPortfolio(s.wallet.account)
+    fetchPortfolioPositions(s.wallet.account)
       .then(rows => { if (active) { setPositions(rows); setError(null); } })
       .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Could not read Testnet positions'); })
       .finally(() => { if (active) setLoading(false); });
