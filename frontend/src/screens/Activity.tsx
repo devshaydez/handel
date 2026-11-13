@@ -74,7 +74,6 @@ function Detail({ a }: { a: Act }) {
         <>
           <div className="card" style={{ padding: '4px 14px' }}>
             <KV k="Action" v={r.action} /><KV k="Strategy" v={r.strategy} /><KV k="Confidence" v={r.confidence == null ? 'Not applicable' : `${Math.round(r.confidence * 100)}%`} /><KV k="User authorization" v={r.authorization} /><KV k="Execution result" v={r.result} />
-            {a.txHash && <KV k="Transaction" v={<a className="link mono tiny" href={`https://explorer.testnet.near.org/transactions/${a.txHash}`} target="_blank" rel="noreferrer">{shortHash(a.txHash)} · NEAR Explorer</a>} />}
           </div>
           <div><div className="semi mb">Market evidence used</div><EvidenceList items={r.evidence} /></div>
           {r.checks.length > 0 && <div><div className="semi">Policy checks</div><ChecksList checks={r.checks} compact /></div>}
