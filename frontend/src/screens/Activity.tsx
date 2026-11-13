@@ -34,10 +34,10 @@ export default function Activity({ id }: { id?: string }) {
   const counts = (k: F) => s.activity.filter(FILTER[k]).length;
   return (
     <div className="page">
-      <PageHead title="Activity and decision journal" sub="Browser-session activity only. Persistent on-chain transaction and position indexing is not connected yet." />
+      <PageHead title="Activity and decision journal" sub="Everything the AI and you did, with the evidence, checks and result behind it. No-trade decisions are recorded too." />
       <Tabs value={f} onChange={setF} tabs={[{ v: 'all', label: 'All', n: counts('all') }, { v: 'ai', label: 'AI decisions', n: counts('ai') }, { v: 'tx', label: 'Transactions', n: counts('tx') }, { v: 'positions', label: 'Positions', n: counts('positions') }, { v: 'permissions', label: 'Permissions', n: counts('permissions') }]} />
       <Card className="flush">
-        {list.length === 0 ? <EmptyState title="Nothing recorded yet" body="This journal only contains events recorded in the current browser session. Reloading clears this local history." action={<Button variant="gold" onClick={() => go('/app/assistant')}>Open Assistant</Button>} /> : (
+        {list.length === 0 ? <EmptyState title="Nothing recorded yet" body="Proposals, approvals, AI decisions and transactions are written here as they happen." action={<Button variant="gold" onClick={() => go('/app/markets')}>Explore markets</Button>} /> : (
           <div style={{ padding: '4px 18px' }}>
             {list.map((a) => {
               const I = ICON[a.kind].i;
@@ -69,11 +69,11 @@ function Detail({ a }: { a: Act }) {
       {a.kind === 'no_trade' && <Banner tone="info"><b>A no-trade decision is a valid result, not an error.</b> The AI looked and decided there was nothing worth doing.</Banner>}
       {a.stage === 'unknown' && <Banner tone="warn"><b>Unresolved.</b> The outcome could not be verified. It is not shown as a success or a failure.</Banner>}
       {tx && <div className="card" style={{ padding: 14 }}><TxLanes tx={tx} /></div>}
-      {a.txHash && <div className="card" style={{ padding: 14 }}><KV k="Transaction" v={<a className="link mono tiny" href={`https://explorer.testnet.near.org/transactions/${a.txHash}`} target="_blank" rel="noreferrer">{shortHash(a.txHash)} · NEAR Explorer</a>} /></div>}
       {r ? (
         <>
           <div className="card" style={{ padding: '4px 14px' }}>
             <KV k="Action" v={r.action} /><KV k="Strategy" v={r.strategy} /><KV k="Confidence" v={r.confidence == null ? 'Not applicable' : `${Math.round(r.confidence * 100)}%`} /><KV k="User authorization" v={r.authorization} /><KV k="Execution result" v={r.result} />
+            {a.txHash && <KV k="Transaction" v={<a className="link mono tiny" href={`https://explorer.testnet.near.org/transactions/${a.txHash}`} target="_blank" rel="noreferrer">{shortHash(a.txHash)} · NEAR Explorer</a>} />}
           </div>
           <div><div className="semi mb">Market evidence used</div><EvidenceList items={r.evidence} /></div>
           {r.checks.length > 0 && <div><div className="semi">Policy checks</div><ChecksList checks={r.checks} compact /></div>}
