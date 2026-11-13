@@ -200,9 +200,10 @@ export const setNotifPref = (k: string, v: boolean) => set((s) => ({ notifPrefs:
 export const setTxPref = (p: Partial<State['txPrefs']>) => set((s) => ({ txPrefs: { ...s.txPrefs, ...p } }));
 
 // ── agent permissions ────────────────────────────────────────
-export function hydrateAgentMode(m: Mode) {
+export function hydrateAgentMode(m: Mode, revoked = false) {
   set({
     mode: m,
+    revoked,
     authorization: { status: m === 'auto' ? 'delegated' : m === 'approval' ? 'per-proposal' : 'none', id: m === 'auto' ? 'on-chain-policy' : '' },
   });
 }
