@@ -22,6 +22,43 @@ export interface AgentProposalAuthorization {
   publicKey: string;
   signature: string;
 }
+export interface DelegatedSessionAuthorization {
+  message: string;
+  nonce: string;
+  recipient: string;
+  callbackUrl: string;
+  issuedAtMs: string;
+  publicKey: string;
+  signature: string;
+}
+export async function signAgentSessionIntent(principal: string): Promise<DelegatedSessionAuthorization> {
+  const accountId = await currentNearAccount();
+  if (!accountId || accountId !== principal) throw new Error('Connect the principal wallet that owns this agent to authorize its bounded trading session.');
+  const s = await selector();
+  const wallet = await s.wallet();
+  if (typeof wallet.signMessage !== 'function') throw new Error('The connected wallet does not support NEP-413 session authorization.');
+  const nonceBytes = crypto.getRandomValues(new Uint8Array(32));
+  const nonce = btoa(Array.from(nonceBytes, (byte) => String.fromCharCode(byte)).join(''));
+  const issuedAtMs = String(Date.now());
+  const recipient = 'handel-live.vercel.app';
+  const callbackUrl = window.location.href;
+  const message = [
+    'Handel delegated trading session',
+    'Version: 1',
+    'Principal: ' + principal,
+    "Scope: execute trades only within the principal's active on-chain delegated policy",
+    'Issued at (milliseconds): ' + issuedAtMs,
+  ].join('\\n');
+  const signed = await wallet.signMessage({ message, recipient, nonce: nonceBytes as never, callbackUrl });
+  if (!signed || !signed.signature || !signed.publicKey || signed.accountId !== principal) {
+    throw new Error('The wallet did not return a verifiable NEP-413 session signature.');
+  }
+  const raw = signed.signature as unknown;
+  const signature = typeof raw === 'string' ? raw :
+    btoa(Array.from(new Uint8Array(raw as ArrayLike<number>), (byte) => String.fromCharCode(byte)).join(''));
+  return { message, nonce, recipient, callbackUrl, issuedAtMs, publicKey: signed.publicKey.toString(), signature };
+}
+
 export async function signAgentProposalIntent(input: {
   principal: string;
   holder: string;
