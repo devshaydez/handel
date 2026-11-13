@@ -293,12 +293,12 @@ async function fundExistingEscrowPosition(positionId: string, methodName: 'creat
   let lastHash = initialSteps.at(-1)?.hash || '';
   const transactionSteps = [...initialSteps];
   try {
-    let option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT!, 'get_position', { position_id: Number(positionId) });
+    let option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT!, 'get_position', { id: Number(positionId) });
     if (option.escrow_position_id === undefined || option.escrow_position_id === null) {
       const registerTx = await send(OPTIONS_CONTRACT!, 'register_escrow_position', { position_id: Number(positionId) });
       lastHash = registerTx.transactionHash;
       transactionSteps.push({ hash: registerTx.transactionHash, label: 'Escrow registration' });
-      option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT!, 'get_position', { position_id: Number(positionId) });
+      option = await view<{ escrow_position_id?: number | string | null }>(OPTIONS_CONTRACT!, 'get_position', { id: Number(positionId) });
     }
     if (option.escrow_position_id === undefined || option.escrow_position_id === null) {
       throw new Error('Escrow registration is not confirmed by OptionsContract yet.');
