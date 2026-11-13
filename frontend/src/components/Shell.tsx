@@ -32,60 +32,6 @@ export function Brand({ onClick }: { onClick?: () => void }) {
   );
 }
 
-export function DemoControls() {
-  const s = useStore();
-  return (
-    <div className="col gap16">
-      <div className="small muted">Market data, option quotes and demo scenarios are mocked. Wallet signing and escrow funding use real NEAR Testnet transactions.</div>
-      <div className="field">
-        <span className="label">Account data</span>
-        <Seg value={s.demo.dataset} onChange={(v) => setDemo({ dataset: v })} options={[{ v: 'populated', label: 'Populated' }, { v: 'empty', label: 'Empty account' }]} />
-      </div>
-      <div className="field">
-        <span className="label">Market data feed</span>
-        <Seg value={s.demo.feed} onChange={(v) => setDemo({ feed: v })} options={[{ v: 'ok', label: 'Normal' }, { v: 'stale', label: 'Stale' }, { v: 'down', label: 'Down' }]} />
-      </div>
-      <div className="field">
-        <span className="label">Next transaction outcome</span>
-        <Seg value={s.demo.outcome} onChange={(v) => setDemo({ outcome: v })} options={[{ v: 'success', label: 'Confirms' }, { v: 'failed', label: 'Fails' }, { v: 'unresolved', label: 'Unresolved' }]} />
-        <span className="hint">Applies to trades, exercises, releases and agent actions.</span>
-      </div>
-      <div className="field">
-        <span className="label">Agent</span>
-        <Seg value={s.demo.agentError ? 'err' : 'ok'} onChange={(v) => setDemo({ agentError: v === 'err' })} options={[{ v: 'ok', label: 'Healthy' }, { v: 'err', label: 'Error' }]} />
-      </div>
-      <div className="row gap8 wrap">
-        <Button size="sm" variant="gold" icon={<LuPlay size={13} />} onClick={runAgentCycle}>Run agent cycle</Button>
-        <Button size="sm" icon={<LuRotateCcw size={13} />} onClick={resetDemo}>Reset demo</Button>
-      </div>
-    </div>
-  );
-}
-
-function DemoDock() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useClickOutside(ref, () => setOpen(false), open);
-  return (
-    <div ref={ref}>
-      <div className="demo-fab">
-        <Button size="sm" variant={open ? 'gold' : 'soft'} icon={<LuFlaskConical size={14} />} onClick={() => setOpen(!open)} aria-expanded={open}>
-          Demo controls
-        </Button>
-      </div>
-      {open && (
-        <div className="demo-panel">
-          <div className="row between" style={{ marginBottom: 10 }}>
-            <b>Demo controls</b>
-            <button className="btn btn-soft btn-icon" style={{ width: 28, height: 28 }} onClick={() => setOpen(false)} aria-label="Close"><LuX size={13} /></button>
-          </div>
-          <DemoControls />
-        </div>
-      )}
-    </div>
-  );
-}
-
 function Notifications() {
   const s = useStore();
   const [open, setOpen] = useState(false);
