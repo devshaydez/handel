@@ -4,6 +4,7 @@ import { SUGGESTIONS } from '../lib/assistant';
 import { Button, Card, CardHead, PageHead } from '../components/ui';
 import type { Block } from '../data/types';
 import { sendChat, useStore } from '../state/store';
+import { useRoute } from '../router';
 
 function BlockView({ b }: { b: Block }) {
   if (b.t === 'p') return <div className="bubble">{b.text}</div>;
@@ -13,7 +14,9 @@ function BlockView({ b }: { b: Block }) {
 
 export default function Assistant() {
   const s = useStore();
+  const route = useRoute();
   const [text, setText] = useState('');
+  useEffect(() => { const draft = route.query.get('draft'); if (draft) setText(draft); }, [route.query]);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [s.chat.length, s.chatBusy]);
   const send = (value: string) => { sendChat(value); setText(''); };
