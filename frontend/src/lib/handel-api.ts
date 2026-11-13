@@ -149,7 +149,7 @@ export async function createDelegatedTrade(input: DelegatedTradeRequest): Promis
   const reply = await post<DelegatedTradeReply>('/v1/delegated/trades', input);
   if (reply.transactionSubmitted !== true || reply.network !== 'testnet' ||
       reply.trade?.status !== 'awaiting_principal_collateral' ||
-      !/^\\d+$/.test(reply.trade.positionId) || !/^\\d+$/.test(reply.trade.escrowPositionId) ||
+      !/^\d+$/.test(reply.trade.positionId) || !/^\d+$/.test(reply.trade.escrowPositionId) ||
       !reply.trade.createTransactionHash || !reply.trade.registrationTransactionHash ||
       reply.trade.collateralTransferAuthorized !== false || reply.trade.premiumPaymentAuthorized !== false) {
     throw new HandelApiError('Handel returned an invalid delegated execution response.');
