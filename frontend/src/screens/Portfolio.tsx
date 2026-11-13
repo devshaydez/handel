@@ -32,7 +32,7 @@ export default function Portfolio() {
 
   return (
     <div className="page">
-      <PageHead title="Portfolio" sub="Every option position, with its valuation, collateral and status." actions={<Button variant="gold" onClick={() => go('/app/markets')}>New trade</Button>} />
+      <PageHead title="Portfolio" sub="Session-visible positions and valuations. Automatic on-chain portfolio indexing is not connected yet." actions={<Button variant="gold" onClick={() => go('/app/markets')}>New trade</Button>} />
       <div className="grid g4">
         <MCard title="Open value" tone="gold"><div className="hero-num" style={{ fontSize: 30 }}>{usd0(pf.openValue)}</div><div className="tiny faint">{pf.openCount} position{pf.openCount === 1 ? '' : 's'}</div></MCard>
         <MCard title="Unrealized P&L" tone={pf.unrealized < 0 ? 'neg' : undefined}><div className={`hero-num ${pf.unrealized >= 0 ? 'green' : 'red'}`} style={{ fontSize: 30 }}>{signedUsd(pf.unrealized, 0)}</div></MCard>
@@ -43,7 +43,7 @@ export default function Portfolio() {
       <Tabs value={tab} onChange={setTab} tabs={[{ v: 'open', label: 'Open', n: open.length }, { v: 'pending', label: 'Pending and unresolved', n: pend.length }, { v: 'closed', label: 'Closed', n: closed.length }]} />
       <Card className="flush">
         {list.length === 0 ? (
-          <EmptyState title={tab === 'open' ? 'No open positions' : tab === 'pending' ? 'Nothing pending' : 'No closed positions yet'} body={tab === 'open' ? 'Find an opportunity in Markets. Positions appear here once confirmed.' : tab === 'pending' ? 'Submitted trades appear here until the network confirms them.' : 'Positions you close, exercise or let expire show here with their realized P&L.'} action={tab === 'open' ? <Button variant="gold" onClick={() => go('/app/markets')}>Explore markets</Button> : undefined} />
+          <EmptyState title={tab === 'open' ? 'No open positions' : tab === 'pending' ? 'Nothing pending' : 'No closed positions yet'} body={tab === 'open' ? 'The app does not yet query OptionsContract for all positions by writer. This list only shows position records created in the current browser session.' : tab === 'pending' ? 'Submitted trades appear here until the network confirms them.' : 'Positions you close, exercise or let expire show here with their realized P&L.'} action={tab === 'open' ? <Button variant="gold" onClick={() => go('/app/markets')}>Open Assistant</Button> : undefined} />
         ) : (
           <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Contract</th><th className="r hide-m">Qty</th><th className="r hide-m"><Term k="premium">Entry</Term></th><th className="r"><Term k="mark">{tab === 'closed' ? 'Exit' : 'Mark'}</Term></th><th className="r">{tab === 'closed' ? 'Realized' : 'Unrealized'}</th><th className="r hide-m">Collateral</th><th>Status</th></tr></thead><tbody>
             {list.map((p) => {
@@ -64,7 +64,7 @@ export default function Portfolio() {
           </tbody></table></div>
         )}
       </Card>
-      <p className="tiny faint">Valuations are estimates from demo pricing. “—” means no pricing evidence, so Handel won’t guess.</p>
+      <p className="tiny faint">Live market pricing is not connected. “—” means no verified quote is available; Handel will not estimate a live mark.</p>
     </div>
   );
 }
