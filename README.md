@@ -23,11 +23,11 @@ Handel is a NEAR-based European-style options prototype for Ondo tokenized stock
 
 ## What it does
 
-Handel is designed for fully collateralized European-style options: Gap calls and Floor puts on Ondo tokenized-stock exposure. A writer and a distinct holder enter fixed option terms; the intended payoff is physical delivery rather than cash settlement.
+Handel is designed for fully collateralized European-style options: Gap calls and Floor puts on Ondo tokenized stocks NVDAon, TSLAon, AAPLon and SPYon. A writer and a distinct holder enter fixed option terms; the intended payoff is physical delivery rather than cash settlement. The intended production asset/settlement rail is NEAR Intents.
 
 The AI agent proposes or initiates trades, but it is not the authority. The OptionsContract checks the current principal-bound policy, asset allowlist, execution mode, expiry, amount and position limits. The delegated agent can create an option and register its Escrow record when Delegated mode is enabled. The principal still signs collateral funding; the holder separately signs premium payment. The agent cannot spend either wallet's tokens.
 
-Today, the executable Testnet example uses Tidepool synthetic wNEAR and a fixed premium fixture—not Ondo stock tokens.
+The current contracts do not yet reserve Ondo collateral inside the NEAR Intents verifier ledger, and the current Escrow prototype uses NEP-141 transfers rather than a verified NEP-245 Intents custody path. Exact Ondo Intents asset IDs, standards, quote support and per-position reservation are release gates. Today, the executable Testnet example uses Tidepool synthetic wNEAR and a fixed premium fixture—not Ondo stock tokens.
 
 ## Why it matters (positioning)
 
