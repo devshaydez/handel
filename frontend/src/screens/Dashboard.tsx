@@ -4,7 +4,7 @@ import { Badge, Banner, Button, Card, CardHead, EmptyState, MCard, PageHead } fr
 import { fmtStamp } from '../data/mock';
 import { go } from '../router';
 import { useStore } from '../state/store';
-import { fetchIndexedPortfolio, type IndexedChainPosition } from '../lib/indexer-api';
+import { fetchPortfolioPositions, type IndexedChainPosition } from '../lib/indexer-api';
 
 export default function Dashboard() {
   const s = useStore();
@@ -20,7 +20,7 @@ export default function Dashboard() {
       return () => { active = false; };
     }
     setLoading(true);
-    fetchIndexedPortfolio(s.wallet.account)
+    fetchPortfolioPositions(s.wallet.account)
       .then(rows => { if (active) { setPositions(rows); setChainError(null); } })
       .catch(error => { if (active) setChainError(error instanceof Error ? error.message : 'Testnet position read failed'); })
       .finally(() => { if (active) setLoading(false); });
