@@ -227,6 +227,7 @@ export interface IndexedChainReceipt {
   execution_status: string; finalized: boolean; logs: string[]; indexed_at: string;
 }
 export async function fetchPersistentReceipts(account: string): Promise<IndexedChainReceipt[]> {
+  if (!baseUrl()) return [];
   const data = await read<{ receipts: IndexedChainReceipt[] }>("/v1/receipts?account=" + encodeURIComponent(account));
   return data.receipts;
 }
