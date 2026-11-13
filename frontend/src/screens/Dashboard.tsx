@@ -1,10 +1,10 @@
 import { LuArrowRight, LuBriefcase, LuInbox, LuMessageSquareText, LuTriangleAlert, LuTrendingUp } from 'react-icons/lu';
 import { AgentPill, TradeStatus } from '../components/status';
 import { AreaChart, Bars, Sparkline, TickDonut } from '../components/charts';
-import { Badge, Banner, Button, Card, CardHead, EmptyState, Growth, MCard, MStat, PageHead, PageSkeleton, Sparkle, SymBadge, Term, UnavailableState, useLoading } from '../components/ui';
+import { Badge, Banner, Button, Card, CardHead, EmptyState, MCard, PageHead, PageSkeleton, Sparkle, SymBadge, UnavailableState, useLoading } from '../components/ui';
 import { ASSETS, fmtStamp, fmtShort } from '../data/mock';
 import { go } from '../router';
-import { agentStatus, dismissGuide, portfolio, runAgentCycle, useStore } from '../state/store';
+import { agentStatus, dismissGuide, portfolio, useStore } from '../state/store';
 import { signedUsd, usd, usd0 } from '../lib/pricing';
 import { markPosition } from '../lib/valuation';
 
