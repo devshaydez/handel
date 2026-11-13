@@ -8,13 +8,13 @@ import type { Mode, Policy } from '../data/types';
 import { go } from '../router';
 import { agentStatus, pauseAgent, resumeAgent, revokeAgent, reauthorize, setMode, updatePolicy, useStore } from '../state/store';
 import { usd0 } from '../lib/pricing';
-import { getOnChainAgentPolicy, saveOnChainAgentPolicy } from '../lib/near-wallet';
+import { getOnChainAgentPolicy, saveOnChainAgentPolicy, setOnChainAgentExecutionMode } from '../lib/near-wallet';
 
 const MODES: { m: Mode; t: string; tag: string; pts: string[]; disabled?: boolean }[] = [
   { m: 'advisory', t: 'Advisory', tag: 'AI recommends', pts: ['Analyses markets and explains options', 'Recommends or rejects opportunities', 'Never executes. You act yourself'] },
   { m: 'approval', t: 'Approval', tag: 'You approve each trade', pts: ['Writes structured trade proposals', 'You approve or reject each one', 'Approved trades still pass every check'] },
-  { m: 'auto', t: 'Automatic', tag: 'Not activated yet', pts: ['Bounded Testnet executor and restricted server key are deployed; browser trade submission is not yet connected', 'Assistant-to-executor wallet authorization and a real two-party Testnet lifecycle still require verification', 'The principal signs collateral and the holder signs premium; the agent never moves tokens'], disabled: true },
-];;
+  { m: 'auto', t: 'Automatic', tag: 'Bounded delegated execution', pts: ['Agent creates Call / Put options and registers Escrow within the on-chain policy', 'Principal wallet signs collateral; holder wallet signs premium', 'Restricted FunctionCall key cannot transfer tokens or perform sensitive holder actions'] },
+];
 function formatBaseUnits(value: string | number, decimals: number): string {
   const amount = BigInt(value);
   const scale = 10n ** BigInt(decimals);
@@ -40,6 +40,7 @@ export default function Agent() {
   const [chainSaving, setChainSaving] = useState(false);
   const [chainError, setChainError] = useState('');
   const [chainSuccess, setChainSuccess] = useState('');
+  const [modeSaving, setModeSaving] = useState(false);
   useEffect(() => {
     let active = true;
     getOnChainAgentPolicy().then((policy) => {
@@ -60,6 +61,20 @@ export default function Agent() {
     }).finally(() => { if (active) setChainLoading(false); });
     return () => { active = false; };
   }, []);
+  const changeMode = async (mode: Mode) => {
+    if (mode === 'auto') {
+      setModeSaving(true); setChainError(''); setChainSuccess('');
+      try {
+        const tx = await setOnChainAgentExecutionMode('Delegated');
+        setMode('auto');
+        setChainSuccess('Delegated mode verified on-chain. Transaction: ' + tx);
+      } catch (error) {
+        setChainError(error instanceof Error ? error.message : 'Could not enable delegated mode on-chain.');
+      } finally { setModeSaving(false); }
+      return;
+    }
+    setMode(mode);
+  };
   const saveChainPolicy = async () => {
     setChainSaving(true); setChainError(''); setChainSuccess('');
     try {
@@ -102,7 +117,7 @@ export default function Agent() {
               <Badge tone={s.authorization.status === 'delegated' ? 'amber' : s.authorization.status === 'revoked' ? 'red' : 'outline'}>{s.authorization.status === 'delegated' ? `Delegated · ${s.authorization.id}` : s.authorization.status === 'revoked' ? 'Revoked' : s.authorization.status === 'per-proposal' ? 'Per-proposal approval' : 'No trading authority'}</Badge>
               <Badge tone="outline">{st.label}</Badge>
             </div>
-            <p className="small muted" style={{ maxWidth: '62ch' }}>{s.mode === 'auto' ? 'Automatic execution is not enabled in this Testnet release. The on-chain contract requires ManualApproval and a principal wallet signature for every proposal.' : s.mode === 'approval' ? 'The agent writes proposals. Nothing is funded until you approve it in your wallet, and approved trades are checked against the on-chain contract and escrow.' : 'The agent has no ability to trade. It analyses and recommends only.'}</p>
+            <p className="small muted" style={{ maxWidth: '62ch' }}>{s.mode === 'auto' ? 'The agent can create options and register Escrow automatically within your on-chain caps. The principal must still sign collateral and the holder must sign premium. No token transfers are delegated.' : s.mode === 'approval' ? 'The agent writes proposals. Nothing is funded until you approve it in your wallet, and approved trades are checked against the on-chain contract and escrow.' : 'The agent has no ability to trade. It analyses and recommends only.'}</p>
           </div>
           <div className="col gap8" style={{ minWidth: 200 }}>
             {s.paused ? <Button variant="gold" icon={<LuPlay size={14} />} onClick={resumeAgent} disabled={s.revoked}>Resume agent</Button> : <Button icon={<LuPause size={14} />} onClick={pauseAgent} disabled={s.revoked}>Pause automation</Button>}
@@ -113,7 +128,7 @@ export default function Agent() {
 
       <div className="grid g3">
         {MODES.map((o) => (
-          <button key={o.m} className={`radio-card ${s.mode === o.m && !s.revoked ? 'on' : ''}`} onClick={() => setMode(o.m)} aria-pressed={s.mode === o.m} disabled={o.disabled}>
+          <button key={o.m} className={`radio-card ${s.mode === o.m && !s.revoked ? 'on' : ''}`} onClick={() => void changeMode(o.m)} aria-pressed={s.mode === o.m} disabled={modeSaving}>
             <div className="row between"><b className="big">{o.t}</b>{s.mode === o.m && !s.revoked ? <Badge tone="gold" sm><LuCheck size={11} />Current</Badge> : <Badge tone="outline" sm>{o.tag}</Badge>}</div>
             <ul>{o.pts.map((p) => <li key={p}><LuCheck size={13} className="green" />{p}</li>)}</ul>
           </button>
@@ -177,7 +192,7 @@ export default function Agent() {
             {chainSuccess && <Banner tone="info">{chainSuccess}</Banner>}
             <div className="row gap8 wrap mt12">
               <Button variant="gold" disabled={chainSaving || !chainDraft.maxUnderlyingWnear || !chainDraft.maxPremiumUsdc || !chainDraft.maxCollateralUsdc || !chainDraft.maxOpenPositions || !chainDraft.validityDays} onClick={() => void saveChainPolicy()}>{chainSaving ? 'Waiting for wallet…' : chainPolicy ? 'Update on-chain policy' : 'Create on-chain policy'}</Button>
-              <span className="tiny muted">This submits one wallet-signed transaction. New policies default to Manual Approval.</span>
+              <span className="tiny muted">This submits one wallet-signed transaction. New policies default to Manual Approval. Select Automatic above to switch the on-chain mode to Delegated.</span>
             </div>
           </>
         )}
