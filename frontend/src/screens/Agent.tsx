@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LuBan, LuPause, LuPlay } from 'react-icons/lu';
+import { LuBan, LuKeyRound, LuLock, LuPause, LuPlay } from 'react-icons/lu';
 import { ChecksList, SegBars } from '../components/status';
 import { AgentPill } from '../components/status';
 import { Badge, Banner, Button, Card, CardHead, KV, Modal, PageHead, QtyStepper, Seg, Sparkle, Switch } from '../components/ui';
