@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Badge, Banner, Button, Card, CardHead, EmptyState, MCard, MStat, PageHead, PageSkeleton, SymBadge, Tabs, Term, useLoading } from '../components/ui';
 import { TradeStatus } from '../components/status';
 import { fmtShort, dteOf } from '../data/mock';
@@ -7,11 +7,21 @@ import { go } from '../router';
 import { portfolio, useStore } from '../state/store';
 import { markPosition } from '../lib/valuation';
 import { CONTRACT_SIZE, signedUsd, usd, usd0 } from '../lib/pricing';
+import { fetchIndexedPortfolio, type IndexedChainPosition } from '../lib/indexer-api';
 
 type Tab = 'open' | 'pending' | 'closed';
 export default function Portfolio() {
   const s = useStore();
   const [tab, setTab] = useState<Tab>('open');
+  const [chainPositions, setChainPositions] = useState<IndexedChainPosition[]>([]);
+  const [chainError, setChainError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (!s.wallet.account) { setChainPositions([]); return () => { active = false; }; }
+    fetchIndexedPortfolio(s.wallet.account).then(rows => { if (active) { setChainPositions(rows); setChainError(null); } })
+      .catch(error => { if (active) setChainError(error instanceof Error ? error.message : 'Indexer unavailable'); });
+    return () => { active = false; };
+  }, [s.wallet.account]);
   const loading = useLoading(300);
   if (loading) return <PageSkeleton />;
   const pf = portfolio(s);
@@ -33,6 +43,24 @@ export default function Portfolio() {
   return (
     <div className="page">
       <PageHead title="Portfolio" sub="Session-visible positions and valuations. Automatic on-chain portfolio indexing is not connected yet." actions={<Button variant="gold" onClick={() => go('/app/markets')}>New trade</Button>} />
+      <Card>
+        <CardHead title="On-chain Testnet positions" sub={s.wallet.account ? "Indexed from OptionsContract for " + s.wallet.account : "Connect a NEAR Testnet wallet to load your positions"} />
+        {chainError && <Banner tone="warn">{chainError}. Session-only records below are not a substitute for chain indexing.</Banner>}
+        {chainPositions.length === 0 ? <EmptyState title="No indexed positions returned" body="This section reads persistent OptionsContract snapshots. It does not create demo positions or infer missing balances." /> : (
+          <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Position</th><th>Writer / Holder</th><th>Underlying units</th><th>Strike (USDC)</th><th>Premium (USDC)</th><th>State</th><th>Block</th></tr></thead><tbody>
+            {chainPositions.map(row => <tr key={row.contract_id + ":" + row.position_id}>
+              <td><div className="semi">#{row.position_id} · {row.payload.kind}</div><div className="tiny muted">{row.payload.asset_id}</div></td>
+              <td><div className="tiny">W: {row.writer}</div><div className="tiny">H: {row.holder}</div></td>
+              <td className="num">{row.payload.underlying_amount} <span className="tiny muted">(base units)</span></td>
+              <td className="num">{(Number(row.payload.strike_amount_usdc) / 1_000_000).toLocaleString()}</td>
+              <td className="num">{(Number(row.payload.premium_amount_usdc) / 1_000_000).toLocaleString()}</td>
+              <td><Badge tone="outline">{row.state}</Badge></td>
+              <td className="num">{row.block_height}</td>
+            </tr>)}
+          </tbody></table></div>
+        )}
+        <p className="tiny faint">Chain snapshots are authoritative for contract terms and state. No live mark price or P&amp;L is inferred. The indexer must be deployed and connected before data appears here.</p>
+      </Card>
       <div className="grid g4">
         <MCard title="Open value" tone="gold"><div className="hero-num" style={{ fontSize: 30 }}>{usd0(pf.openValue)}</div><div className="tiny faint">{pf.openCount} position{pf.openCount === 1 ? '' : 's'}</div></MCard>
         <MCard title="Unrealized P&L" tone={pf.unrealized < 0 ? 'neg' : undefined}><div className={`hero-num ${pf.unrealized >= 0 ? 'green' : 'red'}`} style={{ fontSize: 30 }}>{signedUsd(pf.unrealized, 0)}</div></MCard>
