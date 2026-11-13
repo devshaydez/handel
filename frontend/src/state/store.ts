@@ -1,9 +1,8 @@
 // ─────────────────────────────────────────────────────────────
 // UI STATE STORE
-// Assistant and Agent share one state and one logical agent identity. Market data
-// and chat scenarios remain local fixtures. Wallet-authorized Testnet funding
-// helpers live in near-wallet.ts; delegated submission is backend-only and gated
-// until the restricted key and contract upgrade are provisioned.
+// Assistant and Agent share one state and one logical agent identity. Chat handles
+// Q&A and explicit Testnet trade intents; wallet helpers sign only the required
+// session authorization and token transfers. Contract execution stays delegated.
 // ─────────────────────────────────────────────────────────────
 import { useSyncExternalStore } from 'react';
 import { assetBySym, DAY, DEFAULT_POLICY, DEMO_NOW, dteOf, fmtShort, makeContract, NETWORK, parseContractId } from '../data/mock';
@@ -673,6 +672,7 @@ export function sendChat(text: string, ctx: { sym?: string; positionId?: string 
         if (state.paused || state.revoked) throw new Error(state.revoked ? 'Agent access is revoked. Re-enable the on-chain policy before trading.' : 'Automation is paused. Resume the agent before trading.');
         let principal = await currentNearAccount();
         if (!principal) principal = (await connectNearWallet()).accountId;
+        if (reply.trade.holder === principal) throw new Error('The holder must be a different NEAR account from the principal writer.');
         await ensureDelegatedAgentReady();
         hydrateAgentMode('auto');
         const sessionToken = await delegatedSessionFor(principal);
