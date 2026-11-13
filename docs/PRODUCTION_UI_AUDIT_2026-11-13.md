@@ -27,7 +27,7 @@ Read-only browser audit of https://handel-live.vercel.app/ and source audit of t
 - Removed synthetic dashboard performance charts, hard-coded market summaries and mock watchlist prices.
 - Retired the disconnected legacy Proposals page from primary navigation and directed it to the Assistant.
 - Changed Agent pause/resume to wallet-signed OptionsContract execution-mode changes, with post-transaction read-back. A disabled policy is no longer displayed as automatic authority.
-- Marked browser-local advisory preferences as non-authoritative and separated them from on-chain policy limits.
+- Removed the unused browser-local advisory preferences panel entirely; the Agent screen now focuses on actual on-chain policy limits and execution mode.
 - Removed stale local policy claims from Settings; Settings now directs users to the chain-backed Agent screen.
 - Corrected landing-page product claims and replaced inert footer links with real documentation, API-documentation and health destinations. Removed nonfunctional newsletter and placeholder social links.
 - Updated Activity and Portfolio empty states to disclose their indexing/persistence limitations.
