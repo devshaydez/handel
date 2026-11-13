@@ -8,7 +8,7 @@ import type { Policy } from '../data/types';
 import { go } from '../router';
 import { agentStatus, hydrateAgentMode, pauseAgent, resumeAgent, revokeAgent, reauthorize, updatePolicy, useStore } from '../state/store';
 import { usd0 } from '../lib/pricing';
-import { getOnChainAgentExecutionMode, getOnChainAgentPolicy, saveOnChainAgentPolicy } from '../lib/near-wallet';
+import { getOnChainAgentExecutionMode, getOnChainAgentPolicy, revokeOnChainAgentAccess, saveOnChainAgentPolicy } from '../lib/near-wallet';
 
 function formatBaseUnits(value: string | number, decimals: number): string {
   const amount = BigInt(value);
@@ -33,6 +33,7 @@ export default function Agent() {
   const [chainDraft, setChainDraft] = useState({ maxUnderlyingWnear: '', maxPremiumUsdc: '', maxCollateralUsdc: '', maxOpenPositions: '', validityDays: '' });
   const [chainLoading, setChainLoading] = useState(true);
   const [chainSaving, setChainSaving] = useState(false);
+  const [chainRevoking, setChainRevoking] = useState(false);
   const [chainError, setChainError] = useState('');
   const [chainSuccess, setChainSuccess] = useState('');
   useEffect(() => {
@@ -73,6 +74,20 @@ export default function Agent() {
     } catch (error) {
       setChainError(error instanceof Error ? error.message : 'Could not save the on-chain agent policy.');
     } finally { setChainSaving(false); }
+  };
+  const confirmOnChainRevoke = async () => {
+    setChainRevoking(true); setChainError(''); setChainSuccess('');
+    try {
+      const transactionHash = await revokeOnChainAgentAccess();
+      const policy = await getOnChainAgentPolicy();
+      setChainPolicy(policy);
+      if (!policy || policy.enabled !== false) throw new Error('The policy is not disabled on-chain.');
+      revokeAgent();
+      setChainSuccess('On-chain agent access revoked and enabled=false verified. Transaction: ' + transactionHash);
+      setConfirmRevoke(false);
+    } catch (error) {
+      setChainError(error instanceof Error ? error.message : 'On-chain agent revocation failed.');
+    } finally { setChainRevoking(false); }
   };
   const dirty = JSON.stringify(draft) !== JSON.stringify(s.policy);
   const tgl = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
@@ -183,8 +198,8 @@ export default function Agent() {
 
 undefined      <Modal open={confirmRevoke} onClose={() => setConfirmRevoke(false)} title="Revoke agent access?">
         <div className="col gap16">
-          <p className="text2">This removes all delegated authority and returns the agent to Advisory. Positions you hold are not affected. You can re-enable the agent later.</p>
-          <div className="row gap8"><Button block onClick={() => setConfirmRevoke(false)}>Cancel</Button><Button block variant="danger" onClick={() => { revokeAgent(); setConfirmRevoke(false); }}>Revoke access</Button></div>
+          <p className="text2">This asks your principal wallet to sign the OptionsContract revoke_agent transaction. Handel will show revoked only after the contract confirms enabled=false. Existing positions are not cancelled.</p>
+          <div className="row gap8"><Button block onClick={() => setConfirmRevoke(false)} disabled={chainRevoking}>Cancel</Button><Button block variant="danger" disabled={chainRevoking} onClick={() => void confirmOnChainRevoke()}>{chainRevoking ? 'Waiting for principal wallet…' : 'Sign on-chain revocation'}</Button></div>
         </div>
       </Modal>
       <span className="hide"><Seg value="a" onChange={() => {}} options={[{ v: 'a', label: '' }]} /><ChecksList checks={[]} /><Sparkle /></span>
