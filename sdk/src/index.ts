@@ -34,3 +34,6 @@ export * from "./pricing.js";
 
 export * from "./near-function-call-signer.js";
 export * from "./agent-execution.js";
+export * from "./near-types.js";
+export * from "./onchain-indexer.js";
+export * from "./postgres-position-store.js";
