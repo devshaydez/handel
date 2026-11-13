@@ -72,7 +72,7 @@ export function TestnetProposalComposer() {
         <div><label className="small">wNEAR amount (24 decimals)</label><input value={quantity} onChange={e => setQuantity(e.target.value)} disabled={!!reply || busy} /></div>
         <div><label className="small">Strike / put collateral (USDC, 6 decimals)</label><input value={strike} onChange={e => setStrike(e.target.value)} disabled={!!reply || busy} /></div>
       </div>
-      <Button variant="gold" disabled={busy || !!reply || !holder.trim() || !/^\\d+$/.test(quantity) || !/^\\d+$/.test(strike)} onClick={createTrade}>{busy ? 'Agent executing…' : 'Create with delegated agent'}</Button>
+      <Button variant="gold" disabled={busy || !!reply || !holder.trim() || !/^\d+$/.test(quantity) || !/^\d+$/.test(strike)} onClick={createTrade}>{busy ? 'Agent executing…' : 'Create with delegated agent'}</Button>
     </div>
     {reply && <div className="struct mt12">
       <b>Option created · Escrow registration confirmed</b>
