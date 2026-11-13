@@ -33,7 +33,7 @@ export async function startHandelIndexerServer(): Promise<Server> {
   const reader = new NearOptionsPositionReader(rpcUrl, contractId);
   const indexer = new OptionsPositionIndexer(reader, repository);
   const receiptStartHeightRaw = process.env.HANDEL_RECEIPT_INDEXER_START_HEIGHT?.trim();
-  const receiptWatchAccounts = (process.env.HANDEL_RECEIPT_INDEXER_WATCH_ACCOUNTS ?? "options.shaydez.testnet,escrow.shaydez.testnet,handel-agent.testnet,wnear.tidepool-sandbox.testnet,usdc.tidepool-sandbox.testnet").split(",").map(value => value.trim()).filter(Boolean);
+  const receiptWatchAccounts = (process.env.HANDEL_RECEIPT_INDEXER_WATCH_ACCOUNTS ?? "options.shaydez.testnet,escrow.shaydez.testnet,handel-agent.shaydez.testnet,wnear.tidepool-sandbox.testnet,usdc.tidepool-sandbox.testnet").split(",").map(value => value.trim()).filter(Boolean);
   const receiptIndexer = receiptStartHeightRaw ? new NearFinalizedReceiptIndexer(pool, rpcUrl, Number(receiptStartHeightRaw), receiptWatchAccounts) : null;
   let receiptLastRun: Awaited<ReturnType<NearFinalizedReceiptIndexer["reconcile"]>> | null = null;
   let receiptLastError: string | null = null;
