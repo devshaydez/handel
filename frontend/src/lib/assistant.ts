@@ -161,12 +161,12 @@ export function respond(text: string, ctx: { sym?: string; positionId?: string }
 }
 
 export const SUGGESTIONS = [
-  'Analyse NVDA',
-  'What options opportunities are available?',
-  'Explain a call option',
-  'What are the risks of my position?',
-  'Compare the 4 Dec and 18 Dec expiries for NVDA',
-  'Should I trade or wait on AAPL?',
-  'Explain implied volatility',
-  'What happens if my option expires out of the money?',
+  'Explain how the bounded NEAR Testnet agent works',
+  'What does the on-chain policy enforce?',
+  'What happens when I pause or revoke the agent?',
+  'Explain a wNEAR Call option',
+  'How does principal collateral funding work?',
+  'Why does the holder sign the premium separately?',
+  'What does the fixed demo premium mean?',
+  'Prepare a Testnet Call and ask me for any missing order details',
 ];
