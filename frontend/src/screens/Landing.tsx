@@ -38,7 +38,7 @@ export default function Landing() {
               ))}
             </h1>
             <p className="lp-sub">
-              Handel reads the market, explains every option, and proposes trades with the evidence attached. You decide what the AI may do, and you can stop it at any time.
+              Handel explains the Testnet options flow, checks the on-chain policy and submits eligible wNEAR Call/Put orders within your limits. Live market data is not connected.
             </p>
             <div className="row gap12 wrap">
               <button className="btn btn-gold btn-lg" onClick={() => go('/connect')}>Connect wallet</button>
@@ -68,10 +68,10 @@ export default function Landing() {
           <p className="lead">Every step shows what is happening and who is in control. A submitted transaction is never shown as a completed trade.</p>
           <div className="lp-steps">
             {[
-              { i: LuEye, t: 'Understand', d: 'Browse markets and read the AI’s analysis: trend, volatility, bull and bear cases, and the risks.' },
-              { i: LuLayers, t: 'Choose a contract', d: 'Compare calls and puts across strikes and expiries. Verified prices are separated from estimates.' },
-              { i: LuGauge, t: 'Check the risk', d: 'Independent checks confirm collateral, limits and pricing before anything can be signed.' },
-              { i: LuWallet, t: 'Sign and track', d: 'Approve in your NEAR wallet, then follow submission, execution and settlement separately.' },
+              { i: LuEye, t: 'Understand', d: 'Ask questions or describe a writer-side Testnet Call/Put. The Assistant asks for any missing order details.' },
+              { i: LuLayers, t: 'Choose a contract', d: 'Set the order terms using Tidepool Testnet wNEAR and USDC test tokens. No live equities or market quotes are connected.' },
+              { i: LuGauge, t: 'Check the risk', d: 'OptionsContract enforces your on-chain asset, size, collateral, position-count and expiry limits.' },
+              { i: LuWallet, t: 'Sign and track', d: 'The restricted agent creates the option and registers Escrow. The principal signs collateral; the holder separately signs premium.' },
             ].map((s, i) => (
               <div key={s.t} className="lp-step">
                 <span className="tl-ic ai"><s.i size={17} /></span>
@@ -88,7 +88,7 @@ export default function Landing() {
           <div className="lp-modes">
             {[
               { n: 'Advisory', t: 'The AI explains. You act.', li: ['Market analysis and education', 'Recommendations and no-trade calls', 'Nothing executes without you'] },
-              { n: 'Approval', t: 'The AI proposes. You approve.', li: ['Structured trade proposals', 'Evidence, risks and alternatives', 'Approved trades still pass every check'], hl: true },
+              { n: 'Manual approval', t: 'Delegated execution is blocked.', li: ['No automatic agent contract calls', 'Principal wallet approval is required', 'Switch to Delegated only after setting on-chain limits'], hl: true },
               { n: 'Automatic', t: 'The AI acts within your limits.', li: ['Only the assets and sizes you allow', 'Every trade passes the policy engine', 'Pause or revoke in one click'] },
             ].map((m) => (
               <div key={m.n} className={`lp-mode ${m.hl ? 'hl' : ''}`}>
