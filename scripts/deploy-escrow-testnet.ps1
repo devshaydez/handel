@@ -89,6 +89,8 @@ try {
     )
   } else {
     Write-Host "Deploy only: no initializer will be called."
+    # near-cli-rs requires the explicit without-init-call subcommand for deploy-only upgrades.
+    $nearArgs += @("without-init-call")
   }
   $nearArgs += @("network-config", "testnet", "sign-with-keychain", "send")
 
