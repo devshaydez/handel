@@ -34,6 +34,7 @@ export function prepareAgentProposal(input: {
   evidenceMode?: "verified_market" | "advisory_only";
 }): { ok: true; prepared: PreparedAgentProposal } | { ok: false; errors: string[] } {
   if (!isAccountId(input.holder)) return { ok: false, errors: ["holder account identifier is invalid"] };
+  if (input.holder === input.permission?.owner) return { ok: false, errors: ["holder must be distinct from the principal/writer"] };
   if (!isAccountId(input.permission?.agent) || !isAccountId(input.permission?.owner)) {
     return { ok: false, errors: ["agent and principal account identifiers are required"] };
   }
