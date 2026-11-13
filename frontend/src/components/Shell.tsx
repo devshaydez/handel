@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react';
 import {
-  LuLayoutDashboard, LuTrendingUp, LuBriefcase, LuMessageSquareText, LuInbox, LuSlidersHorizontal, LuHistory, LuSettings, LuBell, LuSearch,
+  LuLayoutDashboard, LuTrendingUp, LuBriefcase, LuMessageSquareText, LuSlidersHorizontal, LuHistory, LuSettings, LuBell, LuSearch,
   LuWallet, LuEllipsis, LuCircleCheck, LuTriangleAlert, LuCircleAlert, LuInfo, LuX, LuLock,
 } from 'react-icons/lu';
 import { fmtStamp, NETWORK } from '../data/mock';
@@ -17,7 +17,6 @@ const NAV = [
   { href: '/app/markets', label: 'Markets', icon: LuTrendingUp, match: (p: string) => p.startsWith('/app/markets') || p.startsWith('/app/trade') },
   { href: '/app/portfolio', label: 'Portfolio', icon: LuBriefcase, match: (p: string) => p.startsWith('/app/portfolio') },
   { href: '/app/assistant', label: 'Assistant', icon: LuMessageSquareText, match: (p: string) => p.startsWith('/app/assistant') },
-  { href: '/app/proposals', label: 'Proposals', icon: LuInbox, match: (p: string) => p.startsWith('/app/proposals'), count: true },
   { href: '/app/agent', label: 'Agent', icon: LuSlidersHorizontal, match: (p: string) => p.startsWith('/app/agent') },
   { href: '/app/activity', label: 'Activity', icon: LuHistory, match: (p: string) => p.startsWith('/app/activity') },
   { href: '/app/settings', label: 'Settings', icon: LuSettings, match: (p: string) => p.startsWith('/app/settings') },
