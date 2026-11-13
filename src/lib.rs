@@ -1330,6 +1330,7 @@ impl OptionsContract {
             );
         }
         let principal = policy.principal.clone();
+        assert_ne!(holder, principal, "holder must be distinct from principal");
         let open_count = self
             .positions
             .values()
@@ -1569,6 +1570,7 @@ impl OptionsContract {
             open_count < policy.max_open_positions as usize,
             "open position limit"
         );
+        assert_ne!(holder, policy.principal, "holder must be distinct from principal");
         let position_id = self.create_offer(
             OptionKind::Call,
             policy.principal.clone(),
@@ -1652,6 +1654,7 @@ impl OptionsContract {
             open_count < policy.max_open_positions as usize,
             "open position limit"
         );
+        assert_ne!(holder, policy.principal, "holder must be distinct from principal");
         let position_id = self.create_offer(
             OptionKind::Put,
             policy.principal.clone(),
