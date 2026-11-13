@@ -1,16 +1,16 @@
 import { useRef, useState, type ReactNode } from 'react';
 import {
   LuLayoutDashboard, LuTrendingUp, LuBriefcase, LuMessageSquareText, LuInbox, LuSlidersHorizontal, LuHistory, LuSettings, LuBell, LuSearch,
-  LuWallet, LuFlaskConical, LuEllipsis, LuCircleCheck, LuTriangleAlert, LuCircleAlert, LuInfo, LuX, LuLock, LuPlay, LuRotateCcw,
+  LuWallet, LuEllipsis, LuCircleCheck, LuTriangleAlert, LuCircleAlert, LuInfo, LuX, LuLock,
 } from 'react-icons/lu';
 import { fmtStamp, NETWORK } from '../data/mock';
 import { go, type Route } from '../router';
 import {
-  dismissToast, markAllRead, markRead, resetDemo, runAgentCycle, setDemo, useStore, agentStatus,
+  dismissToast, markAllRead, markRead, useStore,
 } from '../state/store';
 import { AgentPill } from './status';
 import { Logo } from './Logo';
-import { Badge, Button, DemoTag, Modal, Seg, useClickOutside } from './ui';
+import { Badge, Button, DemoTag, Modal, useClickOutside } from './ui';
 
 const NAV = [
   { href: '/app', label: 'Dashboard', icon: LuLayoutDashboard, match: (p: string) => p === '/app' },
@@ -218,7 +218,6 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
           ))}
         </div>
       </Modal>
-      <DemoDock />
       <Toasts />
     </div>
   );
