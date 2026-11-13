@@ -98,6 +98,7 @@ export default function Assistant() {
           </form>
         </Card>
         <div className="col gap16">
+          <TestnetProposalComposer />
           <Card>
             <CardHead title="Try asking" />
             <div className="col gap8">{SUGGESTIONS.map((q) => <button key={q} className="chip" style={{ justifyContent: 'flex-start', textAlign: 'left', borderRadius: 14 }} disabled={s.chatBusy} onClick={() => send(q)}>{q}</button>)}</div>
