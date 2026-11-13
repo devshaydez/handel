@@ -15,8 +15,8 @@ import { buildProposal } from '../lib/proposals';
 import { overall, runChecks } from '../lib/policy';
 import { CONTRACT_SIZE, usd0 } from '../lib/pricing';
 import { markPosition } from '../lib/valuation';
-import { askHandelEducation } from '../lib/handel-api';
-import { disconnectNearWallet, getTestnetUsdcBalance, type WalletTransactionResult } from '../lib/near-wallet';
+import { askHandelAssistant, createDelegatedSession, createDelegatedTrade } from '../lib/handel-api';
+import { authorizeDelegatedCollateralFunding, connectNearWallet, currentNearAccount, disconnectNearWallet, getTestnetUsdcBalance, signAgentSessionIntent, type WalletTransactionResult } from '../lib/near-wallet';
 
 export interface AgentRun {
   id: string;
@@ -632,34 +632,76 @@ export function runAgentCycle() {
 }
 
 // ── assistant ────────────────────────────────────────────────
+function decimalBaseUnits(value: string, decimals: number): string {
+  if (!/^\\d+(?:\\.\\d+)?$/.test(value)) throw new Error('Trade amount is not a valid decimal.');
+  const [whole, fraction = ''] = value.split('.');
+  if (fraction.length > decimals) throw new Error('Trade amount has too many decimal places.');
+  const amount = BigInt(whole) * (10n ** BigInt(decimals)) + BigInt((fraction + '0'.repeat(decimals)).slice(0, decimals) || '0');
+  if (amount <= 0n) throw new Error('Trade amount must be greater than zero.');
+  return amount.toString();
+}
+async function delegatedSessionFor(principal: string): Promise<string> {
+  const key = 'handel.delegated.session.' + principal;
+  try {
+    const saved = window.sessionStorage.getItem(key);
+    if (saved) {
+      const value = JSON.parse(saved) as { token?: string; expiresAt?: string };
+      if (value.token && value.expiresAt && Date.parse(value.expiresAt) > Date.now() + 60_000) return value.token;
+    }
+  } catch { window.sessionStorage.removeItem(key); }
+  const authorization = await signAgentSessionIntent(principal);
+  const session = await createDelegatedSession(principal, authorization);
+  window.sessionStorage.setItem(key, JSON.stringify(session));
+  return session.token;
+}
 export function sendChat(text: string, ctx: { sym?: string; positionId?: string } = {}) {
   const t = text.trim();
   if (!t || state.chatBusy) return;
   const u: ChatMsg = { id: nid('M'), role: 'user', blocks: [{ t: 'p', text: t }], ts: nowIso() };
   set((s) => ({ chat: [...s.chat, u], chatBusy: true }));
-
   const context = {
     ...(ctx.sym ? { symbol: ctx.sym } : {}),
     ...(ctx.positionId ? { positionId: ctx.positionId } : {}),
   };
-  void askHandelEducation(t, context).then((reply) => {
-    const a: ChatMsg = {
-      id: nid('M'),
-      role: 'ai',
-      blocks: [{ t: 'p', text: reply.answer }],
-      ts: nowIso(),
-    };
-    set((s) => ({ chat: [...s.chat, a], chatBusy: false }));
-  }).catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : 'The Handel backend request failed.';
-    const a: ChatMsg = {
-      id: nid('M'),
-      role: 'ai',
-      blocks: [{ t: 'p', text: `I couldn’t reach the live Handel education service: ${message}` }],
-      ts: nowIso(),
-    };
-    set((s) => ({ chat: [...s.chat, a], chatBusy: false }));
-  });
+  void (async () => {
+    try {
+      const reply = await askHandelAssistant(t, context);
+      let answer = reply.answer;
+      if (reply.kind === 'trade_intent' && reply.trade) {
+        let principal = await currentNearAccount();
+        if (!principal) principal = (await connectNearWallet()).accountId;
+        const sessionToken = await delegatedSessionFor(principal);
+        const assetId = 'nep141:wnear.tidepool-sandbox.testnet';
+        const quantity = decimalBaseUnits(reply.trade.quantityWnear, 24);
+        const strike = decimalBaseUnits(reply.trade.strikeUsdc, 6);
+        const expiryNs = (BigInt(Date.now() + reply.trade.expiryDays * 86_400_000) * 1_000_000n).toString();
+        const result = await createDelegatedTrade({
+          principal,
+          holder: reply.trade.holder,
+          sessionToken,
+          request: { type: reply.trade.type, assetId, quantity, strike, expiryNs },
+        });
+        let collateralMessage = 'Principal collateral is still awaiting your wallet signature.';
+        try {
+          const funding = await authorizeDelegatedCollateralFunding(result.trade.positionId, result.trade.escrowPositionId);
+          collateralMessage = 'Principal collateral transfer confirmed: ' + funding.transactionHash + '.';
+        } catch (fundingError) {
+          collateralMessage = 'Option and Escrow were created, but collateral is not funded yet: ' +
+            (fundingError instanceof Error ? fundingError.message : 'wallet signature required') + '.';
+        }
+        answer = 'Trade submitted on NEAR Testnet. Position #' + result.trade.positionId +
+          ' was created and Escrow registration confirmed. Create tx: ' + result.trade.createTransactionHash +
+          '. Escrow tx: ' + result.trade.registrationTransactionHash + '. ' + collateralMessage +
+          ' The holder (' + reply.trade.holder + ') must separately sign the premium payment. Pricing is demo-fixture; this is not a live-market quote.';
+      }
+      const a: ChatMsg = { id: nid('M'), role: 'ai', blocks: [{ t: 'p', text: answer }], ts: nowIso() };
+      set((s) => ({ chat: [...s.chat, a], chatBusy: false }));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'The Handel Assistant request failed.';
+      const a: ChatMsg = { id: nid('M'), role: 'ai', blocks: [{ t: 'p', text: 'I could not complete that request: ' + message }], ts: nowIso() };
+      set((s) => ({ chat: [...s.chat, a], chatBusy: false }));
+    }
+  })();
 }
 
 // ── demo controls ────────────────────────────────────────────
