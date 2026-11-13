@@ -118,10 +118,35 @@ export async function createAdvisoryProposal(input: AdvisoryProposalRequest): Pr
   return reply;
 }
 
+export interface AssistantChatReply {
+  kind: 'answer' | 'clarification' | 'trade_intent';
+  answer: string;
+  trade?: { type: 'Call' | 'Put'; holder: string; quantityWnear: string; strikeUsdc: string; expiryDays: number };
+}
+export async function askHandelAssistant(message: string, context?: unknown): Promise<AssistantChatReply> {
+  const reply = await post<AssistantChatReply>('/v1/assistant/chat', { message, context });
+  if (!['answer', 'clarification', 'trade_intent'].includes(reply.kind) || typeof reply.answer !== 'string' ||
+      (reply.kind === 'trade_intent' && (!reply.trade || !reply.trade.holder || !['Call', 'Put'].includes(reply.trade.type) ||
+       !/^\\d+(?:\\.\\d+)?$/.test(reply.trade.quantityWnear) || !/^\\d+(?:\\.\\d+)?$/.test(reply.trade.strikeUsdc) ||
+       !Number.isInteger(reply.trade.expiryDays)))) {
+    throw new HandelApiError('Handel Assistant returned an invalid response.');
+  }
+  return reply;
+}
+export interface DelegatedSessionAuthorization {
+  message: string; nonce: string; recipient: string; callbackUrl: string;
+  issuedAtMs: string; publicKey: string; signature: string;
+}
+export async function createDelegatedSession(principal: string, authorization: DelegatedSessionAuthorization): Promise<{ token: string; expiresAt: string; principal: string }> {
+  const reply = await post<{ token: string; expiresAt: string; principal: string }>('/v1/session', { principal, authorization });
+  if (!reply.token || reply.principal !== principal || !reply.expiresAt) throw new HandelApiError('Handel could not establish a wallet-bound trading session.');
+  return reply;
+}
+
 export interface DelegatedTradeRequest {
   principal: string;
   holder: string;
-  authorization: { message: string; nonce: string; recipient: string; callbackUrl: string; issuedAtMs: string; publicKey: string; signature: string };
+  sessionToken: string;
   request: { type: 'Call' | 'Put'; assetId: string; quantity: string; strike: string; expiryNs: string };
 }
 export interface DelegatedTradeReply {
