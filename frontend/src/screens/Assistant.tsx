@@ -16,7 +16,8 @@ export default function Assistant() {
   const s = useStore();
   const route = useRoute();
   const [text, setText] = useState('');
-  useEffect(() => { const draft = route.query.get('draft'); if (draft) setText(draft); }, [route.query]);
+  const draft = route.query.get('draft');
+  useEffect(() => { if (draft) setText(draft); }, [draft]);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [s.chat.length, s.chatBusy]);
   const send = (value: string) => { sendChat(value); setText(''); };
