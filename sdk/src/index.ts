@@ -37,3 +37,5 @@ export * from "./agent-execution.js";
 export * from "./near-types.js";
 export * from "./onchain-indexer.js";
 export * from "./postgres-position-store.js";
+
+export * from "./near-finalized-receipt-indexer.js";
