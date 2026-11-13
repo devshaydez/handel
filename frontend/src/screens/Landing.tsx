@@ -148,7 +148,7 @@ export default function Landing() {
             <div className="lf-brand">
               <Brand />
               <p>Options trading on NEAR with an AI that proposes and a policy engine that checks. You stay in control of every signature.</p>
-              <div className="lf-status"><span className="dot" style={{ color: 'var(--green)', width: 7, height: 7 }} />NEAR Testnet prototype · market data not connected</div>
+              <div className="lf-status"><span className="dot" style={{ color: 'var(--amber)', width: 7, height: 7 }} />NEAR Testnet prototype · market data not connected</div>
               <div className="lf-social">
                 <a href="https://github.com/devshaydez/handel" target="_blank" rel="noreferrer" aria-label="GitHub"><LuGithub size={16} /></a>
               </div>
