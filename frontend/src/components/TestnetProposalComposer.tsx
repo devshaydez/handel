@@ -34,6 +34,7 @@ export function TestnetProposalComposer() {
       const expiryNs = (BigInt(Date.now() + 7 * 86_400_000) * 1_000_000n).toString();
       const authorization = await signAgentProposalIntent({
         principal, holder: buyer, kind, assetId: ASSET_ID, quantity, strike, premium: PREMIUM, expiryNs,
+        action: 'authorize one bounded delegated Testnet trade under the active on-chain policy',
       });
       const result = await createDelegatedTrade({
         principal,
