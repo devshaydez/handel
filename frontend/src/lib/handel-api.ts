@@ -127,7 +127,7 @@ export async function askHandelAssistant(message: string, context?: unknown): Pr
   const reply = await post<AssistantChatReply>('/v1/assistant/chat', { message, context });
   if (!['answer', 'clarification', 'trade_intent'].includes(reply.kind) || typeof reply.answer !== 'string' ||
       (reply.kind === 'trade_intent' && (!reply.trade || !reply.trade.holder || !['Call', 'Put'].includes(reply.trade.type) ||
-       !/^\\d+(?:\\.\\d+)?$/.test(reply.trade.quantityWnear) || !/^\\d+(?:\\.\\d+)?$/.test(reply.trade.strikeUsdc) ||
+       !/^\d+(?:\.\d+)?$/.test(reply.trade.quantityWnear) || !/^\d+(?:\.\d+)?$/.test(reply.trade.strikeUsdc) ||
        !Number.isInteger(reply.trade.expiryDays)))) {
     throw new HandelApiError('Handel Assistant returned an invalid response.');
   }
