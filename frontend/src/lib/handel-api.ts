@@ -117,3 +117,42 @@ export async function createAdvisoryProposal(input: AdvisoryProposalRequest): Pr
   }
   return reply;
 }
+
+export interface DelegatedTradeRequest {
+  principal: string;
+  holder: string;
+  request: { type: 'Call' | 'Put'; assetId: string; quantity: string; strike: string; expiryNs: string };
+}
+export interface DelegatedTradeReply {
+  trade: {
+    status: 'awaiting_principal_collateral';
+    agentId: string;
+    principal: string;
+    positionId: string;
+    escrowPositionId: string;
+    createTransactionHash: string;
+    registrationTransactionHash: string;
+    nextAction: 'principal_signs_collateral_transfer';
+    pricingMode: 'demo_fixture';
+    network: 'testnet';
+    collateralTransferAuthorized: false;
+    premiumPaymentAuthorized: false;
+  };
+  transactionSubmitted: true;
+  pricingMode: 'demo_fixture';
+  network: 'testnet';
+  collateralTransferAuthorized: false;
+  premiumPaymentAuthorized: false;
+  note: string;
+}
+export async function createDelegatedTrade(input: DelegatedTradeRequest): Promise<DelegatedTradeReply> {
+  const reply = await post<DelegatedTradeReply>('/v1/delegated/trades', input);
+  if (reply.transactionSubmitted !== true || reply.network !== 'testnet' ||
+      reply.trade?.status !== 'awaiting_principal_collateral' ||
+      !/^\\d+$/.test(reply.trade.positionId) || !/^\\d+$/.test(reply.trade.escrowPositionId) ||
+      !reply.trade.createTransactionHash || !reply.trade.registrationTransactionHash ||
+      reply.trade.collateralTransferAuthorized !== false || reply.trade.premiumPaymentAuthorized !== false) {
+    throw new HandelApiError('Handel returned an invalid delegated execution response.');
+  }
+  return reply;
+}
