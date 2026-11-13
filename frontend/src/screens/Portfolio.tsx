@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Badge, Banner, Button, Card, CardHead, EmptyState, MCard, MStat, PageHead, PageSkeleton, SymBadge, Tabs, Term, useLoading } from '../components/ui';
+import { Badge, Banner, Button, Card, CardHead, EmptyState, PageHead, PageSkeleton, SymBadge, Tabs, useLoading } from '../components/ui';
 import { TradeStatus } from '../components/status';
 import { fmtShort, dteOf } from '../data/mock';
 import type { Position } from '../data/types';
 import { go } from '../router';
-import { portfolio, useStore } from '../state/store';
+import { useStore } from '../state/store';
 import { markPosition } from '../lib/valuation';
-import { CONTRACT_SIZE, signedUsd, usd, usd0 } from '../lib/pricing';
+import { CONTRACT_SIZE, signedUsd, usd } from '../lib/pricing';
 
 type Tab = 'open' | 'pending' | 'closed';
 export default function Portfolio() {
@@ -14,12 +14,10 @@ export default function Portfolio() {
   const [tab, setTab] = useState<Tab>('open');
   const loading = useLoading(300);
   if (loading) return <PageSkeleton />;
-  const pf = portfolio(s);
   const open = s.positions.filter((p) => p.status === 'open' || p.status === 'expired');
   const pend = s.positions.filter((p) => p.status === 'pending' || p.status === 'unresolved' || p.status === 'failed');
   const closed = s.positions.filter((p) => p.status === 'closed');
   const list = tab === 'open' ? open : tab === 'pending' ? pend : closed;
-  const winRate = closed.length ? Math.round((closed.filter((p) => (p.realized ?? 0) > 0).length / closed.length) * 100) : 0;
 
   const stat = (p: Position) => {
     if (p.status === 'pending') return <TradeStatus stage="pending" sm />;
@@ -32,13 +30,8 @@ export default function Portfolio() {
 
   return (
     <div className="page">
-      <PageHead title="Portfolio" sub="Every option position, with its valuation, collateral and status." actions={<Button variant="gold" onClick={() => go('/app/markets')}>New trade</Button>} />
-      <div className="grid g4">
-        <MCard title="Open value" tone="gold"><div className="hero-num" style={{ fontSize: 30 }}>{usd0(pf.openValue)}</div><div className="tiny faint">{pf.openCount} position{pf.openCount === 1 ? '' : 's'}</div></MCard>
-        <MCard title="Unrealized P&L" tone={pf.unrealized < 0 ? 'neg' : undefined}><div className={`hero-num ${pf.unrealized >= 0 ? 'green' : 'red'}`} style={{ fontSize: 30 }}>{signedUsd(pf.unrealized, 0)}</div></MCard>
-        <MCard title="Realized P&L" tone={pf.realized < 0 ? 'neg' : undefined}><div className={`hero-num ${pf.realized >= 0 ? 'green' : 'red'}`} style={{ fontSize: 30 }}>{signedUsd(pf.realized, 0)}</div><div className="tiny faint">{closed.length} closed · {winRate}% winners</div></MCard>
-        <MCard title={<Term k="collateral">Collateral</Term>} tone="plain"><div className="mcard-f" style={{ marginTop: 0 }}><MStat sm label="Reserved" value={usd0(pf.locked)} /><MStat sm label="Free" value={usd0(pf.available)} /></div></MCard>
-      </div>
+      <PageHead title="Portfolio" sub="Testnet position activity recorded by this browser session." actions={<Button variant="gold" onClick={() => go('/app/markets')}>New trade</Button>} />
+      <Banner tone="warn"><b>Session records, not a persistent chain index.</b> This list contains trades recorded in this browser session. It is not a complete on-chain portfolio; marks and P&L use simulated market data. Verify each position against the Testnet contracts before treating it as current.</Banner>
       {s.positions.some((p) => p.status === 'unresolved') && <Banner tone="warn"><b>Unresolved positions are not counted as open.</b> Their collateral stays reserved until the outcome is verified. Open them to check again.</Banner>}
       <Tabs value={tab} onChange={setTab} tabs={[{ v: 'open', label: 'Open', n: open.length }, { v: 'pending', label: 'Pending and unresolved', n: pend.length }, { v: 'closed', label: 'Closed', n: closed.length }]} />
       <Card className="flush">
@@ -64,7 +57,7 @@ export default function Portfolio() {
           </tbody></table></div>
         )}
       </Card>
-      <p className="tiny faint">Valuations are estimates from demo pricing. “—” means no pricing evidence, so Handel won’t guess.</p>
+      <p className="tiny faint">No live market-data provider is connected. Market marks and P&amp;L are simulated; wallet balances and persistent contract positions are not represented by these session records.</p>
     </div>
   );
 }
