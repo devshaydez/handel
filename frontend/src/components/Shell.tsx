@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   LuLayoutDashboard, LuTrendingUp, LuBriefcase, LuMessageSquareText, LuSlidersHorizontal, LuHistory, LuSettings, LuBell, LuSearch,
   LuWallet, LuEllipsis, LuCircleCheck, LuTriangleAlert, LuCircleAlert, LuInfo, LuX, LuLock,
@@ -6,9 +6,10 @@ import {
 import { fmtStamp, NETWORK } from '../data/mock';
 import { go, type Route } from '../router';
 import {
-  dismissToast, markAllRead, markRead, useStore, agentStatus,
+  dismissToast, hydrateAgentMode, markAllRead, markRead, useStore, agentStatus,
 } from '../state/store';
 import { AgentPill } from './status';
+import { getOnChainAgentExecutionMode, getOnChainAgentPolicy } from '../lib/near-wallet';
 import { Logo } from './Logo';
 import { Badge, Button, Modal, useClickOutside } from './ui';
 
@@ -90,6 +91,17 @@ function WalletChip() {
 
 export function Shell({ route, children }: { route: Route; children: ReactNode }) {
   const s = useStore();
+  useEffect(() => {
+    let active = true;
+    Promise.all([getOnChainAgentPolicy(), getOnChainAgentExecutionMode()]).then(([policy, executionMode]) => {
+      if (!active) return;
+      const delegated = policy?.enabled === true && executionMode === 'Delegated';
+      hydrateAgentMode(delegated ? 'auto' : executionMode === 'Advisory' || executionMode === 'Education' ? 'advisory' : 'approval', policy?.enabled === false);
+    }).catch(() => {
+      // Keep the safe non-delegated display if public chain reads are unavailable.
+    });
+    return () => { active = false; };
+  }, []);
   const [more, setMore] = useState(false);
   const [q, setQ] = useState('');
   const pending = s.proposals.filter((p) => p.status === 'pending').length;
