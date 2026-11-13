@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { LuBan, LuCheck, LuLock, LuPause, LuPlay, LuKeyRound } from 'react-icons/lu';
+import { LuBan, LuPause, LuPlay } from 'react-icons/lu';
 import { ChecksList, SegBars } from '../components/status';
 import { AgentPill } from '../components/status';
 import { Badge, Banner, Button, Card, CardHead, KV, Modal, PageHead, QtyStepper, Seg, Sparkle, Switch } from '../components/ui';
 import { ASSETS, DEFAULT_POLICY, fmtStamp, SUPPORTED_STRATEGIES, UNSUPPORTED_STRATEGIES } from '../data/mock';
-import type { Mode, Policy } from '../data/types';
+import type { Policy } from '../data/types';
 import { go } from '../router';
 import { agentStatus, hydrateAgentMode, pauseAgent, resumeAgent, revokeAgent, reauthorize, updatePolicy, useStore } from '../state/store';
 import { usd0 } from '../lib/pricing';
