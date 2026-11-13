@@ -1,6 +1,6 @@
 # Handel — Project Continuation Handoff
 
- > **Historical handoff snapshot.** This file contains dated working notes and is not the current status source. Use [README.md](../README.md) and [EVIDENCE.md](EVIDENCE.md) as authoritative; later repository changes supersede every older status and action list below.
+> **Historical handoff snapshot.** This file contains dated working notes and is not the current status source. Use [README.md](../README.md) and [EVIDENCE.md](EVIDENCE.md) as authoritative; later repository changes supersede every older status and action list below.
 
 ## Historical close-out snapshot — 2026-11-13 16:58 UTC+1 (superseded)
 

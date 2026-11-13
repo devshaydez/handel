@@ -1,5 +1,7 @@
 # Production UI audit — 2026-11-13
 
+> Historical read-only audit snapshot. Findings describe the production build and source state inspected at that time; they are not current implementation status. Use [README.md](../README.md), [EVIDENCE.md](EVIDENCE.md), and [PERSISTENT_TESTNET_INDEXER.md](PERSISTENT_TESTNET_INDEXER.md) for current verified status.
+
 ## Scope
 
 Read-only browser audit of https://handel-live.vercel.app/ and source audit of the merged `main` branch after PR #28. Navigation, page routes, visible tabs, safe disclosures and footer destinations were explored. No wallet was connected, no private credentials were entered, no transaction was signed, and no Testnet state was changed.

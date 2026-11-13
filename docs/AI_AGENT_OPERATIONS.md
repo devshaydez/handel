@@ -50,14 +50,14 @@ The current `HandelAgentRuntime` is an orchestration library, not a daemon or ho
 4. an approved market-evidence verifier;
 5. a durable decision recorder.
 
-A production runtime still needs a trusted market-data implementation and pricing inputs, durable shared budget/audit stores, wallet/contract execution integration, deployment configuration, health monitoring and operator controls. Missing or unverified market evidence must stop trading. The model must never supply the authoritative premium, balance, price, permission state or execution result.
+A production runtime still needs a trusted market-data implementation and pricing inputs, durable shared budget/audit stores, production-grade wallet/contract execution operations, deployment configuration, health monitoring and operator controls. The delegated Testnet composer and server-side create/register route are implemented; that source integration is not evidence of a completed live wallet lifecycle. Missing or unverified market evidence must stop trading. The model must never supply the authoritative premium, balance, price, permission state or execution result.
 
 ## Current proof and limitations
 
-- Live Chat E2EE/OHTTP + provider-TEE receipt smoke: passed.
-- Live System One Gateway-attested, Gateway-signed decision smoke: passed.
+- The Chat provider configures E2EE/OHTTP and provider-TEE verification; provider tests cover the configured privacy metadata and rejection paths. E-001 records a live NEAR AI → SDK → Sandbox CI proof, but does not separately itemize an end-to-end E2EE/OHTTP key-exchange result.
+- A separate live System One decision smoke is **Unverified as of 2026-11-13** in the published evidence ledger; do not claim it as independently established by E-001.
 - Offline SDK tests: latest observed run passed after the signature-policy assertion fix.
-- These checks do not prove the full Handel agent runtime, an always-on worker, market-data authority, wallet integration, a Testnet trade, custody, or settlement.
+- These checks do not prove the full Handel agent runtime, an always-on worker, market-data authority, a completed live wallet lifecycle, a Testnet trade, custody, or settlement.
 
 ## Safe operating rule
 
