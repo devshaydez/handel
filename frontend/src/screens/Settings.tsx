@@ -3,7 +3,7 @@ import { LuBookOpen, LuCheck, LuCircleHelp, LuCopy, LuLogOut, LuKeyRound, LuUnpl
 import { Badge, Banner, Button, Card, CardHead, KV, PageHead, Switch, Tabs } from '../components/ui';
 import { NETWORK } from '../data/mock';
 import { go } from '../router';
-import { agentStatus, connectWallet, disconnectWallet, setNotifPref, setTxPref, toast, useStore } from '../state/store';
+import { connectWallet, disconnectWallet, setNotifPref, toast, useStore } from '../state/store';
 import { usd } from '../lib/pricing';
 import { configureTestnetEscrow, connectNearWallet, getTestnetWnearBalance } from '../lib/near-wallet';
 
@@ -18,7 +18,6 @@ export default function Settings() {
   const [wnearError, setWnearError] = useState('');
   const [escrowSetupBusy, setEscrowSetupBusy] = useState(false);
   const [escrowSetupError, setEscrowSetupError] = useState('');
-  const st = agentStatus(s);
   const refreshWnearBalance = async (accountId: string) => {
     setWnearLoading(true);
     setWnearError('');
@@ -62,14 +61,7 @@ export default function Settings() {
             <p className="small muted">The authoritative trading permissions live on OptionsContract. Open Agent settings to read the current policy and execution mode directly from NEAR Testnet. Browser-side preferences do not grant trading authority.</p>
             <Button size="sm" onClick={() => go('/app/agent')}>View on-chain permissions</Button>
           </Card>
-          <Card>
-            <CardHead title="Transaction preferences" />
-            <div className="col gap16">
-              <div className="row between gap12"><div><div className="semi">Review before signing</div><div className="small muted">Always show the wallet request step.</div></div><Switch on={s.txPrefs.reviewBeforeSign} onChange={(v) => { setTxPref({ reviewBeforeSign: v }); toast('info', v ? 'Review step on' : 'Review step off'); }} label="Review before signing" /></div>
-              <div className="field"><span className="label">Default quantity</span><select className="select" value={s.txPrefs.defaultQty} onChange={(e) => { setTxPref({ defaultQty: Number(e.target.value) }); toast('success', 'Saved'); }}>{[1, 2, 3, 5].map((n) => <option key={n}>{n}</option>)}</select></div>
-              <div className="field"><span className="label">Price tolerance: {s.txPrefs.maxSlippagePct}%</span><input className="range" type="range" min={0.5} max={5} step={0.5} value={s.txPrefs.maxSlippagePct} onChange={(e) => setTxPref({ maxSlippagePct: Number(e.target.value) })} aria-label="Price tolerance" /></div>
-            </div>
-          </Card>
+>
           
         </div>
       )}
@@ -79,7 +71,7 @@ export default function Settings() {
           <Card>
             <CardHead title="How authorization works" icon={<LuKeyRound size={16} />} />
             <div className="col gap12">
-              {[['Connecting a wallet', 'Lets Handel read your account ID and network. It grants no trading permission.'], ['Signing a transaction', 'Authorizes only that one action, after you review it.'], ['Agent permissions', 'A separate setting. Off unless you enable Approval or Automatic mode.'], ['Policy engine', 'Checks every action independently of the AI. The AI cannot bypass it.'], ['Revoking', 'Pause or revoke any time from the Agent page. It takes effect immediately.']].map(([t, d]) => <div key={t} className="row gap12 start"><LuCheck size={16} className="green" style={{ marginTop: 3, flex: 'none' }} /><div><div className="semi">{t}</div><div className="small muted">{d}</div></div></div>)}
+              {[['Connecting a wallet', 'Lets Handel read your account ID and network. It grants no trading permission.'], ['Signing a transaction', 'Authorizes only that one action, after you review it.'], ['Agent permissions', 'Delegated execution stays off until the principal creates an enabled on-chain policy and selects Delegated mode.'], ['Policy engine', 'Checks every action independently of the AI. The AI cannot bypass it.'], ['Revoking', 'Pause or revoke from the Agent page with a principal-wallet transaction; the UI verifies the resulting on-chain state.']].map(([t, d]) => <div key={t} className="row gap12 start"><LuCheck size={16} className="green" style={{ marginTop: 3, flex: 'none' }} /><div><div className="semi">{t}</div><div className="small muted">{d}</div></div></div>)}
             </div>
           </Card>
           <Card>
@@ -93,14 +85,15 @@ export default function Settings() {
 
       {tab === 'notifications' && (
         <Card>
-          <CardHead title="Alert me about" />
+          <CardHead title="In-app alerts for this session" />
+          <p className="small muted mb12">These preferences affect in-app alerts only. Email and push delivery are not connected.</p>
           {NOTIF.map(([k, t, d]) => <NotifRow key={k} k={k} t={t} d={d} />)}
         </Card>
       )}
 
       {tab === 'integrations' && (
         <div className="grid g2">
-          {[['NEAR wallet', 'NEAR Testnet wallet-selector signing', 'Connected wallet', 'green'], ['Options execution', 'Principal-signed OptionsContract calls', 'Testnet', 'green'], ['Escrow settlement', 'NEP-141 transfer_call and callback-confirmed payouts', 'Testnet', 'green'], ['Market data', 'Synthetic option quotes and wNEAR test-token proxy', 'Demo data', 'gold'], ['NEAR Intents', 'Not used for this NEP-141 escrow demo path', 'Not enabled', 'outline'], ['Direct stock execution', 'Not part of the current verified scope', 'Not available', 'outline']].map(([t, d, b, tone]) => (
+          {[['NEAR wallet', 'NEAR Testnet wallet-selector signing', 'Connected wallet', 'green'], ['Options execution', 'Restricted FunctionCall key for delegated creation; principal wallet for policy and collateral', 'Testnet', 'green'], ['Escrow settlement', 'NEP-141 transfer_call and callback-confirmed payouts', 'Testnet', 'green'], ['Market data', 'No live spot or option quote provider; fixed Testnet premium fixture only', 'Unavailable', 'outline'], ['NEAR Intents', 'Not used for this NEP-141 escrow demo path', 'Not enabled', 'outline'], ['Direct stock execution', 'Not part of the current verified scope', 'Not available', 'outline']].map(([t, d, b, tone]) => (
             <Card key={t}><div className="row between start gap12"><div><div className="semi">{t}</div><div className="small muted">{d}</div></div><Badge tone={tone as 'gold'}>{b}</Badge></div></Card>
           ))}
           <div className="span2 card col gap12" style={{ padding: 16 }}>
@@ -114,7 +107,7 @@ export default function Settings() {
               finally { setEscrowSetupBusy(false); }
             }}>{escrowSetupBusy ? 'Configuring contracts…' : 'Configure Testnet escrow'}</Button>
           </div>
-          <div className="span2"><Banner tone="info">Market prices and option premiums are synthetic demo data. The underlying asset used for Testnet escrow is Tidepool wNEAR; it is not an NVDA, TSLA or AAPL token. Settlement completion is based on NEP-141 transfer callbacks and matching state from two independent Testnet RPCs, not a trusted reconciler. Demo self-trading is enabled only on the Testnet escrow.</Banner></div>
+          <div className="span2"><Banner tone="info">Live market prices and option quotes are not connected. The underlying asset used for Testnet escrow is Tidepool wNEAR; it is not an NVDA, TSLA or AAPL token. Settlement completion is based on NEP-141 transfer callbacks and matching state from two independent Testnet RPCs, not a trusted reconciler. Demo self-trading is enabled only on the Testnet escrow.</Banner></div>
         </div>
       )}
 
