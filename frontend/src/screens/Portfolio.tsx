@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Badge, Banner, Button, Card, CardHead, EmptyState, PageHead, PageSkeleton, SymBadge, Tabs, useLoading } from '../components/ui';
+import { Badge, Banner, Button, Card, CardHead, EmptyState, PageHead, PageSkeleton, SymBadge, Tabs, Term, useLoading } from '../components/ui';
 import { TradeStatus } from '../components/status';
 import { fmtShort, dteOf } from '../data/mock';
 import type { Position } from '../data/types';
 import { go } from '../router';
 import { useStore } from '../state/store';
 import { markPosition } from '../lib/valuation';
-import { CONTRACT_SIZE, signedUsd, usd } from '../lib/pricing';
+import { CONTRACT_SIZE, signedUsd, usd, usd0 } from '../lib/pricing';
 
 type Tab = 'open' | 'pending' | 'closed';
 export default function Portfolio() {
