@@ -43,9 +43,88 @@ async function read<T>(path: string): Promise<T> {
   if (!response.ok) throw new Error("Indexer request failed (" + response.status + ")");
   return await response.json() as T;
 }
+const POSITION_RPCS = ["https://rpc.testnet.near.org", "https://rpc.testnet.fastnear.com"] as const;
+const OPTIONS_CONTRACT = (import.meta.env.VITE_HANDEL_OPTIONS_CONTRACT_ID as string | undefined) || "options.shaydez.testnet";
+
+interface FinalView<T> {
+  value: T;
+  blockHeight: number;
+  blockHash: string;
+}
+async function finalView<T>(rpc: string, methodName: string, args: Record<string, unknown>, blockHash?: string): Promise<FinalView<T>> {
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(args))));
+  const response = await fetch(rpc, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0", id: "handel-portfolio", method: "query",
+      params: {
+        request_type: "call_function",
+        ...(blockHash ? { block_id: blockHash } : { finality: "final" }),
+        account_id: OPTIONS_CONTRACT,
+        method_name: methodName,
+        args_base64: encoded,
+      },
+    }),
+  });
+  if (!response.ok) throw new Error("NEAR RPC returned HTTP " + response.status);
+  const body = await response.json() as {
+    result?: { result?: number[]; block_height?: number; block_hash?: string };
+    error?: { message?: string };
+  };
+  if (body.error || !body.result?.result || typeof body.result.block_height !== "number" || !body.result.block_hash) {
+    throw new Error("OptionsContract " + methodName + " failed: " + (body.error?.message ?? "missing finalized block identity"));
+  }
+  return {
+    value: JSON.parse(new TextDecoder().decode(new Uint8Array(body.result.result))) as T,
+    blockHeight: body.result.block_height,
+    blockHash: body.result.block_hash,
+  };
+}
+async function readDirectPortfolio(rpc: string, account: string): Promise<IndexedChainPosition[]> {
+  const count = await finalView<number | string>(rpc, "get_position_count", {});
+  const total = Number(count.value);
+  if (!Number.isSafeInteger(total) || total < 0 || total > 5000) throw new Error("OptionsContract returned an unsupported position count");
+  const rows: IndexedChainPosition[] = [];
+  for (let fromId = 0; fromId < total; fromId += 50) {
+    const page = await finalView<IndexedChainPosition["payload"][]>(rpc, "get_positions_page", {
+      from_id: fromId, limit: Math.min(50, total - fromId),
+    }, count.blockHash);
+    if (page.blockHash !== count.blockHash) throw new Error("Finalized block changed during position pagination");
+    for (const position of page.value) {
+      if (!position || typeof position.writer !== "string" || typeof position.holder !== "string" ||
+          !Number.isSafeInteger(Number(position.id)) || Number(position.id) < fromId ||
+          Number(position.id) >= fromId + 50) throw new Error("OptionsContract returned a malformed position");
+      if (position.writer !== account && position.holder !== account) continue;
+      rows.push({
+        contract_id: OPTIONS_CONTRACT,
+        position_id: String(position.id),
+        writer: position.writer,
+        holder: position.holder,
+        state: String(position.state),
+        payload: position,
+        block_height: count.blockHeight,
+        block_hash: count.blockHash,
+        indexed_at: new Date().toISOString(),
+      });
+    }
+  }
+  return rows;
+}
 export async function fetchIndexedPortfolio(account: string): Promise<IndexedChainPosition[]> {
-  const data = await read<{ positions: IndexedChainPosition[] }>("/v1/portfolio?account=" + encodeURIComponent(account));
-  return data.positions;
+  const base = baseUrl();
+  if (base) {
+    const data = await read<{ positions: IndexedChainPosition[] }>("/v1/portfolio?account=" + encodeURIComponent(account));
+    return data.positions;
+  }
+  // Zero-cost fallback: query finalized contract views directly from two independent public RPCs.
+  // The contract must first be upgraded with get_position_count/get_positions_page.
+  const [primary, secondary] = await Promise.all(POSITION_RPCS.map(rpc => readDirectPortfolio(rpc, account)));
+  const stable = (rows: IndexedChainPosition[]) => JSON.stringify(rows.map(row => ({
+    id: row.position_id, writer: row.writer, holder: row.holder, state: row.state, payload: row.payload,
+  })));
+  if (stable(primary) !== stable(secondary)) throw new Error("Independent NEAR Testnet RPCs disagree; refusing to show an unverified portfolio snapshot");
+  return primary;
 }
 export async function fetchIndexedActivity(account: string): Promise<IndexedPositionActivity[]> {
   const data = await read<{ events: IndexedPositionActivity[] }>("/v1/activity?account=" + encodeURIComponent(account));
