@@ -67,3 +67,35 @@ Never claim a path works without an entry here.
 - CI run #43314638314: seven jobs passed on branch head `63d30387d85db728c4b26fba6d1ec4293597f087`; not a post-deployment main-commit run.
 - No real delegated trade, collateral transfer, holder premium payment, or settlement receipt is recorded by this close-out. Deployment receipts are not lifecycle evidence.
 - Remaining acceptance evidence: independent account code-hash/state verification; connect Assistant to the restricted delegated route without exposing the API token; execute a separately authorized principal/holder Testnet lifecycle; capture policy-limit and revocation rejection receipts.
+
+
+## Delegated agent live Testnet evidence — blocked at preflight (2026-11-13)
+
+**Network:** NEAR Testnet  
+**Observed:** 2026-11-13 02:02 UTC  
+**Read-only check:** `GET /api/v1/agent/status` on the Vercel preview for commit `8dc4081d40eb6bca66e262d36fdf5e5839b5c259`  
+**Finalized state block:** height `277446493`, hash `DvyGCsa4AybGYecWCFC36oeDT4usNBH3z4SczQZXeEGq`
+
+The live status response identified:
+
+- Agent account: `handel-agent.shaydez.testnet`
+- OptionsContract: `options.shaydez.testnet`
+- On-chain policy: `null` (no policy registered for this agent)
+- Execution mode: `ManualApproval`
+- Restricted key public key: `ed25519:Dnbh2zhzHVoXe6HF5xafN6QUP7Yzbuc9hiejoKMi46iv`
+- Key permission: FunctionCall, receiver `options.shaydez.testnet`
+- Exact method allowlist: `agent_begin_collateral_lock`, `agent_create_call`, `agent_create_put`, `agent_register_escrow_position`
+- Finite key allowance: `1000000000000000000000000` yoctoNEAR
+- Key-scope verification: `true`
+
+The configured delegated key is installed and its receiver, four-method allowlist, and finite allowance all match the required scope. However, the agent has **no on-chain policy** and remains in `ManualApproval`. The delegated contract entrypoints require an enabled policy and `Delegated` mode.
+
+| Required live Testnet case | Result | Transaction hash | Exact reason |
+|---|---|---|---|
+| In-limit successful Call/Put | **NOT RUN** | — | Preflight returned `policy=null`; no enabled policy exists for `handel-agent.shaydez.testnet`. |
+| Over-limit on-chain rejection | **NOT RUN** | — | Stopped before submission because the policy is absent and execution mode is `ManualApproval`; an on-chain policy rejection cannot be tested without first satisfying the contract's authority preconditions. |
+| Post-revocation on-chain rejection | **NOT RUN** | — | There is no registered policy to revoke. The principal must first create the policy, then later sign `revoke_agent`. |
+
+**No transaction was submitted by this evidence run.** No Testnet state or token balance was changed. No Sandbox or mocked result is counted as live evidence. There are no success or failure transaction hashes to report.
+
+**Next prerequisite:** the principal must connect the wallet to the Agent settings in Handel and save user-selected on-chain limits. That wallet-signed action calls `set_agent_policy_exact` and sets `Delegated` mode. Re-run the read-only preflight and proceed only when it reports an enabled policy and `Delegated`. After the successful and over-limit cases, the principal must sign the on-chain revocation; the updated Agent screen now verifies `enabled=false` before reporting revocation.
