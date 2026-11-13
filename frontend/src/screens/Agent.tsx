@@ -196,7 +196,7 @@ export default function Agent() {
         )}
       </Card>
 
-undefined      <Modal open={confirmRevoke} onClose={() => setConfirmRevoke(false)} title="Revoke agent access?">
+      <Modal open={confirmRevoke} onClose={() => setConfirmRevoke(false)} title="Revoke agent access?">
         <div className="col gap16">
           <p className="text2">This asks your principal wallet to sign the OptionsContract revoke_agent transaction. Handel will show revoked only after the contract confirms enabled=false. Existing positions are not cancelled.</p>
           <div className="row gap8"><Button block onClick={() => setConfirmRevoke(false)} disabled={chainRevoking}>Cancel</Button><Button block variant="danger" disabled={chainRevoking} onClick={() => void confirmOnChainRevoke()}>{chainRevoking ? 'Waiting for principal wallet…' : 'Sign on-chain revocation'}</Button></div>
