@@ -4,7 +4,7 @@ type Fetcher = (input: string | URL, init?: RequestInit) => Promise<Response>;
 interface RpcError { message?: string; }
 interface RpcEnvelope<T> { result?: T; error?: RpcError; }
 interface BlockResult { header?: { height?: number; hash?: string }; chunks?: Array<{ chunk_hash: string; shard_id: number }>; }
-interface ChunkResult { transactions?: Array<{ hash: string; signer_id: string }>; }
+interface ChunkResult { transactions?: Array<{ hash: string; signer_id: string; receiver_id?: string }>; }
 interface TxResult {
   final_execution_status?: string;
   transaction?: { hash?: string; signer_id?: string; receiver_id?: string; actions?: unknown[] };
@@ -127,7 +127,7 @@ export class NearFinalizedReceiptIndexer {
           for (const tx of chunk.transactions ?? []) {
             if (!tx.hash || !tx.signer_id) throw new Error("NEAR chunk contains malformed transaction");
             if (this.watchedAccounts.length > 0 && !this.watchedAccounts.includes(tx.signer_id) &&
-                !this.watchedAccounts.includes((tx as { receiver_id?: string }).receiver_id ?? "")) continue;
+                !this.watchedAccounts.includes(tx.receiver_id ?? "")) continue;
             const result = await this.rpc<TxResult>("tx", {
               tx_hash: tx.hash, sender_account_id: tx.signer_id, wait_until: "FINAL",
             });
