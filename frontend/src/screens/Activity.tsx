@@ -69,6 +69,7 @@ function Detail({ a }: { a: Act }) {
       {a.kind === 'no_trade' && <Banner tone="info"><b>A no-trade decision is a valid result, not an error.</b> The AI looked and decided there was nothing worth doing.</Banner>}
       {a.stage === 'unknown' && <Banner tone="warn"><b>Unresolved.</b> The outcome could not be verified. It is not shown as a success or a failure.</Banner>}
       {tx && <div className="card" style={{ padding: 14 }}><TxLanes tx={tx} /></div>}
+      {a.txHash && <div className="card" style={{ padding: 14 }}><KV k="Transaction" v={<a className="link mono tiny" href={`https://explorer.testnet.near.org/transactions/${a.txHash}`} target="_blank" rel="noreferrer">{shortHash(a.txHash)} · NEAR Explorer</a>} /></div>}
       {r ? (
         <>
           <div className="card" style={{ padding: '4px 14px' }}>
