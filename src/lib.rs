@@ -1710,7 +1710,10 @@ impl OptionsContract {
             open_count < policy.max_open_positions as usize,
             "open position limit"
         );
-        assert_ne!(holder, policy.principal, "holder must be distinct from principal");
+        assert_ne!(
+            holder, policy.principal,
+            "holder must be distinct from principal"
+        );
         let position_id = self.create_offer(
             OptionKind::Put,
             policy.principal.clone(),
