@@ -5,11 +5,13 @@ import {
   authorizeDelegatedPremiumPayment,
   connectNearWallet,
   currentNearAccount,
+  signAgentProposalIntent,
   type WalletTransactionResult,
 } from '../lib/near-wallet';
 import { Button, Card, CardHead } from './ui';
 
 const ASSET_ID = 'nep141:wnear.tidepool-sandbox.testnet';
+const PREMIUM = import.meta.env.VITE_HANDEL_DEMO_PREMIUM_FIXTURE || '5000000';
 
 export function TestnetProposalComposer() {
   const [holder, setHolder] = useState('');
@@ -30,9 +32,13 @@ export function TestnetProposalComposer() {
       const buyer = holder.trim();
       if (!buyer || buyer === principal) throw new Error('Enter a different NEAR account as the holder.');
       const expiryNs = (BigInt(Date.now() + 7 * 86_400_000) * 1_000_000n).toString();
+      const authorization = await signAgentProposalIntent({
+        principal, holder: buyer, kind, assetId: ASSET_ID, quantity, strike, premium: PREMIUM, expiryNs,
+      });
       const result = await createDelegatedTrade({
         principal,
         holder: buyer,
+        authorization,
         request: { type: kind, assetId: ASSET_ID, quantity, strike, expiryNs },
       });
       setReply(result); setCollateral(null); setPremiumPaid(null);
