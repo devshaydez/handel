@@ -1,13 +1,8 @@
 import { useEffect, useState } from 'react';
-import { LuBan, LuKeyRound, LuLock, LuPause, LuPlay } from 'react-icons/lu';
-import { ChecksList, SegBars } from '../components/status';
+import { LuBan, LuKeyRound, LuPause, LuPlay } from 'react-icons/lu';
 import { AgentPill } from '../components/status';
-import { Badge, Banner, Button, Card, CardHead, KV, Modal, PageHead, QtyStepper, Seg, Sparkle, Switch } from '../components/ui';
-import { ASSETS, DEFAULT_POLICY, fmtStamp, SUPPORTED_STRATEGIES, UNSUPPORTED_STRATEGIES } from '../data/mock';
-import type { Policy } from '../data/types';
-import { go } from '../router';
-import { agentStatus, hydrateAgentMode, revokeAgent, reauthorize, updatePolicy, useStore } from '../state/store';
-import { usd0 } from '../lib/pricing';
+import { Badge, Banner, Button, Card, CardHead, KV, Modal, PageHead } from '../components/ui';
+import { agentStatus, hydrateAgentMode, revokeAgent, useStore } from '../state/store';
 import { getOnChainAgentExecutionMode, getOnChainAgentPolicy, revokeOnChainAgentAccess, saveOnChainAgentPolicy, setOnChainAgentExecutionMode } from '../lib/near-wallet';
 
 function formatBaseUnits(value: string | number, decimals: number): string {
@@ -27,7 +22,6 @@ function parseBaseUnits(value: string, decimals: number): string {
 export default function Agent() {
   const s = useStore();
   const st = agentStatus(s);
-  const [draft, setDraft] = useState<Policy>(s.policy);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [chainPolicy, setChainPolicy] = useState<Awaited<ReturnType<typeof getOnChainAgentPolicy>>>(null);
   const [chainDraft, setChainDraft] = useState({ maxUnderlyingWnear: '', maxPremiumUsdc: '', maxCollateralUsdc: '', maxOpenPositions: '', validityDays: '' });
@@ -105,21 +99,13 @@ export default function Agent() {
       setChainError(error instanceof Error ? error.message : 'On-chain agent revocation failed.');
     } finally { setChainRevoking(false); }
   };
-  const dirty = JSON.stringify(draft) !== JSON.stringify(s.policy);
-  const tgl = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
-  const perm = s.activity.filter((a) => a.kind === 'permission_change').slice(0, 4);
-  const tradable = ASSETS.filter((a) => a.optionsSupported);
-  const active = [
-    `${draft.assets.length ? draft.assets.join(', ') : 'No assets'}`, draft.sides.length ? draft.sides.join(' + ') + 's' : 'No option types', `Max ${draft.maxContracts} contracts`, `Max ${usd0(draft.maxPremiumUsd)} premium`, `${draft.expiryMinDays}–${draft.expiryMaxDays} days to expiry`, `Max ${draft.maxExposurePct}% exposure`, draft.requireVerified ? 'Verified pricing only' : 'Estimates allowed',
-  ];
+
 
   return (
     <div className="page">
       <PageHead title="Agent permissions" sub="Configure the same AI agent you speak to in Assistant. Saving bounded on-chain limits enables automatic delegated execution; pause or revoke it here." actions={<AgentPill />} />
 
-      {s.revoked && <Banner tone="danger" action={<Button size="sm" variant="gold" onClick={reauthorize}>Re-enable in Advisory</Button>}><b>Agent access is revoked.</b> The agent cannot analyse, propose or act until you re-enable it.</Banner>}
-      {s.paused && !s.revoked && <Banner tone="warn" action={<Button size="sm" variant="gold" onClick={resumeAgent}>Resume</Button>}><b>The agent is paused.</b> Your permissions are unchanged, but nothing runs until you resume.</Banner>}
-      {s.demo.agentError && <Banner tone="danger"><b>Agent error.</b> The market-data adapter timed out. The agent abstains rather than act on missing evidence.</Banner>}
+      {s.revoked && <Banner tone="danger"><b>Agent access is revoked.</b> The restricted key cannot execute. Create a new on-chain policy with the principal wallet to re-enable bounded execution.</Banner>}
 
       <Card className="ai">
         <div className="row between wrap gap16">
@@ -130,7 +116,7 @@ export default function Agent() {
               <Badge tone={s.authorization.status === 'delegated' ? 'amber' : s.authorization.status === 'revoked' ? 'red' : 'outline'}>{s.authorization.status === 'delegated' ? `Delegated · ${s.authorization.id}` : s.authorization.status === 'revoked' ? 'Revoked' : s.authorization.status === 'per-proposal' ? 'Per-proposal approval' : 'No trading authority'}</Badge>
               <Badge tone="outline">{st.label}</Badge>
             </div>
-            <p className="small muted" style={{ maxWidth: '62ch' }}>{s.mode === 'auto' ? 'After one wallet-bound session authorization, the agent creates options and registers Escrow within your on-chain caps without per-trade approval. The principal separately signs collateral and the holder signs premium. No token transfers are delegated.' : s.mode === 'approval' ? 'The agent writes proposals. Nothing is funded until you approve it in your wallet, and approved trades are checked against the on-chain contract and escrow.' : 'The agent has no ability to trade. It analyses and recommends only.'}</p>
+            <p className="small muted" style={{ maxWidth: '62ch' }}>{s.mode === 'auto' ? 'After one wallet-bound session authorization, the agent creates options and registers Escrow within your on-chain caps without per-trade approval. The principal separately signs collateral and the holder signs premium. No token transfers are delegated.' : s.mode === 'approval' ? 'Execution is in ManualApproval. The restricted agent will not create positions; resume Delegated mode only when the on-chain policy is enabled.' : 'The agent has no ability to trade. It answers and explains only.'}</p>
           </div>
           <div className="col gap8" style={{ minWidth: 200 }}>
             {s.mode === 'auto' ? <Button icon={<LuPause size={14} />} onClick={() => void changeOnChainExecutionMode('ManualApproval')} disabled={chainSaving}>Pause automatic execution</Button> : chainPolicy?.enabled ? <Button variant="gold" icon={<LuPlay size={14} />} onClick={() => void changeOnChainExecutionMode('Delegated')} disabled={chainSaving || s.revoked}>Resume automatic execution</Button> : null}
@@ -149,52 +135,12 @@ export default function Agent() {
         </div>
       </Card>
 
-      <div className="grid g-main">
-        <Card>
-          <CardHead title="Local advisory preferences" sub="These browser-side preferences do not grant authority or change the on-chain Testnet limits below." right={<div className="row gap8">{dirty && <Button size="sm" onClick={() => setDraft(s.policy)}>Discard</Button>}<Button size="sm" variant="gold" disabled={!dirty} onClick={() => updatePolicy(draft)}>Save local preferences</Button></div>} />
-          <div className="col gap20" style={{ gap: 20 }}>
-            <div className="field"><span className="label">Allowed assets</span><div className="pill-row">{tradable.map((a) => <button key={a.sym} className={`chip ${draft.assets.includes(a.sym) ? 'on' : ''}`} onClick={() => setDraft({ ...draft, assets: tgl(draft.assets, a.sym) })} aria-pressed={draft.assets.includes(a.sym)}>{a.sym}</button>)}</div></div>
-            <div className="field"><span className="label">Option types</span><div className="pill-row">{(['call', 'put'] as const).map((x) => <button key={x} className={`chip ${draft.sides.includes(x) ? 'on' : ''}`} onClick={() => setDraft({ ...draft, sides: tgl(draft.sides, x), strategies: tgl(draft.strategies, x === 'call' ? 'Long call' : 'Long put') })}>{x === 'call' ? 'Calls' : 'Puts'}</button>)}</div></div>
-            <div className="field"><span className="label">Strategies</span><div className="pill-row">{SUPPORTED_STRATEGIES.map((x) => <button key={x} className={`chip ${draft.strategies.includes(x) ? 'on' : ''}`} onClick={() => setDraft({ ...draft, strategies: tgl(draft.strategies, x) })}>{x}</button>)}{UNSUPPORTED_STRATEGIES.map((x) => <button key={x} className="chip" disabled title="Not implemented by the backend yet"><LuLock size={11} />{x}</button>)}</div></div>
-            <div className="grid g2">
-              <div className="field"><span className="label">Max contracts per trade</span><QtyStepper value={draft.maxContracts} onChange={(n) => setDraft({ ...draft, maxContracts: n })} max={50} /></div>
-              <div className="field"><span className="label">Max premium per trade: {usd0(draft.maxPremiumUsd)}</span><input className="range" type="range" min={250} max={10000} step={250} value={draft.maxPremiumUsd} onChange={(e) => setDraft({ ...draft, maxPremiumUsd: Number(e.target.value) })} aria-label="Max premium" /></div>
-              <div className="field"><span className="label">Earliest expiry: {draft.expiryMinDays} days</span><input className="range" type="range" min={1} max={30} value={draft.expiryMinDays} onChange={(e) => setDraft({ ...draft, expiryMinDays: Math.min(Number(e.target.value), draft.expiryMaxDays - 1) })} aria-label="Earliest expiry" /></div>
-              <div className="field"><span className="label">Latest expiry: {draft.expiryMaxDays} days</span><input className="range" type="range" min={7} max={120} value={draft.expiryMaxDays} onChange={(e) => setDraft({ ...draft, expiryMaxDays: Math.max(Number(e.target.value), draft.expiryMinDays + 1) })} aria-label="Latest expiry" /></div>
-              <div className="field"><span className="label">Exposure cap: {draft.maxExposurePct}% of balance</span><input className="range" type="range" min={5} max={100} step={5} value={draft.maxExposurePct} onChange={(e) => setDraft({ ...draft, maxExposurePct: Number(e.target.value) })} aria-label="Exposure cap" /></div>
-              <div className="field"><span className="label">Require verified pricing</span><div className="row gap8"><Switch on={draft.requireVerified} onChange={(v) => setDraft({ ...draft, requireVerified: v })} label="Require verified pricing" /><span className="small muted">{draft.requireVerified ? 'Estimates are blocked' : 'Estimates allowed'}</span></div></div>
-            </div>
-            <button className="link small" style={{ alignSelf: 'flex-start' }} onClick={() => setDraft({ ...DEFAULT_POLICY })}>Restore defaults</button>
-          </div>
-        </Card>
-        <div className="col gap16">
-          <Card>
-            <CardHead title="Active restrictions" sub={dirty ? 'Unsaved changes shown' : 'Currently enforced'} />
-            <div className="pill-row">{active.map((a) => <Badge key={a} tone="outline">{a}</Badge>)}</div>
-            <p className="tiny faint mt12">Pricing older than {s.policy.maxPricingAgeMin} minutes is always rejected.</p>
-          </Card>
-          <Card>
-            <CardHead title="Recent agent actions" right={<button className="link small" onClick={() => go('/app/activity')}>All</button>} />
-            {s.agentRuns.length === 0 ? <p className="small muted">No agent activity yet.</p> : s.agentRuns.slice(0, 5).map((r) => (
-              <div key={r.id} className="row gap12 between" style={{ padding: '9px 0', borderBottom: '1px solid var(--line)' }}>
-                <div className="grow"><div className="semi small ellipsis">{r.title}</div><div className="tiny faint">{fmtStamp(r.ts)}</div><div className="mt4"><SegBars checks={r.checks} /></div></div>
-                <Badge sm tone={r.result === 'executed' ? 'green' : r.result === 'proposed' ? 'gold' : r.result === 'rejected' ? 'red' : 'outline'}>{r.result === 'rejected' ? 'Blocked' : r.result === 'abstained' ? 'No trade' : r.result}</Badge>
-              </div>
-            ))}
-          </Card>
-          <Card>
-            <CardHead title="Permission changes" />
-            {perm.length === 0 ? <p className="small muted">No changes yet.</p> : perm.map((a) => <KV key={a.id} k={<span className="text2">{a.title}</span>} v={<span className="tiny muted">{fmtStamp(a.ts)}</span>} />)}
-          </Card>
-        </div>
-      </div>
-
       <Card>
         <CardHead title="On-chain Testnet permissions" sub="These exact limits are enforced by OptionsContract for handel-agent.shaydez.testnet. Only your connected principal wallet can create or update them." right={chainPolicy ? <Badge tone={chainPolicy.enabled ? 'green' : 'red'}>{chainPolicy.enabled ? 'On-chain policy active' : 'Disabled'}</Badge> : <Badge tone="outline">Not configured</Badge>} />
         {chainLoading ? <p className="small muted">Reading policy from NEAR Testnet…</p> : (
           <>
             {chainPolicy && <div className="small muted mb12">Principal: <b>{chainPolicy.principal}</b> · Allowed asset: wNEAR · Current policy expiry: {new Date(Number(chainPolicy.expires_at_ns) / 1_000_000).toLocaleString()}</div>}
-            <div className="banner info mb12">All demo market symbols currently use the same Tidepool Testnet wNEAR token. The contract policy therefore authorizes that token, not real NVDA/AAPL/MSFT shares.</div>
+            <div className="banner info mb12">Only the Tidepool Testnet wNEAR token is allowlisted for this agent. These permissions do not authorize stock shares or live-market assets.</div>
             <div className="grid g2">
               <div className="field"><span className="label">Maximum underlying per proposal (wNEAR)</span><input className="input" type="number" min="0" step="0.000000000000000000000001" value={chainDraft.maxUnderlyingWnear} onChange={(e) => setChainDraft({ ...chainDraft, maxUnderlyingWnear: e.target.value })} placeholder="Set your wNEAR limit" /></div>
               <div className="field"><span className="label">Maximum premium per proposal (USDC)</span><input className="input" type="number" min="0" step="0.000001" value={chainDraft.maxPremiumUsdc} onChange={(e) => setChainDraft({ ...chainDraft, maxPremiumUsdc: e.target.value })} placeholder="Set your USDC limit" /></div>
@@ -218,7 +164,7 @@ export default function Agent() {
           <div className="row gap8"><Button block onClick={() => setConfirmRevoke(false)} disabled={chainRevoking}>Cancel</Button><Button block variant="danger" disabled={chainRevoking} onClick={() => void confirmOnChainRevoke()}>{chainRevoking ? 'Waiting for principal wallet…' : 'Sign on-chain revocation'}</Button></div>
         </div>
       </Modal>
-      <span className="hide"><Seg value="a" onChange={() => {}} options={[{ v: 'a', label: '' }]} /><ChecksList checks={[]} /><Sparkle /></span>
+
     </div>
   );
 }
