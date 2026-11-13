@@ -2819,6 +2819,65 @@ mod tests {
     }
 
     #[test]
+    fn agent_proposal_replay_and_two_party_roles_are_enforced() {
+        let mut c = contract();
+        context("writer.testnet");
+        c.set_agent_policy(
+            account("agent.testnet"),
+            vec!["nep141:stock.testnet".into()],
+            50,
+            100,
+            2_000,
+            2,
+            80,
+        );
+
+        context("agent.testnet");
+        c.create_agent_proposal(
+            "one-time-proposal".into(),
+            OptionKind::Call,
+            account("buyer.testnet"),
+            "nep141:stock.testnet".into(),
+            10,
+            20,
+            70,
+            5,
+            "sha256:bound-terms".into(),
+        );
+        let position = c.get_position(0).unwrap();
+        assert_eq!(position.writer, account("writer.testnet"));
+        assert_eq!(position.holder, account("buyer.testnet"));
+
+        let replay = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.create_agent_proposal(
+                "one-time-proposal".into(),
+                OptionKind::Call,
+                account("attacker.testnet"),
+                "nep141:stock.testnet".into(),
+                10,
+                20,
+                70,
+                5,
+                "sha256:replayed-terms".into(),
+            )
+        }));
+        assert!(replay.is_err(), "a proposal nonce-derived ID must be one-time");
+
+        context("buyer.testnet");
+        let holder_cannot_approve = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.approve_agent_proposal("one-time-proposal".into())
+        }));
+        assert!(holder_cannot_approve.is_err(), "only the writer principal may approve");
+
+        context("writer.testnet");
+        c.approve_agent_proposal("one-time-proposal".into());
+        assert_eq!(
+            c.get_agent_proposal("one-time-proposal".into()).unwrap().state,
+            ProposalState::Approved
+        );
+    }
+
+    #[test]
     fn agent_proposal_cannot_bypass_principal_approval_through_escrow_registration() {
         let mut c = contract();
         context("writer.testnet");
