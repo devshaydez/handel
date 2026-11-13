@@ -190,6 +190,9 @@ export async function getOnChainAgentPolicy(): Promise<OnChainAgentPolicy | null
   return view<OnChainAgentPolicy | null>(OPTIONS_CONTRACT, 'get_agent_policy', { agent_id: AGENT_ACCOUNT });
 }
 
+export async function getOnChainAgentExecutionMode(): Promise<'Education' | 'Advisory' | 'ManualApproval' | 'Delegated'> {
+  return view<'Education' | 'Advisory' | 'ManualApproval' | 'Delegated'>(OPTIONS_CONTRACT, 'get_agent_execution_mode', { agent_id: AGENT_ACCOUNT });
+}
 export async function setOnChainAgentExecutionMode(mode: 'Education' | 'Advisory' | 'ManualApproval' | 'Delegated'): Promise<string> {
   const principal = await currentNearAccount();
   if (!principal) throw new Error('Connect the principal NEAR Testnet wallet to change agent authority.');
@@ -198,7 +201,7 @@ export async function setOnChainAgentExecutionMode(mode: 'Education' | 'Advisory
     throw new Error('Create or enable the on-chain agent policy before selecting an execution mode.');
   }
   const tx = await send(OPTIONS_CONTRACT, 'set_agent_execution_mode', { agent_id: AGENT_ACCOUNT, mode });
-  const confirmed = await view<string>(OPTIONS_CONTRACT, 'get_agent_execution_mode', { agent_id: AGENT_ACCOUNT });
+  const confirmed = await getOnChainAgentExecutionMode();
   if (confirmed !== mode) throw new Error('Execution mode transaction was submitted but the on-chain mode did not verify. Transaction: ' + tx.transactionHash);
   return tx.transactionHash;
 }
