@@ -57,6 +57,7 @@ jobs:
           node --check lib/handel-api.js
           node --check lib/delegated-agent.js
           node --check api/v1/delegated/trades.js
+          node --check api/v1/agent/status.js
           node --test scripts/test-testnet-deployment-readiness.mjs
 
       - name: Install system dependencies for cargo-near

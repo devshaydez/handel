@@ -22,6 +22,43 @@ export interface AgentProposalAuthorization {
   publicKey: string;
   signature: string;
 }
+export interface DelegatedSessionAuthorization {
+  message: string;
+  nonce: string;
+  recipient: string;
+  callbackUrl: string;
+  issuedAtMs: string;
+  publicKey: string;
+  signature: string;
+}
+export async function signAgentSessionIntent(principal: string): Promise<DelegatedSessionAuthorization> {
+  const accountId = await currentNearAccount();
+  if (!accountId || accountId !== principal) throw new Error('Connect the principal wallet that owns this agent to authorize its bounded trading session.');
+  const s = await selector();
+  const wallet = await s.wallet();
+  if (typeof wallet.signMessage !== 'function') throw new Error('The connected wallet does not support NEP-413 session authorization.');
+  const nonceBytes = crypto.getRandomValues(new Uint8Array(32));
+  const nonce = btoa(Array.from(nonceBytes, (byte) => String.fromCharCode(byte)).join(''));
+  const issuedAtMs = String(Date.now());
+  const recipient = 'handel-live.vercel.app';
+  const callbackUrl = window.location.href;
+  const message = [
+    'Handel delegated trading session',
+    'Version: 1',
+    'Principal: ' + principal,
+    "Scope: execute trades only within the principal's active on-chain delegated policy",
+    'Issued at (milliseconds): ' + issuedAtMs,
+  ].join('\n');
+  const signed = await wallet.signMessage({ message, recipient, nonce: nonceBytes as never, callbackUrl });
+  if (!signed || !signed.signature || !signed.publicKey || signed.accountId !== principal) {
+    throw new Error('The wallet did not return a verifiable NEP-413 session signature.');
+  }
+  const raw = signed.signature as unknown;
+  const signature = typeof raw === 'string' ? raw :
+    btoa(Array.from(new Uint8Array(raw as ArrayLike<number>), (byte) => String.fromCharCode(byte)).join(''));
+  return { message, nonce, recipient, callbackUrl, issuedAtMs, publicKey: signed.publicKey.toString(), signature };
+}
+
 export async function signAgentProposalIntent(input: {
   principal: string;
   holder: string;
@@ -31,6 +68,7 @@ export async function signAgentProposalIntent(input: {
   strike: string;
   premium: string;
   expiryNs: string;
+  action?: string;
 }): Promise<AgentProposalAuthorization> {
   const accountId = await currentNearAccount();
   if (!accountId || accountId !== input.principal) throw new Error('Connect the principal wallet that owns this agent before requesting a proposal.');
@@ -46,7 +84,7 @@ export async function signAgentProposalIntent(input: {
   const callbackUrl = window.location.href;
   const message = [
     'Handel agent proposal authorization',
-    'Action: submit one pending options proposal for principal approval',
+    'Action: ' + (input.action || 'submit one pending options proposal for principal approval'),
     'Version: 1',
     'Principal: ' + input.principal,
     'Holder: ' + input.holder,
@@ -128,6 +166,22 @@ async function send(receiverId: string, methodName: string, args: Record<string,
   if (!transactionHash) throw new Error('Wallet returned without a transaction hash.');
   return { transactionHash, accountId, outcome };
 }
+async function sendBatch(receiverId: string, calls: { methodName: string; args: Record<string, unknown>; deposit?: string; gas?: string }[]) {
+  const s = await selector();
+  const accountId = s.store.getState().accounts.find((item) => item.active)?.accountId ?? s.store.getState().accounts[0]?.accountId;
+  if (!accountId) throw new Error('Connect your NEAR Testnet wallet before approving.');
+  const wallet = await s.wallet();
+  const result = await wallet.signAndSendTransaction({
+    receiverId,
+    actions: calls.map((call) => actionCreators.functionCall(
+      call.methodName, call.args, BigInt(call.gas ?? '30000000000000'), BigInt(call.deposit ?? '0'),
+    )),
+  });
+  if (!result) throw new Error('This wallet completed a redirect-based signing flow. Reopen Handel and verify the transaction before retrying.');
+  const outcome = result as unknown as { transaction?: { hash?: string } };
+  if (!outcome.transaction?.hash) throw new Error('Wallet returned without a transaction hash.');
+  return { transactionHash: outcome.transaction.hash, accountId };
+}
 function stableJson(value: unknown): string {
   if (Array.isArray(value)) return '[' + value.map(stableJson).join(',') + ']';
   if (value && typeof value === 'object') {
@@ -189,6 +243,41 @@ const AGENT_ACCOUNT = (import.meta.env.VITE_HANDEL_AGENT_ACCOUNT_ID as string | 
 export async function getOnChainAgentPolicy(): Promise<OnChainAgentPolicy | null> {
   return view<OnChainAgentPolicy | null>(OPTIONS_CONTRACT, 'get_agent_policy', { agent_id: AGENT_ACCOUNT });
 }
+
+export async function getOnChainAgentExecutionMode(): Promise<'Education' | 'Advisory' | 'ManualApproval' | 'Delegated'> {
+  return view<'Education' | 'Advisory' | 'ManualApproval' | 'Delegated'>(OPTIONS_CONTRACT, 'get_agent_execution_mode', { agent_id: AGENT_ACCOUNT });
+}
+export async function setOnChainAgentExecutionMode(mode: 'Education' | 'Advisory' | 'ManualApproval' | 'Delegated'): Promise<string> {
+  const principal = await currentNearAccount();
+  if (!principal) throw new Error('Connect the principal NEAR Testnet wallet to change agent authority.');
+  const policy = await getOnChainAgentPolicy();
+  if (!policy || policy.principal !== principal || !policy.enabled) {
+    throw new Error('Create or enable the on-chain agent policy before selecting an execution mode.');
+  }
+  const tx = await send(OPTIONS_CONTRACT, 'set_agent_execution_mode', { agent_id: AGENT_ACCOUNT, mode });
+  const confirmed = await getOnChainAgentExecutionMode();
+  if (confirmed !== mode) throw new Error('Execution mode transaction was submitted but the on-chain mode did not verify. Transaction: ' + tx.transactionHash);
+  return tx.transactionHash;
+}
+
+export async function ensureDelegatedAgentReady(): Promise<void> {
+  const principal = await currentNearAccount();
+  if (!principal) throw new Error('Connect the principal NEAR Testnet wallet before placing a trade.');
+  const policy = await getOnChainAgentPolicy();
+  if (!policy || policy.principal !== principal || !policy.enabled ||
+      BigInt(policy.expires_at_ns) <= BigInt(Date.now()) * 1_000_000n) {
+    throw new Error('This wallet has no active on-chain Handel limits. Save the trading limits once in Agent settings before placing trades.');
+  }
+  if (!policy.allowed_assets.includes('nep141:wnear.tidepool-sandbox.testnet')) {
+    throw new Error('WNEAR is not enabled in this wallet’s on-chain Handel limits.');
+  }
+  const mode = await getOnChainAgentExecutionMode();
+  if (mode !== 'Delegated') await setOnChainAgentExecutionMode('Delegated');
+  if (await getOnChainAgentExecutionMode() !== 'Delegated') {
+    throw new Error('Delegated execution could not be verified on-chain. No trade was submitted.');
+  }
+}
+
 export async function saveOnChainAgentPolicy(input: {
   allowedAssets: string[];
   maxUnderlyingAmount: string;
@@ -201,40 +290,51 @@ export async function saveOnChainAgentPolicy(input: {
   if (!principal) throw new Error('Connect the principal NEAR Testnet wallet before saving agent permissions.');
   if (!input.allowedAssets.length) throw new Error('Select at least one enabled asset.');
   for (const [label, value] of [['underlying', input.maxUnderlyingAmount], ['premium', input.maxPremiumUsdc], ['collateral', input.maxCollateralUsdc]] as const) {
-    if (!/^\d+$/.test(value) || BigInt(value) <= 0n) throw new Error('The maximum ' + label + ' amount must be a positive integer in base units.');
+    if (!/^\\d+$/.test(value) || BigInt(value) <= 0n) throw new Error('The maximum ' + label + ' amount must be a positive integer in base units.');
   }
   if (!Number.isInteger(input.maxOpenPositions) || input.maxOpenPositions < 1) throw new Error('Maximum open positions must be a positive whole number.');
   if (!Number.isInteger(input.validityDays) || input.validityDays < 1 || input.validityDays > 365) throw new Error('Policy validity must be between 1 and 365 days.');
   const expiresAtNs = (BigInt(Date.now()) + BigInt(input.validityDays) * 86_400_000n) * 1_000_000n;
-  const tx = await send(OPTIONS_CONTRACT, 'set_agent_policy_exact', {
-    agent_id: AGENT_ACCOUNT,
-    allowed_assets: input.allowedAssets,
-    max_underlying_amount: input.maxUnderlyingAmount,
-    max_premium_usdc: input.maxPremiumUsdc,
-    max_collateral_usdc: input.maxCollateralUsdc,
-    max_open_positions: input.maxOpenPositions,
-    expires_at_ns: expiresAtNs.toString(),
-  });
-  const policy = await getOnChainAgentPolicy();
+  const tx = await sendBatch(OPTIONS_CONTRACT, [
+    { methodName: 'set_agent_policy_exact', args: {
+      agent_id: AGENT_ACCOUNT, allowed_assets: input.allowedAssets,
+      max_underlying_amount: input.maxUnderlyingAmount, max_premium_usdc: input.maxPremiumUsdc,
+      max_collateral_usdc: input.maxCollateralUsdc, max_open_positions: input.maxOpenPositions,
+      expires_at_ns: expiresAtNs.toString(),
+    }, gas: '50000000000000' },
+    { methodName: 'set_agent_execution_mode', args: { agent_id: AGENT_ACCOUNT, mode: 'Delegated' }, gas: '30000000000000' },
+  ]);
+  const [policy, mode] = await Promise.all([getOnChainAgentPolicy(), getOnChainAgentExecutionMode()]);
   const policyExpiryNs = policy ? BigInt(policy.expires_at_ns) : 0n;
-  const expiryDifferenceNs = policyExpiryNs >= expiresAtNs
-    ? policyExpiryNs - expiresAtNs
-    : expiresAtNs - policyExpiryNs;
+  const expiryDifferenceNs = policyExpiryNs >= expiresAtNs ? policyExpiryNs - expiresAtNs : expiresAtNs - policyExpiryNs;
   const expectedAssets = [...input.allowedAssets].sort();
   const actualAssets = policy ? [...policy.allowed_assets].sort() : [];
-  if (!policy || policy.principal !== principal || policy.enabled !== true ||
-      policy.max_underlying_amount !== input.maxUnderlyingAmount ||
-      policy.max_premium_usdc !== input.maxPremiumUsdc ||
-      policy.max_collateral_usdc !== input.maxCollateralUsdc ||
-      policy.max_open_positions !== input.maxOpenPositions ||
-      actualAssets.length !== expectedAssets.length ||
-      actualAssets.some((asset, index) => asset !== expectedAssets[index]) ||
-      policyExpiryNs <= BigInt(Date.now()) * 1_000_000n ||
-      expiryDifferenceNs > 1_000n) {
-    throw new Error('The wallet transaction was submitted, but the on-chain agent policy could not be independently verified. Transaction: ' + tx.transactionHash);
+  if (!policy || policy.principal !== principal || policy.enabled !== true || mode !== 'Delegated' ||
+      policy.max_underlying_amount !== input.maxUnderlyingAmount || policy.max_premium_usdc !== input.maxPremiumUsdc ||
+      policy.max_collateral_usdc !== input.maxCollateralUsdc || policy.max_open_positions !== input.maxOpenPositions ||
+      actualAssets.length !== expectedAssets.length || actualAssets.some((asset, index) => asset !== expectedAssets[index]) ||
+      policyExpiryNs <= BigInt(Date.now()) * 1_000_000n || expiryDifferenceNs > 1_000n) {
+    throw new Error('The wallet transaction was submitted, but the Delegated policy could not be independently verified. Transaction: ' + tx.transactionHash);
   }
   return { transactionHash: tx.transactionHash, policy };
 }
+
+export async function revokeOnChainAgentAccess(): Promise<string> {
+  if (!OPTIONS_CONTRACT) throw new Error('VITE_HANDEL_OPTIONS_CONTRACT_ID is not configured.');
+  const principal = await currentNearAccount();
+  if (!principal) throw new Error('Connect the principal NEAR Testnet wallet before revoking agent access.');
+  const policy = await getOnChainAgentPolicy();
+  if (!policy || policy.principal !== principal) {
+    throw new Error('Only the principal registered on the on-chain agent policy can revoke this agent.');
+  }
+  const result = await send(OPTIONS_CONTRACT, 'revoke_agent', { agent_id: AGENT_ACCOUNT });
+  const confirmed = await getOnChainAgentPolicy();
+  if (!confirmed || confirmed.principal !== principal || confirmed.enabled !== false) {
+    throw new Error('The revoke transaction was submitted, but enabled=false could not be verified on-chain. Transaction: ' + result.transactionHash);
+  }
+  return result.transactionHash;
+}
+
 function returnedId(outcome: { status?: { SuccessValue?: string } }): string {
   const encoded = outcome.status?.SuccessValue;
   if (!encoded) throw new Error('OptionsContract did not return a position ID.');

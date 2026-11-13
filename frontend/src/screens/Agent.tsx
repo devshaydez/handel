@@ -1,20 +1,15 @@
 import { useEffect, useState } from 'react';
-import { LuBan, LuCheck, LuLock, LuPause, LuPlay, LuKeyRound } from 'react-icons/lu';
+import { LuBan, LuKeyRound, LuLock, LuPause, LuPlay } from 'react-icons/lu';
 import { ChecksList, SegBars } from '../components/status';
 import { AgentPill } from '../components/status';
 import { Badge, Banner, Button, Card, CardHead, KV, Modal, PageHead, QtyStepper, Seg, Sparkle, Switch } from '../components/ui';
 import { ASSETS, DEFAULT_POLICY, fmtStamp, SUPPORTED_STRATEGIES, UNSUPPORTED_STRATEGIES } from '../data/mock';
-import type { Mode, Policy } from '../data/types';
+import type { Policy } from '../data/types';
 import { go } from '../router';
-import { agentStatus, pauseAgent, resumeAgent, revokeAgent, reauthorize, setMode, updatePolicy, useStore } from '../state/store';
+import { agentStatus, hydrateAgentMode, pauseAgent, resumeAgent, revokeAgent, reauthorize, updatePolicy, useStore } from '../state/store';
 import { usd0 } from '../lib/pricing';
-import { getOnChainAgentPolicy, saveOnChainAgentPolicy } from '../lib/near-wallet';
+import { getOnChainAgentExecutionMode, getOnChainAgentPolicy, revokeOnChainAgentAccess, saveOnChainAgentPolicy } from '../lib/near-wallet';
 
-const MODES: { m: Mode; t: string; tag: string; pts: string[]; disabled?: boolean }[] = [
-  { m: 'advisory', t: 'Advisory', tag: 'AI recommends', pts: ['Analyses markets and explains options', 'Recommends or rejects opportunities', 'Never executes. You act yourself'] },
-  { m: 'approval', t: 'Approval', tag: 'You approve each trade', pts: ['Writes structured trade proposals', 'You approve or reject each one', 'Approved trades still pass every check'] },
-  { m: 'auto', t: 'Automatic', tag: 'Not activated yet', pts: ['Bounded Testnet executor and restricted server key are deployed; browser trade submission is not yet connected', 'Assistant-to-executor wallet authorization and a real two-party Testnet lifecycle still require verification', 'The principal signs collateral and the holder signs premium; the agent never moves tokens'], disabled: true },
-];;
 function formatBaseUnits(value: string | number, decimals: number): string {
   const amount = BigInt(value);
   const scale = 10n ** BigInt(decimals);
@@ -38,11 +33,13 @@ export default function Agent() {
   const [chainDraft, setChainDraft] = useState({ maxUnderlyingWnear: '', maxPremiumUsdc: '', maxCollateralUsdc: '', maxOpenPositions: '', validityDays: '' });
   const [chainLoading, setChainLoading] = useState(true);
   const [chainSaving, setChainSaving] = useState(false);
+  const [chainRevoking, setChainRevoking] = useState(false);
   const [chainError, setChainError] = useState('');
   const [chainSuccess, setChainSuccess] = useState('');
   useEffect(() => {
     let active = true;
-    getOnChainAgentPolicy().then((policy) => {
+    Promise.all([getOnChainAgentPolicy(), getOnChainAgentExecutionMode()]).then(([policy, executionMode]) => {
+      hydrateAgentMode(executionMode === 'Delegated' ? 'auto' : executionMode === 'Advisory' || executionMode === 'Education' ? 'advisory' : 'approval');
       if (!active) return;
       setChainPolicy(policy);
       if (policy) {
@@ -72,10 +69,25 @@ export default function Agent() {
         validityDays: Number(chainDraft.validityDays),
       });
       setChainPolicy(result.policy);
-      setChainSuccess('On-chain policy verified. Transaction: ' + result.transactionHash);
+      hydrateAgentMode('auto');
+      setChainSuccess('On-chain limits saved and bounded automatic execution enabled in the same wallet transaction. Transaction: ' + result.transactionHash);
     } catch (error) {
       setChainError(error instanceof Error ? error.message : 'Could not save the on-chain agent policy.');
     } finally { setChainSaving(false); }
+  };
+  const confirmOnChainRevoke = async () => {
+    setChainRevoking(true); setChainError(''); setChainSuccess('');
+    try {
+      const transactionHash = await revokeOnChainAgentAccess();
+      const policy = await getOnChainAgentPolicy();
+      setChainPolicy(policy);
+      if (!policy || policy.enabled !== false) throw new Error('The policy is not disabled on-chain.');
+      revokeAgent();
+      setChainSuccess('On-chain agent access revoked and enabled=false verified. Transaction: ' + transactionHash);
+      setConfirmRevoke(false);
+    } catch (error) {
+      setChainError(error instanceof Error ? error.message : 'On-chain agent revocation failed.');
+    } finally { setChainRevoking(false); }
   };
   const dirty = JSON.stringify(draft) !== JSON.stringify(s.policy);
   const tgl = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
@@ -87,7 +99,7 @@ export default function Agent() {
 
   return (
     <div className="page">
-      <PageHead title="Agent permissions" sub="Configure the same AI agent you speak to in Assistant. Set its on-chain limits, execution mode and revocation; this screen is not a separate agent. Wallet connection alone grants nothing." actions={<AgentPill />} />
+      <PageHead title="Agent permissions" sub="Configure the same AI agent you speak to in Assistant. Saving bounded on-chain limits enables automatic delegated execution; pause or revoke it here." actions={<AgentPill />} />
 
       {s.revoked && <Banner tone="danger" action={<Button size="sm" variant="gold" onClick={reauthorize}>Re-enable in Advisory</Button>}><b>Agent access is revoked.</b> The agent cannot analyse, propose or act until you re-enable it.</Banner>}
       {s.paused && !s.revoked && <Banner tone="warn" action={<Button size="sm" variant="gold" onClick={resumeAgent}>Resume</Button>}><b>The agent is paused.</b> Your permissions are unchanged, but nothing runs until you resume.</Banner>}
@@ -102,7 +114,7 @@ export default function Agent() {
               <Badge tone={s.authorization.status === 'delegated' ? 'amber' : s.authorization.status === 'revoked' ? 'red' : 'outline'}>{s.authorization.status === 'delegated' ? `Delegated · ${s.authorization.id}` : s.authorization.status === 'revoked' ? 'Revoked' : s.authorization.status === 'per-proposal' ? 'Per-proposal approval' : 'No trading authority'}</Badge>
               <Badge tone="outline">{st.label}</Badge>
             </div>
-            <p className="small muted" style={{ maxWidth: '62ch' }}>{s.mode === 'auto' ? 'Automatic execution is not enabled in this Testnet release. The on-chain contract requires ManualApproval and a principal wallet signature for every proposal.' : s.mode === 'approval' ? 'The agent writes proposals. Nothing is funded until you approve it in your wallet, and approved trades are checked against the on-chain contract and escrow.' : 'The agent has no ability to trade. It analyses and recommends only.'}</p>
+            <p className="small muted" style={{ maxWidth: '62ch' }}>{s.mode === 'auto' ? 'After one wallet-bound session authorization, the agent creates options and registers Escrow within your on-chain caps without per-trade approval. The principal separately signs collateral and the holder signs premium. No token transfers are delegated.' : s.mode === 'approval' ? 'The agent writes proposals. Nothing is funded until you approve it in your wallet, and approved trades are checked against the on-chain contract and escrow.' : 'The agent has no ability to trade. It analyses and recommends only.'}</p>
           </div>
           <div className="col gap8" style={{ minWidth: 200 }}>
             {s.paused ? <Button variant="gold" icon={<LuPlay size={14} />} onClick={resumeAgent} disabled={s.revoked}>Resume agent</Button> : <Button icon={<LuPause size={14} />} onClick={pauseAgent} disabled={s.revoked}>Pause automation</Button>}
@@ -111,14 +123,15 @@ export default function Agent() {
         </div>
       </Card>
 
-      <div className="grid g3">
-        {MODES.map((o) => (
-          <button key={o.m} className={`radio-card ${s.mode === o.m && !s.revoked ? 'on' : ''}`} onClick={() => setMode(o.m)} aria-pressed={s.mode === o.m} disabled={o.disabled}>
-            <div className="row between"><b className="big">{o.t}</b>{s.mode === o.m && !s.revoked ? <Badge tone="gold" sm><LuCheck size={11} />Current</Badge> : <Badge tone="outline" sm>{o.tag}</Badge>}</div>
-            <ul>{o.pts.map((p) => <li key={p}><LuCheck size={13} className="green" />{p}</li>)}</ul>
-          </button>
-        ))}
-      </div>
+      <Card>
+        <div className="row between wrap">
+          <div>
+            <b>Automatic execution</b>
+            <p className="small muted mt4">Saving your on-chain limits also activates Delegated mode in the same wallet transaction. You do not need to switch modes before chatting or trading.</p>
+          </div>
+          <Badge tone={s.mode === 'auto' && !s.revoked ? 'green' : 'outline'}>{s.mode === 'auto' && !s.revoked ? 'Enabled on-chain' : 'Enable when saving limits'}</Badge>
+        </div>
+      </Card>
 
       <div className="grid g-main">
         <Card>
@@ -177,7 +190,7 @@ export default function Agent() {
             {chainSuccess && <Banner tone="info">{chainSuccess}</Banner>}
             <div className="row gap8 wrap mt12">
               <Button variant="gold" disabled={chainSaving || !chainDraft.maxUnderlyingWnear || !chainDraft.maxPremiumUsdc || !chainDraft.maxCollateralUsdc || !chainDraft.maxOpenPositions || !chainDraft.validityDays} onClick={() => void saveChainPolicy()}>{chainSaving ? 'Waiting for wallet…' : chainPolicy ? 'Update on-chain policy' : 'Create on-chain policy'}</Button>
-              <span className="tiny muted">This submits one wallet-signed transaction. New policies default to Manual Approval.</span>
+              <span className="tiny muted">This submits one wallet-signed transaction that saves your limits and enables bounded Delegated execution together.</span>
             </div>
           </>
         )}
@@ -185,8 +198,8 @@ export default function Agent() {
 
 undefined      <Modal open={confirmRevoke} onClose={() => setConfirmRevoke(false)} title="Revoke agent access?">
         <div className="col gap16">
-          <p className="text2">This removes all delegated authority and returns the agent to Advisory. Positions you hold are not affected. You can re-enable the agent later.</p>
-          <div className="row gap8"><Button block onClick={() => setConfirmRevoke(false)}>Cancel</Button><Button block variant="danger" onClick={() => { revokeAgent(); setConfirmRevoke(false); }}>Revoke access</Button></div>
+          <p className="text2">This asks your principal wallet to sign the OptionsContract revoke_agent transaction. Handel will show revoked only after the contract confirms enabled=false. Existing positions are not cancelled.</p>
+          <div className="row gap8"><Button block onClick={() => setConfirmRevoke(false)} disabled={chainRevoking}>Cancel</Button><Button block variant="danger" disabled={chainRevoking} onClick={() => void confirmOnChainRevoke()}>{chainRevoking ? 'Waiting for principal wallet…' : 'Sign on-chain revocation'}</Button></div>
         </div>
       </Modal>
       <span className="hide"><Seg value="a" onChange={() => {}} options={[{ v: 'a', label: '' }]} /><ChecksList checks={[]} /><Sparkle /></span>
