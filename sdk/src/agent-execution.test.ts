@@ -88,3 +88,20 @@ test("delegated executor preserves create receipt when escrow registration fails
       Boolean((error as { partial?: { positionId?: string } }).partial?.positionId),
   );
 });
+
+test("delegated Put creates and registers the correct option before principal-funded collateral", async () => {
+  const putRequest = { ...request, type: "Put" as const };
+  const { signer, calls } = makeSigner();
+  const fetcher = rpc({ position: {
+    id: 7, kind: "Put", writer: "principal.testnet", holder: "holder.testnet",
+    asset_id: "nep141:wnear.tidepool-sandbox.testnet", underlying_amount: "1000000000000000000",
+    strike_amount_usdc: "1000000", premium_amount_usdc: "1000000",
+    escrow_position_id: 12, escrow_registration_pending: false,
+  } });
+  const result = await executeDelegatedTrade({ request: putRequest, signer, fetcher });
+  assert.equal(result.positionId, "7");
+  assert.equal(result.escrowPositionId, "12");
+  assert.deepEqual(calls.map(call => call.method), ["agent_create_put", "agent_register_escrow_position"]);
+  assert.equal(calls[0].args.holder, putRequest.holder);
+  assert.equal(calls[0].args.strike_amount_usdc, putRequest.strike);
+});
