@@ -134,7 +134,7 @@ export function portfolio(s: State) {
     value: s.balance + unrealized,
     openValue,
     openCount,
-    exposurePct: (locked / s.balance) * 100,
+    exposurePct: s.balance > 0 ? (locked / s.balance) * 100 : 0,
     netDelta,
   };
 }
