@@ -2,9 +2,9 @@
 
 The detailed architecture decision, Testnet options, escrow design, atomicity analysis, maturity rules and release gates now live in [SETTLEMENT_ARCHITECTURE.md](./SETTLEMENT_ARCHITECTURE.md).
 
-## Current contract status: simulation only
+## Current contract status: Testnet policy/lifecycle; real-asset custody is not established
 
-The current OptionsContract is a policy and lifecycle state machine, not an asset custodian.
+The deployed OptionsContract is a policy and lifecycle state machine, not an asset custodian. Its Testnet deployment and exact Wasm hash have been checked; this does not establish that external assets are held or settled.
 
 - It has no NEP-141 ft_on_transfer or NEP-245 mt_on_transfer deposit handler.
 - It does not control NEAR Intents internal balances.

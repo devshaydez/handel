@@ -1,5 +1,34 @@
 # Handel — Project Continuation Handoff
 
+> **Internal handoff, not the public project overview.** The public, judge-facing status is in [README.md](../README.md); evidence is in [EVIDENCE.md](EVIDENCE.md). Older dated notes below are historical snapshots and must not override this current status.
+
+## Current verified close-out — 2026-11-13 16:58 UTC+1
+
+- **Current main:** `371fe36c3ee376a294714d06b79c73a1170fe70c` (latest observed commit).
+- **Latest CI:** [run #43425939138](https://github.com/devshaydez/handel/actions/runs/43425939138) completed successfully: six jobs passed; frontend typecheck/build was skipped.
+- **OptionsContract:** deployed to `options.shaydez.testnet`; transaction [5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz](https://explorer.testnet.near.org/transactions/5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz). User-run RPC `view_code` check returned 425,264 bytes and exact SHA-256 `1d95e9b75d94c13eea83e708502aff0a4c54c7eee4bb09881482403bb9479ab3`.
+- **Escrow:** deployment transaction [DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR](https://explorer.testnet.near.org/transactions/DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR); its deployed code hash has not yet been independently re-read in this close-out.
+- **Delegated agent:** contract entrypoints, restricted FunctionCall signer/executor, server API route and Assistant Testnet composer are present in current source. Agent creation/registration is distinct from principal collateral and holder premium transfers.
+- **Live lifecycle:** no complete real two-wallet Testnet lifecycle with all create/register/collateral/premium receipts is recorded. Do not mark it complete.
+- **Ondo/Intents:** no Mainnet Ondo settlement, no verified Tidepool Ondo asset support, and no proven per-position Intents collateral reservation.
+- **Vercel:** production alias `handel-live.vercel.app` was inspected at deployment `dpl_3jXS5nLAFZnwLopwWkzYK8UA7Noc`, commit `67f6dd01c55932f39411c36fdfcc4f46f1a2aefb`; current `main` is newer. The last known deploy attempt for later source was blocked by the Free daily deployment quota. Recheck quota before attempting again; do not claim latest source is live.
+
+### Next actions, in priority order
+
+1. Run frontend `npm ci`, `npm run typecheck` and `npm run build` from `frontend/`; latest CI skipped this job.
+2. Deploy current `main` to Vercel when quota allows; verify alias commit and health.
+3. Inspect deployed Escrow code hash and controller state.
+4. Read finalized agent policy, execution mode and restricted FunctionCall key details.
+5. If policy is enabled and the owner authorizes it, execute the synthetic Tidepool Testnet lifecycle with separate principal and holder signatures; capture every receipt and balance.
+6. Capture on-chain failed receipts for over-limit and post-revocation cases.
+7. Keep Ondo assets out of executable allowlists until exact Intents asset identity, custody/reservation and settlement are demonstrated.
+
+---
+
+## Historical handoff notes (retained for traceability)
+
+The dated notes below record earlier branch states. They are not current status. Where they conflict with the current verified close-out above, the current section and [EVIDENCE.md](EVIDENCE.md) take precedence.
+
 ## Current verified close-out — 2026-11-13 (supersedes older status snapshots)
 
 - **Main:** `8fb39e2b8aa35ead33dc2d655fd40c863840cbe9`; PR #25 is merged.

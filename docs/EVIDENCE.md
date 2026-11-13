@@ -1,69 +1,113 @@
-# Evidence Log — Handel Options
+# Evidence ledger
 
-Record every critical command, expected result, actual result, and transaction hash.
-Never claim a path works without an entry here.
+**Snapshot:** 2026-11-13  
+**Repository:** [devshaydez/handel](https://github.com/devshaydez/handel)  
+**Rule:** each row states exactly what the artifact proves and what it does not prove. A successful build, deployment or dry quote is never promoted into evidence of a complete trade.
 
-| Date (UTC) | Step | Command / Action | Expected | Actual | Tx / Link | PASS/FAIL | Notes |
-|------------|------|------------------|----------|--------|-----------|-----------|-------|
-| 2026-11-06 | Scaffold | Push core contract to main | Repo has compilable contract | | | PASS | Initial core engine |
-| | Dry quote NVDAon → USDC | `curl .../tokens?ondoTokens=true` + quote | Valid route | | | | Still required |
-| | Tidepool transfer | Simple NEP-413 transfer | Balance updates | | | | |
-| | Deploy testnet | `near deploy ...` | Contract live | | | | Needs testnet account |
-| | create → lock → open → exercise → settle | Full CLI sequence | Status transitions | | | | |
-| | Agent grant + revoke | | Limits enforced | | | | |
-| | Adversarial: double exercise | | Rejected | | | | |
-| | Adversarial: exercise after expiry | | Rejected | | | | |
-| | Adversarial: replayed op_id | | Rejected | | | | |
+## E-001 — Latest main CI
 
-## Dry-quote results (fill in)
+| Field | Value |
+|---|---|
+| Workflow | [Handel backend checks, run #43425939138](https://github.com/devshaydez/handel/actions/runs/43425939138) |
+| Commit | `371fe36c3ee376a294714d06b79c73a1170fe70c` |
+| Date | 2026-11-13 |
+| Result | 6 jobs succeeded; frontend typecheck/build job was skipped |
 
-```
-# Request
-# Response
-```
+Successful jobs:
+- Rust format, unit tests and Wasm build
+- TypeScript SDK build and offline demo
+- Live Testnet asset verification (read-only)
+- Windows PowerShell proof-runner syntax
+- NEAR AI credential and model-catalogue preflight
+- Live NEAR AI → SDK → Sandbox contract proof
 
-## Known open questions
+**Proves:** these named CI jobs passed on the recorded commit.  
+**Does not prove:** frontend build/typecheck on this commit, a real Testnet trade, Ondo asset support, Mainnet settlement, production custody or security audit.
 
-- [ ] Final confirmation that Ondo assetIds produce successful dry quotes both directions
-- [ ] Exact serialization / nonce rules when constructing NEP-413 payloads from the contract side (Path B — not in scope)
+## E-002 — OptionsContract Testnet deployment and exact Wasm match
 
+| Field | Value |
+|---|---|
+| Account | `options.shaydez.testnet` |
+| Deployment transaction | [5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz](https://explorer.testnet.near.org/transactions/5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz) |
+| Artifact | `target/near/handel/_options.wasm` |
+| Size | 425,264 bytes |
+| SHA-256 | `1d95e9b75d94c13eea83e708502aff0a4c54c7eee4bb09881482403bb9479ab3` |
+| Verification | User-run Testnet RPC `view_code` retrieval; local SHA-256 compared to expected artifact hash; exact match reported |
 
-## Delegated Assistant execution — implementation evidence
+**Proves:** the Wasm code retrieved from `options.shaydez.testnet` matched the recorded local artifact byte-for-byte at verification time.  
+**Does not prove:** the contract is initialized correctly, agent policy is enabled, Escrow state is compatible, an agent trade has executed, or any Ondo asset is supported.
 
-**Scope approved:** the Assistant and Agent are one system. Assistant is the single AI interface; Agent is the policy/configuration surface. A dedicated agent account may create trades and initiate/register writer-side collateral lifecycle actions under the on-chain policy. The principal signs collateral funding; the holder signs premium payment. The agent cannot call token transfer methods or spend either party's tokens.
+## E-003 — Escrow Testnet deployment
 
-| Scenario | Expected contract behavior | Evidence status |
+| Field | Value |
+|---|---|
+| Account | `escrow.shaydez.testnet` |
+| Deployment transaction | [DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR](https://explorer.testnet.near.org/transactions/DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR) |
+| Recorded artifact SHA-256 | `a7d7f1184d813a94c5d1c431ebef01489720e906b4a6d4cf89b957d7245ab604` |
+| Result | Deploy-only transaction; initialization omitted |
+
+**Proves:** the Escrow Wasm deployment transaction was submitted successfully according to the deployment record.  
+**Does not prove:** the deployed Escrow code hash was independently re-read and matched, the controller/asset configuration is correct, or a real deposit/payout occurred.
+
+## E-004 — Tidepool Testnet read-only checks
+
+| Artifact | Link / source | What it proves |
 |---|---|---|
-| Agent creates an in-limit Call/Put | Position writer is the policy principal; agent and principal attribution recorded in separate raw storage; accepted NEP-297 event emitted | Unit tests already cover in-limit delegated create; updated branch adds attribution |
-| Agent exceeds size/premium/Put collateral/open-position/asset/expiry policy | Contract reverts before creating the position | New Rust adversarial test added; latest-head CI required |
-| Agent acts after revoke / enabled=false | Every delegated lifecycle method re-reads current policy and rejects immediately | New test checks create and collateral-initiation rejection after revoke; latest-head CI required |
-| Agent attempts another agent's position | Attribution mismatch reverts | Branch adds cross-agent lifecycle test; CI pending |
-| Agent initiates collateral | Only attributed agent may start operation; principal remains expected sender and must authorize token transfer | Branch test added; CI pending |
-| Agent attempts premium payment | Not permitted; begin_premium_payment remains holder-only | New unit test asserts writer-agent cannot initiate holder premium payment; latest-head CI required |
-| Rejected call event | Reverted transaction cannot persist a contract event | Use failed NEAR transaction receipt as rejection evidence |
+| Asset verifier | [CI run #43425939138](https://github.com/devshaydez/handel/actions/runs/43425939138) | The configured Tidepool Testnet asset and verifier checks passed against the test environment. |
+| Dry quote | Same CI run | A dry quote request completed. It did not create a deposit address or submit a transaction. |
+| Token snapshot | [evidence/tidepool-health.json](../evidence/tidepool-health.json) | Captured Tidepool health/token metadata at the recorded time; a snapshot is not a perpetual availability guarantee. |
 
-**Important:** no Testnet trade has been executed by the delegated runtime as of this evidence note. Do not claim success until CI passes and a user-authorized Testnet agent key is provisioned and used. Tidepool assets remain synthetic Testnet assets; no Ondo/Mainnet settlement is claimed.
+**Does not prove:** Ondo stock-token availability, a committed quote, solver fill, token transfer, collateral reservation or settlement.
 
+## E-005 — Offline lifecycle and Sandbox
 
-## Delegated execution integration update — 2026-11-12
+| Artifact | Link | What it proves |
+|---|---|---|
+| Offline SDK lifecycle | [sdk/src/lifecycle-demo.ts](../sdk/src/lifecycle-demo.ts) | Deterministic fallback proposal, local policy validation and illustrative payload construction. |
+| Integrated proof | [scripts/run-e2e-proof-demo.sh](../scripts/run-e2e-proof-demo.sh) and [PowerShell runner](../scripts/run-e2e-proof-demo.ps1) | Runs NEAR AI/System One smoke, SDK preparation and local Sandbox contracts with mock NEP-141 assets. |
+| Sandbox tests | [contracts/escrow/tests/options_registration.rs](../contracts/escrow/tests/options_registration.rs) | Call/Put registration, mock-token deposits, payout/callback and failure-path assertions described by the test suite. |
 
-- Baseline PR #25 commit `9331688a6c6a1ff7ebf884a1e69e2a0467153291`: [Actions run #43310008665](https://github.com/devshaydez/handel/actions/runs/43310008665) completed all seven jobs successfully. This run predates the restricted signer/executor/API integration added afterward.
-- Contract now emits NEP-297 events for `agent_policy_set`, `agent_execution_mode_changed`, `agent_revoked`, `agent_trade_created`, `agent_collateral_initiated`, and `agent_escrow_registration_started`. A rejected transaction still cannot persist an event; the finalized failed receipt is the evidence.
-- New code adds `sdk/src/near-function-call-signer.ts` (on-chain FunctionCall-key verification and exact method allowlist), `sdk/src/agent-execution.ts` (finalized policy read, create Call/Put, re-check revocation, Escrow registration and result verification), and tests for accepted/rejected/partial-failure paths.
-- New Vercel handler `POST /api/v1/delegated/trades` uses `NEAR_AGENT_DELEGATED_FUNCTION_CALL_PRIVATE_KEY`, checks exact key scope/allowance before each call, and uses only the configured demo fixture. It requires `HANDEL_AGENT_API_TOKEN`.
-- Frontend exports separate principal-only collateral and holder-only premium wallet actions. The Assistant UI is not yet wired to this endpoint; the bearer token must remain server-side.
-- **No live delegated Testnet transaction has been recorded.** The deployed OptionsContract still requires a user-authorized upgrade to include the new entrypoints. The agent restricted key and Vercel environment variables have not been provisioned/verified in this work.
+**Proves:** local deterministic and Sandbox behavior for the covered scenarios.  
+**Does not prove:** real Testnet wallet signing, Testnet token movement, Ondo/Intents settlement or production custody.
 
+## E-006 — Delegated agent implementation
 
-## Testnet deployment close-out — 2026-11-13
+| Artifact | Link | What it proves |
+|---|---|---|
+| Contract | [src/lib.rs](../src/lib.rs) | Delegated entrypoints and contract-side policy checks are present in source. |
+| SDK executor | [sdk/src/agent-execution.ts](../sdk/src/agent-execution.ts) | Reads policy/mode at finalized state, verifies restricted signer authority, creates Call/Put and registers Escrow with policy recheck. |
+| Restricted signer | [sdk/src/near-function-call-signer.ts](../sdk/src/near-function-call-signer.ts) | Checks FunctionCall key receiver, method scope and bounded allowance; refuses FullAccess authority. |
+| Frontend composer | [frontend/src/components/TestnetProposalComposer.tsx](../frontend/src/components/TestnetProposalComposer.tsx) | UI requests principal authorization, invokes delegated trade creation and separately requests principal collateral and holder premium signatures. |
+| API | [api/v1/delegated/trades.js](../api/v1/delegated/trades.js) | Delegated route keeps the bearer token on the server side. |
 
-| Contract | Account | Deploy-only transaction | Artifact SHA-256 | Result |
-|---|---|---|---|---|
-| OptionsContract | `options.shaydez.testnet` | `7pWEFi8adgKeGF7aYYWSfSpMFc5vYWtYtbtkGaBC2z44` | `53a54422f9d0bd296bdff5a20d7f15d18d2f390fc986af16356aa1a84f12522a` | CLI reported successful deploy; no initializer called |
-| Escrow | `escrow.shaydez.testnet` | `DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR` | `a7d7f1184d813a94c5d1c431ebef01489720e906b4a6d4cf89b957d7245ab604` | CLI reported successful deploy; no initializer called |
+**Proves:** the implementation path and automated tests exist.  
+**Does not prove:** a real user-authorized Testnet trade or a completed two-party funding lifecycle. No complete live lifecycle transaction set is recorded here.
 
-- Production Vercel deployment for `8fb39e2`: READY.
-- Live `GET /api/health`: `{ ok: true, service: "handel", network: "testnet", pricingMode: "demo_fixture", delegatedExecutionConfigured: true }`.
-- CI run #43314638314: seven jobs passed on branch head `63d30387d85db728c4b26fba6d1ec4293597f087`; not a post-deployment main-commit run.
-- No real delegated trade, collateral transfer, holder premium payment, or settlement receipt is recorded by this close-out. Deployment receipts are not lifecycle evidence.
-- Remaining acceptance evidence: independent account code-hash/state verification; connect Assistant to the restricted delegated route without exposing the API token; execute a separately authorized principal/holder Testnet lifecycle; capture policy-limit and revocation rejection receipts.
+## E-007 — Production deployment lag
+
+The latest inspected production alias `handel-live.vercel.app` points to Vercel deployment `dpl_3jXS5nLAFZnwLopwWkzYK8UA7Noc`, Git commit `67f6dd01c55932f39411c36fdfcc4f46f1a2aefb`. The repository `main` commit at this evidence snapshot is `371fe36c3ee376a294714d06b79c73a1170fe70c`.
+
+**Proves:** production alias is behind current `main` at the time checked.  
+**Does not prove:** the latest source is deployed or the current UI matches repository source.
+
+## E-008 — Trust and settlement boundary
+
+See [THREAT_MODEL.md](THREAT_MODEL.md), [CUSTODY_AND_SETTLEMENT.md](CUSTODY_AND_SETTLEMENT.md), and [SETTLEMENT_ARCHITECTURE.md](SETTLEMENT_ARCHITECTURE.md).
+
+- The configured reconciler/evidence attestor is a trust root, not cryptographic proof.
+- RPC-origin quorum is corroboration, not a NEAR light client.
+- Escrow payout legs are sequential asynchronous transfers, not atomic.
+- Tidepool is community-operated; test assets are synthetic.
+- No per-position Ondo collateral reservation inside Intents is demonstrated.
+
+## Evidence still required before stronger claims
+
+- [ ] Record the Escrow account's independently fetched deployed code hash and compare it to the intended artifact.
+- [ ] Record finalized Testnet policy, execution mode, agent FunctionCall key scope/allowance and Escrow controller state.
+- [ ] Record an authorized delegated Testnet create + Escrow registration with transaction hashes and final state.
+- [ ] Record principal-signed collateral and holder-signed premium transactions using Tidepool test tokens.
+- [ ] Record policy-limit and post-revocation failed receipts from Testnet.
+- [ ] Run frontend typecheck and production build against the latest `main` commit.
+- [ ] Deploy current `main` to Vercel and verify the production alias commit.
+- [ ] For Ondo: archive the exact 1Click token registry entries, asset IDs/decimals/standards, route quotes, enforceable reservation proof and paired settlement evidence. Do not attempt to substitute Tidepool assets for Ondo.

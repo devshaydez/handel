@@ -1,23 +1,38 @@
 # Rust
 target/
 **/*.rs.bk
-Cargo.lock
 
 # NEAR
 *.wasm
 .near/
+
+# Node / frontend build output
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.next/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
 
 # IDE / OS
 .idea/
 .vscode/
 *.swp
 .DS_Store
+
+# Secrets and local environment
 .env
 .env.*
+!.env.example
+!.env.*.example
 *.pem
 *.json.key
 
-# Node (if any frontend later)
-node_modules/
-dist/
-.next/
+# Local runtime / temporary output
+*.log
+.tmp/
+.temp/
