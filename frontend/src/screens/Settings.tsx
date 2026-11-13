@@ -61,7 +61,6 @@ export default function Settings() {
             <p className="small muted">The authoritative trading permissions live on OptionsContract. Open Agent settings to read the current policy and execution mode directly from NEAR Testnet. Browser-side preferences do not grant trading authority.</p>
             <Button size="sm" onClick={() => go('/app/agent')}>View on-chain permissions</Button>
           </Card>
->
           
         </div>
       )}
@@ -76,8 +75,8 @@ export default function Settings() {
           </Card>
           <Card>
             <CardHead title="Security status" />
-            <KV k="Private keys" v="Never shared with Handel" /><KV k="Network" v={NETWORK} /><KV k="Active delegation" v={s.authorization.status === 'delegated' ? s.authorization.id : 'None'} />
-            <Banner tone="warn">Testnet-only synthetic assets and simulated market data. Escrow settlement is verified on-chain through NEP-141 callbacks and independent RPC state; this is not real-asset custody.</Banner>
+            <KV k="Private keys" v="Never shared with Handel" /><KV k="Network" v={NETWORK} />
+            <Banner tone="warn">Testnet-only synthetic assets. Live market data and real-asset custody are not connected; escrow settlement is verified on-chain through NEP-141 callbacks and independent RPC state.</Banner>
             <div className="row gap8 mt16"><Button variant="danger" icon={<LuLogOut size={14} />} onClick={() => go('/app/agent')}>Go to revoke agent access</Button></div>
           </Card>
         </div>
