@@ -220,3 +220,13 @@ export async function fetchObservedPositionActivity(account: string): Promise<In
   }
   return [...result.events].sort((left, right) => Number(right.block_height) - Number(left.block_height));
 }
+
+export interface IndexedChainReceipt {
+  transaction_hash: string; signer_id: string; receiver_id: string; receipt_id: string;
+  executor_id: string; block_height: number | string; block_hash: string;
+  execution_status: string; finalized: boolean; logs: string[]; indexed_at: string;
+}
+export async function fetchPersistentReceipts(account: string): Promise<IndexedChainReceipt[]> {
+  const data = await read<{ receipts: IndexedChainReceipt[] }>("/v1/receipts?account=" + encodeURIComponent(account));
+  return data.receipts;
+}
