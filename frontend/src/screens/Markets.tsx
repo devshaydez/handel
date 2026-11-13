@@ -1,65 +1,68 @@
-import { useState } from 'react';
-import { LuSearch, LuStar } from 'react-icons/lu';
-import { Sparkline } from '../components/charts';
-import { Badge, Banner, Button, Card, EmptyState, Growth, PageHead, PageSkeleton, SymBadge, Tabs, Term, UnavailableState, useLoading } from '../components/ui';
-import { ASSETS } from '../data/mock';
-import { useRoute, go } from '../router';
-import { toggleWatch, useStore } from '../state/store';
-import { usd } from '../lib/pricing';
+import { useMemo, useState } from 'react';
+import { LuSearch } from 'react-icons/lu';
+import { Badge, Card, CardHead, EmptyState, PageHead, Tabs } from '../components/ui';
+import { TESTNET_ASSETS } from '../data/testnet-assets';
+import { go, useRoute } from '../router';
 
-const SIG = { opportunity: { t: 'AI setup', tone: 'gold' as const }, watch: { t: 'Watching', tone: 'blue' as const }, 'no-trade': { t: 'No trade', tone: 'outline' as const }, none: { t: 'Analysis only', tone: 'outline' as const } };
+type Filter = 'all' | 'configured' | 'candidate' | 'not_enabled';
+
+const STATUS: Record<Filter, (status: string) => boolean> = {
+  all: () => true,
+  configured: status => status === 'configured',
+  candidate: status => status === 'candidate',
+  not_enabled: status => status === 'not_enabled',
+};
+
+function statusLabel(status: string): string {
+  if (status === 'configured') return 'Configured';
+  if (status === 'candidate') return 'Candidate';
+  return 'Not enabled';
+}
 
 export default function Markets() {
-  const s = useStore();
-  const r = useRoute();
-  const [q, setQ] = useState(r.query.get('q') ?? '');
-  const [tab, setTab] = useState<'all' | 'watch' | 'opp'>('all');
-  const loading = useLoading(300);
-  if (loading) return <PageSkeleton />;
-  const down = s.demo.feed === 'down';
-  const list = ASSETS.filter((a) => (a.sym + a.name).toLowerCase().includes(q.toLowerCase()))
-    .filter((a) => (tab === 'watch' ? s.watchlist.includes(a.sym) : tab === 'opp' ? a.signal === 'opportunity' : true));
+  const route = useRoute();
+  const [query, setQuery] = useState(route.query.get('q') ?? '');
+  const [filter, setFilter] = useState<Filter>('all');
+  const assets = useMemo(() => TESTNET_ASSETS
+    .filter(asset => STATUS[filter](asset.status))
+    .filter(asset => (asset.symbol + ' ' + asset.tokenAccount + ' ' + asset.role).toLowerCase().includes(query.toLowerCase())),
+  [filter, query]);
+
   return (
     <div className="page">
-      <PageHead title="Markets" sub="Supported underlyings with options available through Handel. Prices are demo data." />
-      {down && <Banner tone="danger"><b>Market data is unavailable.</b> Prices and movement are hidden. You can still read saved analysis.</Banner>}
-      {s.demo.feed === 'stale' && <Banner tone="warn"><b>Prices are 47 minutes old.</b> Treat them as estimates.</Banner>}
-      <div className="row between wrap gap12">
-        <Tabs value={tab} onChange={setTab} tabs={[{ v: 'all', label: 'All assets', n: ASSETS.length }, { v: 'watch', label: 'Watchlist', n: s.watchlist.length }, { v: 'opp', label: 'AI opportunities', n: ASSETS.filter((a) => a.signal === 'opportunity').length }]} />
-        <div className="topbar" style={{ position: 'static', padding: 0, background: 'none', border: 0, backdropFilter: 'none' }}>
-          <div className="search" style={{ position: 'relative', width: 280 }}>
-            <LuSearch size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
-            <input className="input" style={{ borderRadius: 99, paddingLeft: 36 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search symbol or name" aria-label="Search markets" />
-          </div>
+      <PageHead title="Markets & Testnet assets" sub="The actual Tidepool sandbox token catalogue configured for Handel. Live market prices and an option order book are not connected." />
+      <Card>
+        <div className="row gap12 wrap between">
+          <label className="field grow" style={{ minWidth: 220 }}>
+            <span className="label">Search assets</span>
+            <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search symbol, token account or role…" />
+          </label>
+          <Badge tone="outline">NEAR Testnet</Badge>
         </div>
-      </div>
+        <div className="mt12">
+          <Tabs value={filter} onChange={setFilter} tabs={[
+            { v: 'all', label: 'All assets', n: TESTNET_ASSETS.length },
+            { v: 'configured', label: 'Configured', n: TESTNET_ASSETS.filter(asset => asset.status === 'configured').length },
+            { v: 'candidate', label: 'Candidate', n: TESTNET_ASSETS.filter(asset => asset.status === 'candidate').length },
+            { v: 'not_enabled', label: 'Not enabled', n: TESTNET_ASSETS.filter(asset => asset.status === 'not_enabled').length },
+          ]} />
+        </div>
+      </Card>
       <Card className="flush">
-        {list.length === 0 ? (
-          <EmptyState title={q ? `No assets match “${q}”` : tab === 'watch' ? 'Your watchlist is empty' : 'No setups right now'} body={q ? 'Only assets supported by Handel’s market-data and execution integrations are listed.' : tab === 'watch' ? 'Tap the star on any asset to follow it.' : 'The AI is not recommending any trade at the moment. That is a valid result.'} action={q ? <Button onClick={() => setQ('')}>Clear search</Button> : undefined} />
-        ) : down ? (
-          <UnavailableState title="Prices unavailable" body="The market-data integration is not responding. Try again shortly, or switch the feed back in Demo controls." />
-        ) : (
-          <div className="tbl-wrap"><table className="tbl"><thead><tr><th style={{ width: 40 }} /><th>Asset</th><th className="r">Price</th><th className="r">Day</th><th className="hide-m">Trend (90d)</th><th className="r hide-m"><Term k="ivrank">IV rank</Term></th><th>AI view</th></tr></thead><tbody>
-            {list.map((a) => {
-              const ch = (a.price / a.prevClose - 1) * 100;
-              const on = s.watchlist.includes(a.sym);
-              const sig = SIG[a.signal];
-              return (
-                <tr key={a.sym} className="click" onClick={() => go(`/app/markets/${a.sym}`)}>
-                  <td onClick={(e) => e.stopPropagation()}><button className="btn btn-soft btn-icon" style={{ width: 30, height: 30 }} onClick={() => toggleWatch(a.sym)} aria-label={on ? `Remove ${a.sym} from watchlist` : `Add ${a.sym} to watchlist`} aria-pressed={on}><LuStar size={14} className={on ? 'gold' : 'muted'} fill={on ? 'currentColor' : 'none'} /></button></td>
-                  <td><div className="row gap12"><SymBadge sym={a.sym} /><div><div className="semi">{a.sym}</div><div className="tiny muted">{a.name}</div></div></div></td>
-                  <td className="r num semi">{usd(a.price)}</td>
-                  <td className="r"><Growth v={ch} /></td>
-                  <td className="hide-m"><Sparkline data={a.series.slice(-45)} w={110} /></td>
-                  <td className="r num hide-m">{a.ivRank}</td>
-                  <td><div className="col gap4" style={{ alignItems: 'flex-start' }}><Badge tone={sig.tone} sm>{sig.t}</Badge>{!a.optionsSupported && <span className="tiny faint">Options not connected</span>}</div></td>
-                </tr>
-              );
-            })}
+        <CardHead title="Token registry" sub="Token identity and contract role; not a market-price feed" />
+        {assets.length === 0 ? <EmptyState title="No matching assets" body="Try a different symbol or token account." /> : (
+          <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Asset</th><th>NEP-141 token account</th><th>Decimals</th><th>Handel role</th><th>Status</th></tr></thead><tbody>
+            {assets.map(asset => <tr key={asset.symbol} className="click" onClick={() => go('/app/markets/' + asset.symbol)}>
+              <td><div className="semi">{asset.symbol}</div><div className="tiny muted">{asset.assetId}</div></td>
+              <td className="mono tiny">{asset.tokenAccount}</td>
+              <td className="num">{asset.decimals}</td>
+              <td className="small">{asset.role}</td>
+              <td><Badge tone={asset.status === 'configured' ? 'green' : 'outline'}>{statusLabel(asset.status)}</Badge></td>
+            </tr>)}
           </tbody></table></div>
         )}
       </Card>
-      <p className="tiny faint">Sample news and prices are simulated. Only assets with connected market data and execution are listed as tradable.</p>
+      <p className="tiny faint">A configured token is not itself a tradable option market. Handel must also verify the live contract asset registry, token metadata, storage registration and policy. No synthetic equity prices, implied volatility or option quotes are shown.</p>
     </div>
   );
 }

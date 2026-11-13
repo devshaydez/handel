@@ -170,7 +170,7 @@ export function seedChat(): ChatMsg[] {
     {
       id: 'M-0', role: 'ai', ts: isoAgo(0),
       blocks: [
-        { t: 'p', text: 'I can analyse an asset, explain an option, compare expiries, review the risk in your positions, or say plainly when there is nothing worth trading. I only use the demo data shown in Handel, and I never place trades myself in advisory mode.' },
+        { t: 'p', text: 'I can explain the supported NEAR Testnet options flow, read your on-chain agent limits, and help prepare an explicit wNEAR Call or Put. I do not provide live market prices. Eligible orders require an enabled on-chain policy; the principal signs collateral and the holder signs premium.' },
       ],
     },
   ];

@@ -1,23 +1,23 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  LuLayoutDashboard, LuTrendingUp, LuBriefcase, LuMessageSquareText, LuInbox, LuSlidersHorizontal, LuHistory, LuSettings, LuBell, LuSearch,
-  LuWallet, LuFlaskConical, LuEllipsis, LuCircleCheck, LuTriangleAlert, LuCircleAlert, LuInfo, LuX, LuLock, LuPlay, LuRotateCcw,
+  LuLayoutDashboard, LuTrendingUp, LuBriefcase, LuMessageSquareText, LuSlidersHorizontal, LuHistory, LuSettings, LuBell, LuSearch,
+  LuWallet, LuEllipsis, LuCircleCheck, LuTriangleAlert, LuCircleAlert, LuInfo, LuX, LuLock,
 } from 'react-icons/lu';
 import { fmtStamp, NETWORK } from '../data/mock';
 import { go, type Route } from '../router';
 import {
-  dismissToast, markAllRead, markRead, resetDemo, runAgentCycle, setDemo, useStore, agentStatus,
+  dismissToast, hydrateAgentMode, markAllRead, markRead, useStore,
 } from '../state/store';
 import { AgentPill } from './status';
+import { getOnChainAgentExecutionMode, getOnChainAgentPolicy } from '../lib/near-wallet';
 import { Logo } from './Logo';
-import { Badge, Button, DemoTag, Modal, Seg, useClickOutside } from './ui';
+import { Badge, Button, Modal, useClickOutside } from './ui';
 
 const NAV = [
   { href: '/app', label: 'Dashboard', icon: LuLayoutDashboard, match: (p: string) => p === '/app' },
   { href: '/app/markets', label: 'Markets', icon: LuTrendingUp, match: (p: string) => p.startsWith('/app/markets') || p.startsWith('/app/trade') },
   { href: '/app/portfolio', label: 'Portfolio', icon: LuBriefcase, match: (p: string) => p.startsWith('/app/portfolio') },
   { href: '/app/assistant', label: 'Assistant', icon: LuMessageSquareText, match: (p: string) => p.startsWith('/app/assistant') },
-  { href: '/app/proposals', label: 'Proposals', icon: LuInbox, match: (p: string) => p.startsWith('/app/proposals'), count: true },
   { href: '/app/agent', label: 'Agent', icon: LuSlidersHorizontal, match: (p: string) => p.startsWith('/app/agent') },
   { href: '/app/activity', label: 'Activity', icon: LuHistory, match: (p: string) => p.startsWith('/app/activity') },
   { href: '/app/settings', label: 'Settings', icon: LuSettings, match: (p: string) => p.startsWith('/app/settings') },
@@ -28,60 +28,6 @@ export function Brand({ onClick }: { onClick?: () => void }) {
     <div className="brand" onClick={onClick ?? (() => go('/'))} role="link" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && go('/')}>
       <Logo size={30} />
       Handel
-    </div>
-  );
-}
-
-export function DemoControls() {
-  const s = useStore();
-  return (
-    <div className="col gap16">
-      <div className="small muted">Market data, option quotes and demo scenarios are mocked. Wallet signing and escrow funding use real NEAR Testnet transactions.</div>
-      <div className="field">
-        <span className="label">Account data</span>
-        <Seg value={s.demo.dataset} onChange={(v) => setDemo({ dataset: v })} options={[{ v: 'populated', label: 'Populated' }, { v: 'empty', label: 'Empty account' }]} />
-      </div>
-      <div className="field">
-        <span className="label">Market data feed</span>
-        <Seg value={s.demo.feed} onChange={(v) => setDemo({ feed: v })} options={[{ v: 'ok', label: 'Normal' }, { v: 'stale', label: 'Stale' }, { v: 'down', label: 'Down' }]} />
-      </div>
-      <div className="field">
-        <span className="label">Next transaction outcome</span>
-        <Seg value={s.demo.outcome} onChange={(v) => setDemo({ outcome: v })} options={[{ v: 'success', label: 'Confirms' }, { v: 'failed', label: 'Fails' }, { v: 'unresolved', label: 'Unresolved' }]} />
-        <span className="hint">Applies to trades, exercises, releases and agent actions.</span>
-      </div>
-      <div className="field">
-        <span className="label">Agent</span>
-        <Seg value={s.demo.agentError ? 'err' : 'ok'} onChange={(v) => setDemo({ agentError: v === 'err' })} options={[{ v: 'ok', label: 'Healthy' }, { v: 'err', label: 'Error' }]} />
-      </div>
-      <div className="row gap8 wrap">
-        <Button size="sm" variant="gold" icon={<LuPlay size={13} />} onClick={runAgentCycle}>Run agent cycle</Button>
-        <Button size="sm" icon={<LuRotateCcw size={13} />} onClick={resetDemo}>Reset demo</Button>
-      </div>
-    </div>
-  );
-}
-
-function DemoDock() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useClickOutside(ref, () => setOpen(false), open);
-  return (
-    <div ref={ref}>
-      <div className="demo-fab">
-        <Button size="sm" variant={open ? 'gold' : 'soft'} icon={<LuFlaskConical size={14} />} onClick={() => setOpen(!open)} aria-expanded={open}>
-          Demo controls
-        </Button>
-      </div>
-      {open && (
-        <div className="demo-panel">
-          <div className="row between" style={{ marginBottom: 10 }}>
-            <b>Demo controls</b>
-            <button className="btn btn-soft btn-icon" style={{ width: 28, height: 28 }} onClick={() => setOpen(false)} aria-label="Close"><LuX size={13} /></button>
-          </div>
-          <DemoControls />
-        </div>
-      )}
     </div>
   );
 }
@@ -145,11 +91,19 @@ function WalletChip() {
 
 export function Shell({ route, children }: { route: Route; children: ReactNode }) {
   const s = useStore();
+  useEffect(() => {
+    let active = true;
+    Promise.all([getOnChainAgentPolicy(), getOnChainAgentExecutionMode()]).then(([policy, executionMode]) => {
+      if (!active) return;
+      const delegated = policy?.enabled === true && executionMode === 'Delegated';
+      hydrateAgentMode(delegated ? 'auto' : executionMode === 'Advisory' || executionMode === 'Education' ? 'advisory' : 'approval', policy?.enabled === false);
+    }).catch(() => {
+      // Keep the safe non-delegated display if public chain reads are unavailable.
+    });
+    return () => { active = false; };
+  }, []);
   const [more, setMore] = useState(false);
   const [q, setQ] = useState('');
-  const pending = s.proposals.filter((p) => p.status === 'pending').length;
-  const st = agentStatus(s);
-  void st;
   const mobileNav = NAV.filter((n) => ['/app', '/app/markets', '/app/portfolio', '/app/assistant'].includes(n.href));
   const moreNav = NAV.filter((n) => !mobileNav.includes(n));
   return (
@@ -162,14 +116,13 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
             <a key={n.href} href={'#' + n.href} onClick={(e) => { e.preventDefault(); go(n.href); }} className={`nav-item ${n.match(route.path) ? 'on' : ''}`} aria-current={n.match(route.path) ? 'page' : undefined}>
               <n.icon size={18} />
               {n.label}
-              {n.count && pending > 0 && <span className="count">{pending}</span>}
             </a>
           ))}
         </nav>
         <div className="nav-foot">
           <div className="card" style={{ padding: 14, borderRadius: 16 }}>
-            <div className="row gap8"><DemoTag /></div>
-            <div className="tiny muted mt8">{NETWORK}. Market prices are simulated; connected-wallet transactions are real Testnet actions.</div>
+            <div className="row gap8"><Badge tone="outline">Testnet prototype</Badge></div>
+            <div className="tiny muted mt8">{NETWORK}. Test-token contract actions only; live market pricing is not connected.</div>
           </div>
         </div>
       </aside>
@@ -204,7 +157,6 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
         <button className={moreNav.some((n) => n.match(route.path)) ? 'on' : ''} onClick={() => setMore(true)}>
           <LuEllipsis size={20} />
           More
-          {pending > 0 && <span className="count">{pending}</span>}
         </button>
       </nav>
       <Modal open={more} onClose={() => setMore(false)} title="More">
@@ -213,12 +165,10 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
             <button key={n.href} className="list-item" onClick={() => { setMore(false); go(n.href); }}>
               <n.icon size={18} />
               <span className="semi grow">{n.label}</span>
-              {n.count && pending > 0 && <Badge tone="gold">{pending}</Badge>}
             </button>
           ))}
         </div>
       </Modal>
-      <DemoDock />
       <Toasts />
     </div>
   );

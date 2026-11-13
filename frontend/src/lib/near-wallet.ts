@@ -247,6 +247,33 @@ export async function getOnChainAgentPolicy(): Promise<OnChainAgentPolicy | null
 export async function getOnChainAgentExecutionMode(): Promise<'Education' | 'Advisory' | 'ManualApproval' | 'Delegated'> {
   return view<'Education' | 'Advisory' | 'ManualApproval' | 'Delegated'>(OPTIONS_CONTRACT, 'get_agent_execution_mode', { agent_id: AGENT_ACCOUNT });
 }
+
+export interface OnChainAssetMetadata {
+  asset_id: string;
+  decimals: number;
+  enabled: boolean;
+}
+
+export async function getOnChainAssetMetadata(assetId: string): Promise<OnChainAssetMetadata | null> {
+  return view<OnChainAssetMetadata | null>(OPTIONS_CONTRACT, 'get_asset', { asset_id: assetId });
+}
+
+export async function getOnChainEscrowTokenAccount(assetId: string): Promise<string | null> {
+  return view<string | null>(OPTIONS_CONTRACT, 'get_escrow_token_account', { asset_id: assetId });
+}
+
+export interface OnChainStorageBalance {
+  total: string;
+  available: string;
+}
+
+export async function getOnChainTokenStorageBalance(tokenAccount: string, accountId: string): Promise<OnChainStorageBalance | null> {
+  return view<OnChainStorageBalance | null>(tokenAccount, 'storage_balance_of', { account_id: accountId });
+}
+
+export async function getOnChainUsdcAssetId(): Promise<string> {
+  return view<string>(OPTIONS_CONTRACT, 'get_usdc_asset_id', {});
+}
 export async function setOnChainAgentExecutionMode(mode: 'Education' | 'Advisory' | 'ManualApproval' | 'Delegated'): Promise<string> {
   const principal = await currentNearAccount();
   if (!principal) throw new Error('Connect the principal NEAR Testnet wallet to change agent authority.');

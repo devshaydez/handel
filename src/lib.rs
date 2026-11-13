@@ -1141,6 +1141,11 @@ impl OptionsContract {
         self.asset_registry.get(&asset_id).cloned()
     }
 
+    /// Read the NEP-141 token account pinned to an enabled Handel asset.
+    pub fn get_escrow_token_account(&self, asset_id: String) -> Option<AccountId> {
+        self.escrow_token_accounts.get(&asset_id).cloned()
+    }
+
     /// Select the USDC asset identifier used for premiums and strike settlement.
     /// The selected asset must already be enabled and use six decimal places.
     /// This allows isolated Testnet USDC registries without changing the default
@@ -1172,6 +1177,23 @@ impl OptionsContract {
                 }
             })
             .unwrap_or(0)
+    }
+
+    /// Highest allocated position ID plus one. IDs are monotonic and never reused.
+    /// This read-only cursor lets off-chain indexers discover every position without
+    /// relying on browser-local trade records.
+    pub fn get_position_count(&self) -> u64 {
+        self.next_id
+    }
+
+    /// Return a bounded page over the monotonic position-ID space. Missing IDs are
+    /// skipped; callers advance by the requested range, not by returned row count.
+    pub fn get_positions_page(&self, from_id: u64, limit: u32) -> Vec<OptionPosition> {
+        assert!(limit > 0 && limit <= 50, "limit must be between 1 and 50");
+        let end = from_id.saturating_add(u64::from(limit)).min(self.next_id);
+        (from_id..end)
+            .filter_map(|id| self.positions.get(&id).cloned())
+            .collect()
     }
 
     pub fn get_position(&self, id: u64) -> Option<OptionPosition> {
@@ -2184,6 +2206,58 @@ mod tests {
         c.set_asset("nep141:stock.testnet".into(), 18, true);
         c.set_asset(OptionsContract::usdc_asset_id_for_test(), 6, true);
         c
+    }
+
+    #[test]
+    fn position_indexer_views_expose_bounded_pages_and_monotonic_cursor() {
+        let mut c = contract();
+        assert_eq!(c.get_position_count(), 0);
+        assert!(c.get_positions_page(0, 10).is_empty());
+
+        context("writer.testnet");
+        let first = c.create_call(
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            5,
+            10,
+            80,
+            2,
+        );
+        let second = c.create_put(
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            5,
+            10,
+            80,
+            2,
+        );
+        assert_eq!(first, 0);
+        assert_eq!(second, 1);
+        assert_eq!(c.get_position_count(), 2);
+
+        let page = c.get_positions_page(0, 1);
+        assert_eq!(page.len(), 1);
+        assert_eq!(page[0].id, first);
+        let next = c.get_positions_page(1, 50);
+        assert_eq!(next.len(), 1);
+        assert_eq!(next[0].id, second);
+        assert!(c.get_positions_page(2, 50).is_empty());
+
+        let invalid =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.get_positions_page(0, 51)));
+        assert!(invalid.is_err());
+    }
+
+    #[test]
+    fn escrow_token_account_mapping_is_readable() {
+        let mut c = contract();
+        let asset_id = "nep141:stock.testnet".to_string();
+        assert_eq!(c.get_escrow_token_account(asset_id.clone()), None);
+
+        context("owner.testnet");
+        let token_account = account("wnear.tidepool-sandbox.testnet");
+        c.set_escrow_token_account(asset_id.clone(), token_account.clone());
+        assert_eq!(c.get_escrow_token_account(asset_id), Some(token_account));
     }
 
     #[test]

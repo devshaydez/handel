@@ -1,13 +1,11 @@
 import { useState } from 'react';
-import { LuArrowLeft, LuCheck, LuCircleCheck, LuEye, LuKey, LuLoader, LuLock, LuGauge, LuWallet, LuX } from 'react-icons/lu';
+import { LuArrowLeft, LuCheck, LuCircleCheck, LuEye, LuGauge, LuLock, LuWallet, LuX, LuLoader } from 'react-icons/lu';
 import { HeroArt } from '../components/HeroArt';
 import { Brand } from '../components/Shell';
-import { Accordion, Badge, Banner, Button, DemoTag } from '../components/ui';
+import { Accordion, Badge, Banner, Button, Card } from '../components/ui';
 import { NETWORK } from '../data/mock';
-import type { Mode } from '../data/types';
 import { go } from '../router';
-import { connectWallet, enterReadOnly, startMode, useStore } from '../state/store';
-import { usd } from '../lib/pricing';
+import { connectWallet, enterReadOnly, useStore } from '../state/store';
 import { connectNearWallet } from '../lib/near-wallet';
 
 const STEPS = ['How it works', 'Connect', 'Account', 'Start'];
@@ -16,7 +14,6 @@ export default function Onboarding() {
   const s = useStore();
   const [step, setStep] = useState(s.wallet.connected ? 2 : 0);
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<Mode>('approval');
   const [walletError, setWalletError] = useState('');
 
   const connect = async () => {
@@ -41,14 +38,14 @@ export default function Onboarding() {
           <HeroArt />
         </div>
         <div>
-          <div className="display" style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.15, maxWidth: '16ch' }}>The AI proposes. You decide.</div>
-          <p style={{ marginTop: 8, maxWidth: '38ch', opacity: 0.8 }}>The policy engine checks every action before it can reach your wallet.</p>
+          <div className="display" style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.15, maxWidth: '16ch' }}>You control the agent’s on-chain authority.</div>
+          <p style={{ marginTop: 8, maxWidth: '38ch', opacity: 0.8 }}>Automatic execution stays off until the principal signs an enabled policy on NEAR Testnet.</p>
         </div>
       </aside>
       <main className="ob-main">
         <div className="row between">
           <button className="btn btn-ghost btn-sm" onClick={() => (step === 0 ? go('/') : setStep(step - 1))}><LuArrowLeft size={14} /> {step === 0 ? 'Home' : 'Back'}</button>
-          <DemoTag />
+          <Badge tone="outline">NEAR Testnet prototype</Badge>
         </div>
         <div className="stepper" aria-label="Setup progress">
           {STEPS.map((t, i) => (
@@ -65,12 +62,12 @@ export default function Onboarding() {
         {step === 0 && (
           <div className="col gap16">
             <h1 className="display" style={{ fontSize: 32, fontWeight: 700, lineHeight: 1.1 }}>Welcome to Handel</h1>
-            <p className="muted">Handel helps you understand options, find opportunities and manage positions, with an AI assistant built in. Here is how it works.</p>
+            <p className="muted">Handel explains the Testnet options flow and supports explicit writer-side wNEAR Call/Put creation under an on-chain policy. Live market prices and option quotes are not connected.</p>
             <div className="col gap8">
               {[
-                { i: LuEye, t: 'Learn and analyse', d: 'Read market analysis and plain-language explanations for every option term.' },
-                { i: LuGauge, t: 'Independent risk checks', d: 'Collateral, limits and pricing are verified by a rules engine, not by the AI.' },
-                { i: LuWallet, t: 'You sign everything', d: 'Trades need your NEAR wallet signature unless you explicitly grant limited automation.' },
+                { i: LuEye, t: 'Ask and understand', d: 'Get explanations of the Testnet Call/Put flow, collateral and settlement.' },
+                { i: LuGauge, t: 'On-chain policy checks', d: 'OptionsContract enforces the allowed asset, size, collateral, position-count and expiry caps.' },
+                { i: LuWallet, t: 'You control authority', d: 'The principal signs policy and collateral. The holder separately signs premium. The restricted agent key cannot transfer tokens.' },
               ].map((x) => (
                 <div key={x.t} className="row gap12 start card" style={{ padding: 14, borderRadius: 16 }}>
                   <span className="tl-ic ai"><x.i size={17} /></span>
@@ -78,7 +75,7 @@ export default function Onboarding() {
                 </div>
               ))}
             </div>
-            <Banner tone="gold"><b>Connecting a wallet does not let the AI trade.</b> Trading authority is a separate choice you make later, and you can revoke it at any time.</Banner>
+            <Banner tone="gold"><b>Connecting a wallet does not enable automatic execution.</b> Only a principal-signed, enabled on-chain policy can authorize Delegated mode. You can pause or revoke it from Agent settings.</Banner>
             <Button variant="gold" size="lg" onClick={() => setStep(1)}>Continue</Button>
           </div>
         )}
@@ -86,7 +83,7 @@ export default function Onboarding() {
         {step === 1 && (
           <div className="col gap16">
             <h1 className="display" style={{ fontSize: 32, fontWeight: 700, lineHeight: 1.1 }}>Connect your NEAR wallet</h1>
-            <p className="muted">Handel will see your account ID and network, and ask you to sign each trade. It never sees your keys.</p>
+            <p className="muted">Handel reads your account ID and network. Wallet prompts are required for policy changes and principal collateral funding. It never sees your private keys.</p>
             <button className="big-select" onClick={connect} disabled={busy}>
               <span className="row gap12">
                 <span className="tl-ic ai"><LuWallet size={18} /></span>
@@ -99,8 +96,8 @@ export default function Onboarding() {
             <Accordion title="What does connecting allow?">
               <div className="col gap8 small">
                 <div className="row gap8 start"><LuCheck size={15} className="green" style={{ marginTop: 3 }} /><span>Handel reads your account ID and which network you are on.</span></div>
-                <div className="row gap8 start"><LuCheck size={15} className="green" style={{ marginTop: 3 }} /><span>Handel can ask you to sign a specific transaction. You review each one.</span></div>
-                <div className="row gap8 start"><LuX size={15} className="red" style={{ marginTop: 3 }} /><span>Connecting does not grant the AI any permission to trade.</span></div>
+                <div className="row gap8 start"><LuCheck size={15} className="green" style={{ marginTop: 3 }} /><span>Handel can request a wallet signature for a specific policy or token transaction. You review each one.</span></div>
+                <div className="row gap8 start"><LuX size={15} className="red" style={{ marginTop: 3 }} /><span>Connecting does not grant the AI permission to trade.</span></div>
                 <div className="row gap8 start"><LuX size={15} className="red" style={{ marginTop: 3 }} /><span>Handel never has access to your private keys.</span></div>
               </div>
             </Accordion>
@@ -113,9 +110,9 @@ export default function Onboarding() {
             <div className="card" style={{ padding: 6 }}>
               {[
                 { l: 'Wallet detected', v: s.wallet.account || 'Not connected', ok: s.wallet.connected },
-                { l: 'Network verified', v: NETWORK, ok: true },
-                { l: 'Collateral balance', v: 'Testnet token balance checked on-chain before trade', ok: false },
-                { l: 'AI trading permission', v: 'None granted', ok: false },
+                { l: 'Network', v: NETWORK, ok: true },
+                { l: 'Token balances', v: 'Check USDC and wNEAR in Settings before funding', ok: false },
+                { l: 'On-chain agent authority', v: 'Read current policy in Agent settings', ok: false },
               ].map((r) => (
                 <div key={r.l} className="row between gap12" style={{ padding: '12px 14px', borderBottom: '1px solid var(--line)' }}>
                   <span className="row gap8">{r.ok ? <LuCircleCheck size={16} className="green" /> : <LuLock size={16} className="muted" />}{r.l}</span>
@@ -123,34 +120,23 @@ export default function Onboarding() {
                 </div>
               ))}
             </div>
-            <Banner tone="warn">This is Testnet with simulated settlement. It does not demonstrate real-asset custody.</Banner>
+            <Banner tone="warn">This is NEAR Testnet. Transactions use synthetic test assets; they are real Testnet transactions, not real-asset custody.</Banner>
             <Button variant="gold" size="lg" onClick={() => setStep(3)}>Continue</Button>
           </div>
         )}
 
         {step === 3 && (
           <div className="col gap16">
-            <h1 className="display" style={{ fontSize: 32, fontWeight: 700, lineHeight: 1.1 }}>How do you want to start?</h1>
-            <p className="muted">You can change this at any time in Agent settings.</p>
-            <div className="col gap8">
-              {([
-                { m: 'advisory' as const, t: 'Advisory', d: 'The AI analyses and recommends. You make every trade yourself.', tag: 'Safest for new users' },
-                { m: 'approval' as const, t: 'Approval', d: 'The AI writes trade proposals. You approve or reject each one.', tag: 'Best for trying the demo' },
-              ]).map((o) => (
-                <button key={o.m} className={`radio-card ${mode === o.m ? 'on' : ''}`} onClick={() => setMode(o.m)} aria-pressed={mode === o.m}>
-                  <div className="row between"><b className="big">{o.t}</b>{o.tag && <Badge tone="gold" sm>{o.tag}</Badge>}</div>
-                  <span className="small muted">{o.d}</span>
-                </button>
-              ))}
-              <div className="radio-card" style={{ opacity: 0.55 }}>
-                <div className="row between"><b className="big">Automatic execution</b><Badge sm tone="outline"><LuLock size={11} /> Set up later</Badge></div>
-                <span className="small muted">Needs limits you configure in Agent settings first.</span>
-              </div>
-            </div>
-            <Button variant="gold" size="lg" onClick={() => { startMode(mode); go('/app'); }}>Enter dashboard</Button>
+            <h1 className="display" style={{ fontSize: 32, fontWeight: 700, lineHeight: 1.1 }}>Set up your authority when ready</h1>
+            <p className="muted">Handel starts without delegated trading authority. The on-chain policy is configured separately and only by the principal wallet.</p>
+            <Card>
+              <div className="row between"><b className="big">ManualApproval by default</b><Badge tone="outline">No delegated execution</Badge></div>
+              <p className="small muted mt8">To enable automatic execution, open Agent settings, choose your own wNEAR, USDC, position-count and expiry limits, then sign the policy transaction in your principal wallet. The contract must confirm an enabled policy before the UI reports Delegated.</p>
+            </Card>
+            <Button variant="gold" size="lg" onClick={() => go('/app/agent')}>Configure on-chain permissions</Button>
+            <Button variant="soft" onClick={() => go('/app')}>Enter dashboard without enabling automatic execution</Button>
           </div>
         )}
-        <span className="hide"><LuKey /></span>
       </main>
     </div>
   );

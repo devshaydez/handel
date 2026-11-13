@@ -1,14 +1,9 @@
 import { useEffect, useState } from 'react';
-import { LuBan, LuKeyRound, LuLock, LuPause, LuPlay } from 'react-icons/lu';
-import { ChecksList, SegBars } from '../components/status';
+import { LuBan, LuKeyRound, LuPause, LuPlay } from 'react-icons/lu';
 import { AgentPill } from '../components/status';
-import { Badge, Banner, Button, Card, CardHead, KV, Modal, PageHead, QtyStepper, Seg, Sparkle, Switch } from '../components/ui';
-import { ASSETS, DEFAULT_POLICY, fmtStamp, SUPPORTED_STRATEGIES, UNSUPPORTED_STRATEGIES } from '../data/mock';
-import type { Policy } from '../data/types';
-import { go } from '../router';
-import { agentStatus, hydrateAgentMode, pauseAgent, resumeAgent, revokeAgent, reauthorize, updatePolicy, useStore } from '../state/store';
-import { usd0 } from '../lib/pricing';
-import { getOnChainAgentExecutionMode, getOnChainAgentPolicy, revokeOnChainAgentAccess, saveOnChainAgentPolicy } from '../lib/near-wallet';
+import { Badge, Banner, Button, Card, CardHead, KV, Modal, PageHead } from '../components/ui';
+import { agentStatus, hydrateAgentMode, revokeAgent, useStore } from '../state/store';
+import { getOnChainAgentExecutionMode, getOnChainAgentPolicy, getOnChainAssetMetadata, getOnChainEscrowTokenAccount, getOnChainTokenStorageBalance, getOnChainUsdcAssetId, revokeOnChainAgentAccess, saveOnChainAgentPolicy, setOnChainAgentExecutionMode, type OnChainAssetMetadata } from '../lib/near-wallet';
 
 function formatBaseUnits(value: string | number, decimals: number): string {
   const amount = BigInt(value);
@@ -27,10 +22,30 @@ function parseBaseUnits(value: string, decimals: number): string {
 export default function Agent() {
   const s = useStore();
   const st = agentStatus(s);
-  const [draft, setDraft] = useState<Policy>(s.policy);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [chainPolicy, setChainPolicy] = useState<Awaited<ReturnType<typeof getOnChainAgentPolicy>>>(null);
+  const [chainAssets, setChainAssets] = useState<{
+    wnear: OnChainAssetMetadata | null;
+    usdc: OnChainAssetMetadata | null;
+    usdcAssetId: string;
+    wnearTokenAccount: string | null;
+    usdcTokenAccount: string | null;
+    wnearStorageBalance: { total: string; available: string } | null;
+    usdcStorageBalance: { total: string; available: string } | null;
+  } | null>(null);
   const [chainDraft, setChainDraft] = useState({ maxUnderlyingWnear: '', maxPremiumUsdc: '', maxCollateralUsdc: '', maxOpenPositions: '', validityDays: '' });
+  const wnearAssetId = 'nep141:wnear.tidepool-sandbox.testnet';
+  const expectedUsdcAssetId = 'nep141:usdc.tidepool-sandbox.testnet';
+  const expectedWnearTokenAccount = 'wnear.tidepool-sandbox.testnet';
+  const expectedUsdcTokenAccount = 'usdc.tidepool-sandbox.testnet';
+  const wnearReady = Boolean(chainAssets?.wnear?.asset_id === wnearAssetId && chainAssets.wnear.enabled &&
+    chainAssets.wnear.decimals === 24 && chainAssets.wnearTokenAccount === expectedWnearTokenAccount &&
+    chainAssets.wnearStorageBalance !== null && BigInt(chainAssets.wnearStorageBalance.total) > 0n);
+  const usdcReady = Boolean(chainAssets?.usdcAssetId === expectedUsdcAssetId &&
+    chainAssets.usdc?.asset_id === expectedUsdcAssetId && chainAssets.usdc.enabled &&
+    chainAssets.usdc.decimals === 6 && chainAssets.usdcTokenAccount === expectedUsdcTokenAccount &&
+    chainAssets.usdcStorageBalance !== null && BigInt(chainAssets.usdcStorageBalance.total) > 0n);
+  const assetReady = wnearReady && usdcReady;
   const [chainLoading, setChainLoading] = useState(true);
   const [chainSaving, setChainSaving] = useState(false);
   const [chainRevoking, setChainRevoking] = useState(false);
@@ -38,26 +53,50 @@ export default function Agent() {
   const [chainSuccess, setChainSuccess] = useState('');
   useEffect(() => {
     let active = true;
-    Promise.all([getOnChainAgentPolicy(), getOnChainAgentExecutionMode()]).then(([policy, executionMode]) => {
-      hydrateAgentMode(executionMode === 'Delegated' ? 'auto' : executionMode === 'Advisory' || executionMode === 'Education' ? 'advisory' : 'approval');
-      if (!active) return;
-      setChainPolicy(policy);
-      if (policy) {
-        const remaining = (BigInt(policy.expires_at_ns) - BigInt(Date.now()) * 1_000_000n + 86_400_000_000_000n - 1n) / 86_400_000_000_000n;
-        setChainDraft({
-          maxUnderlyingWnear: formatBaseUnits(policy.max_underlying_amount, 24),
-          maxPremiumUsdc: formatBaseUnits(policy.max_premium_usdc, 6),
-          maxCollateralUsdc: formatBaseUnits(policy.max_collateral_usdc, 6),
-          maxOpenPositions: String(policy.max_open_positions),
-          validityDays: String(remaining > 0n ? remaining : 1n),
-        });
-      }
-    }).catch((error) => {
-      if (active) setChainError(error instanceof Error ? error.message : 'Could not read the on-chain agent policy.');
-    }).finally(() => { if (active) setChainLoading(false); });
+    const policyTask = Promise.all([getOnChainAgentPolicy(), getOnChainAgentExecutionMode()])
+      .then(([policy, executionMode]) => {
+        const delegated = policy?.enabled === true && executionMode === 'Delegated';
+        hydrateAgentMode(delegated ? 'auto' : executionMode === 'Advisory' || executionMode === 'Education' ? 'advisory' : 'approval', policy?.enabled === false);
+        if (!active) return;
+        setChainPolicy(policy);
+        if (policy) {
+          const remaining = (BigInt(policy.expires_at_ns) - BigInt(Date.now()) * 1_000_000n + 86_400_000_000_000n - 1n) / 86_400_000_000_000n;
+          setChainDraft({
+            maxUnderlyingWnear: formatBaseUnits(policy.max_underlying_amount, 24),
+            maxPremiumUsdc: formatBaseUnits(policy.max_premium_usdc, 6),
+            maxCollateralUsdc: formatBaseUnits(policy.max_collateral_usdc, 6),
+            maxOpenPositions: String(policy.max_open_positions),
+            validityDays: String(remaining > 0n ? remaining : 1n),
+          });
+        }
+      })
+      .catch(error => { if (active) setChainError(error instanceof Error ? error.message : 'Could not read the on-chain agent policy.'); });
+    const assetTask = (async () => {
+      const [wnear, usdcAssetId] = await Promise.all([
+        getOnChainAssetMetadata(wnearAssetId),
+        getOnChainUsdcAssetId(),
+      ]);
+      const [usdc, wnearTokenAccount, usdcTokenAccount] = await Promise.all([
+        getOnChainAssetMetadata(usdcAssetId),
+        getOnChainEscrowTokenAccount(wnearAssetId),
+        getOnChainEscrowTokenAccount(usdcAssetId),
+      ]);
+      const [wnearStorageBalance, usdcStorageBalance] = await Promise.all([
+        wnearTokenAccount ? getOnChainTokenStorageBalance(wnearTokenAccount, 'escrow.shaydez.testnet') : Promise.resolve(null),
+        usdcTokenAccount ? getOnChainTokenStorageBalance(usdcTokenAccount, 'escrow.shaydez.testnet') : Promise.resolve(null),
+      ]);
+      if (active) setChainAssets({ wnear, usdc, usdcAssetId, wnearTokenAccount, usdcTokenAccount, wnearStorageBalance, usdcStorageBalance });
+    })().catch(error => {
+      if (active) setChainError(error instanceof Error ? error.message : 'Could not verify the on-chain asset and escrow registry.');
+    });
+    Promise.all([policyTask, assetTask]).finally(() => { if (active) setChainLoading(false); });
     return () => { active = false; };
   }, []);
   const saveChainPolicy = async () => {
+    if (!assetReady) {
+      setChainError('Automatic execution cannot be enabled yet. The OptionsContract must have wNEAR enabled at 24 decimals, USDC enabled at 6 decimals, both escrow token-account mappings configured, and the Escrow account registered with both NEP-141 tokens. This check moves no tokens.');
+      return;
+    }
     setChainSaving(true); setChainError(''); setChainSuccess('');
     try {
       const result = await saveOnChainAgentPolicy({
@@ -75,6 +114,21 @@ export default function Agent() {
       setChainError(error instanceof Error ? error.message : 'Could not save the on-chain agent policy.');
     } finally { setChainSaving(false); }
   };
+  const changeOnChainExecutionMode = async (mode: 'ManualApproval' | 'Delegated') => {
+    setChainSaving(true); setChainError(''); setChainSuccess('');
+    try {
+      const transactionHash = await setOnChainAgentExecutionMode(mode);
+      const confirmed = await getOnChainAgentExecutionMode();
+      const policy = await getOnChainAgentPolicy();
+      setChainPolicy(policy);
+      if (confirmed !== mode) throw new Error('Execution mode did not verify on-chain.');
+      if (mode === 'Delegated' && (!policy || policy.enabled !== true)) throw new Error('The policy is not enabled; automatic execution remains off.');
+      hydrateAgentMode(mode === 'Delegated' ? 'auto' : 'approval', false);
+      setChainSuccess((mode === 'Delegated' ? 'Bounded automatic execution resumed.' : 'Automatic execution paused in ManualApproval mode.') + ' Transaction: ' + transactionHash);
+    } catch (error) {
+      setChainError(error instanceof Error ? error.message : 'Could not update on-chain execution mode.');
+    } finally { setChainSaving(false); }
+  };
   const confirmOnChainRevoke = async () => {
     setChainRevoking(true); setChainError(''); setChainSuccess('');
     try {
@@ -89,21 +143,13 @@ export default function Agent() {
       setChainError(error instanceof Error ? error.message : 'On-chain agent revocation failed.');
     } finally { setChainRevoking(false); }
   };
-  const dirty = JSON.stringify(draft) !== JSON.stringify(s.policy);
-  const tgl = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
-  const perm = s.activity.filter((a) => a.kind === 'permission_change').slice(0, 4);
-  const tradable = ASSETS.filter((a) => a.optionsSupported);
-  const active = [
-    `${draft.assets.length ? draft.assets.join(', ') : 'No assets'}`, draft.sides.length ? draft.sides.join(' + ') + 's' : 'No option types', `Max ${draft.maxContracts} contracts`, `Max ${usd0(draft.maxPremiumUsd)} premium`, `${draft.expiryMinDays}–${draft.expiryMaxDays} days to expiry`, `Max ${draft.maxExposurePct}% exposure`, draft.requireVerified ? 'Verified pricing only' : 'Estimates allowed',
-  ];
+
 
   return (
     <div className="page">
       <PageHead title="Agent permissions" sub="Configure the same AI agent you speak to in Assistant. Saving bounded on-chain limits enables automatic delegated execution; pause or revoke it here." actions={<AgentPill />} />
 
-      {s.revoked && <Banner tone="danger" action={<Button size="sm" variant="gold" onClick={reauthorize}>Re-enable in Advisory</Button>}><b>Agent access is revoked.</b> The agent cannot analyse, propose or act until you re-enable it.</Banner>}
-      {s.paused && !s.revoked && <Banner tone="warn" action={<Button size="sm" variant="gold" onClick={resumeAgent}>Resume</Button>}><b>The agent is paused.</b> Your permissions are unchanged, but nothing runs until you resume.</Banner>}
-      {s.demo.agentError && <Banner tone="danger"><b>Agent error.</b> The market-data adapter timed out. The agent abstains rather than act on missing evidence.</Banner>}
+      {s.revoked && <Banner tone="danger"><b>Agent access is revoked.</b> The restricted key cannot execute. Create a new on-chain policy with the principal wallet to re-enable bounded execution.</Banner>}
 
       <Card className="ai">
         <div className="row between wrap gap16">
@@ -114,11 +160,11 @@ export default function Agent() {
               <Badge tone={s.authorization.status === 'delegated' ? 'amber' : s.authorization.status === 'revoked' ? 'red' : 'outline'}>{s.authorization.status === 'delegated' ? `Delegated · ${s.authorization.id}` : s.authorization.status === 'revoked' ? 'Revoked' : s.authorization.status === 'per-proposal' ? 'Per-proposal approval' : 'No trading authority'}</Badge>
               <Badge tone="outline">{st.label}</Badge>
             </div>
-            <p className="small muted" style={{ maxWidth: '62ch' }}>{s.mode === 'auto' ? 'After one wallet-bound session authorization, the agent creates options and registers Escrow within your on-chain caps without per-trade approval. The principal separately signs collateral and the holder signs premium. No token transfers are delegated.' : s.mode === 'approval' ? 'The agent writes proposals. Nothing is funded until you approve it in your wallet, and approved trades are checked against the on-chain contract and escrow.' : 'The agent has no ability to trade. It analyses and recommends only.'}</p>
+            <p className="small muted" style={{ maxWidth: '62ch' }}>{s.mode === 'auto' ? 'After one wallet-bound session authorization, the agent creates options and registers Escrow within your on-chain caps without per-trade approval. The principal separately signs collateral and the holder signs premium. No token transfers are delegated.' : s.mode === 'approval' ? 'Execution is in ManualApproval. The restricted agent will not create positions; resume Delegated mode only when the on-chain policy is enabled.' : 'The agent has no ability to trade. It answers and explains only.'}</p>
           </div>
           <div className="col gap8" style={{ minWidth: 200 }}>
-            {s.paused ? <Button variant="gold" icon={<LuPlay size={14} />} onClick={resumeAgent} disabled={s.revoked}>Resume agent</Button> : <Button icon={<LuPause size={14} />} onClick={pauseAgent} disabled={s.revoked}>Pause automation</Button>}
-            <Button variant="danger" icon={<LuBan size={14} />} onClick={() => setConfirmRevoke(true)} disabled={s.revoked}>Revoke agent access</Button>
+            {s.mode === 'auto' ? <Button icon={<LuPause size={14} />} onClick={() => void changeOnChainExecutionMode('ManualApproval')} disabled={chainSaving}>Pause automatic execution</Button> : chainPolicy?.enabled ? <Button variant="gold" icon={<LuPlay size={14} />} onClick={() => void changeOnChainExecutionMode('Delegated')} disabled={chainSaving || s.revoked}>Resume automatic execution</Button> : null}
+            <Button variant="danger" icon={<LuBan size={14} />} onClick={() => setConfirmRevoke(true)} disabled={!chainPolicy?.enabled || s.revoked || chainRevoking}>Revoke agent access</Button>
           </div>
         </div>
       </Card>
@@ -127,82 +173,47 @@ export default function Agent() {
         <div className="row between wrap">
           <div>
             <b>Automatic execution</b>
-            <p className="small muted mt4">Saving your on-chain limits also activates Delegated mode in the same wallet transaction. You do not need to switch modes before chatting or trading.</p>
+            <p className="small muted mt4">Saving your on-chain limits also activates Delegated mode in the same wallet transaction. It only stores permissions; it does not transfer USDC or wNEAR or create a position. The principal still signs collateral and the holder separately signs premium.</p>
           </div>
           <Badge tone={s.mode === 'auto' && !s.revoked ? 'green' : 'outline'}>{s.mode === 'auto' && !s.revoked ? 'Enabled on-chain' : 'Enable when saving limits'}</Badge>
         </div>
       </Card>
-
-      <div className="grid g-main">
-        <Card>
-          <CardHead title="Limits the agent must respect" sub="Applied by the policy engine to every agent action, whatever the AI says." right={<div className="row gap8">{dirty && <Button size="sm" onClick={() => setDraft(s.policy)}>Discard</Button>}<Button size="sm" variant="gold" disabled={!dirty} onClick={() => updatePolicy(draft)}>Save policy</Button></div>} />
-          <div className="col gap20" style={{ gap: 20 }}>
-            <div className="field"><span className="label">Allowed assets</span><div className="pill-row">{tradable.map((a) => <button key={a.sym} className={`chip ${draft.assets.includes(a.sym) ? 'on' : ''}`} onClick={() => setDraft({ ...draft, assets: tgl(draft.assets, a.sym) })} aria-pressed={draft.assets.includes(a.sym)}>{a.sym}</button>)}</div></div>
-            <div className="field"><span className="label">Option types</span><div className="pill-row">{(['call', 'put'] as const).map((x) => <button key={x} className={`chip ${draft.sides.includes(x) ? 'on' : ''}`} onClick={() => setDraft({ ...draft, sides: tgl(draft.sides, x), strategies: tgl(draft.strategies, x === 'call' ? 'Long call' : 'Long put') })}>{x === 'call' ? 'Calls' : 'Puts'}</button>)}</div></div>
-            <div className="field"><span className="label">Strategies</span><div className="pill-row">{SUPPORTED_STRATEGIES.map((x) => <button key={x} className={`chip ${draft.strategies.includes(x) ? 'on' : ''}`} onClick={() => setDraft({ ...draft, strategies: tgl(draft.strategies, x) })}>{x}</button>)}{UNSUPPORTED_STRATEGIES.map((x) => <button key={x} className="chip" disabled title="Not implemented by the backend yet"><LuLock size={11} />{x}</button>)}</div></div>
-            <div className="grid g2">
-              <div className="field"><span className="label">Max contracts per trade</span><QtyStepper value={draft.maxContracts} onChange={(n) => setDraft({ ...draft, maxContracts: n })} max={50} /></div>
-              <div className="field"><span className="label">Max premium per trade: {usd0(draft.maxPremiumUsd)}</span><input className="range" type="range" min={250} max={10000} step={250} value={draft.maxPremiumUsd} onChange={(e) => setDraft({ ...draft, maxPremiumUsd: Number(e.target.value) })} aria-label="Max premium" /></div>
-              <div className="field"><span className="label">Earliest expiry: {draft.expiryMinDays} days</span><input className="range" type="range" min={1} max={30} value={draft.expiryMinDays} onChange={(e) => setDraft({ ...draft, expiryMinDays: Math.min(Number(e.target.value), draft.expiryMaxDays - 1) })} aria-label="Earliest expiry" /></div>
-              <div className="field"><span className="label">Latest expiry: {draft.expiryMaxDays} days</span><input className="range" type="range" min={7} max={120} value={draft.expiryMaxDays} onChange={(e) => setDraft({ ...draft, expiryMaxDays: Math.max(Number(e.target.value), draft.expiryMinDays + 1) })} aria-label="Latest expiry" /></div>
-              <div className="field"><span className="label">Exposure cap: {draft.maxExposurePct}% of balance</span><input className="range" type="range" min={5} max={100} step={5} value={draft.maxExposurePct} onChange={(e) => setDraft({ ...draft, maxExposurePct: Number(e.target.value) })} aria-label="Exposure cap" /></div>
-              <div className="field"><span className="label">Require verified pricing</span><div className="row gap8"><Switch on={draft.requireVerified} onChange={(v) => setDraft({ ...draft, requireVerified: v })} label="Require verified pricing" /><span className="small muted">{draft.requireVerified ? 'Estimates are blocked' : 'Estimates allowed'}</span></div></div>
-            </div>
-            <button className="link small" style={{ alignSelf: 'flex-start' }} onClick={() => setDraft({ ...DEFAULT_POLICY })}>Restore defaults</button>
-          </div>
-        </Card>
-        <div className="col gap16">
-          <Card>
-            <CardHead title="Active restrictions" sub={dirty ? 'Unsaved changes shown' : 'Currently enforced'} />
-            <div className="pill-row">{active.map((a) => <Badge key={a} tone="outline">{a}</Badge>)}</div>
-            <p className="tiny faint mt12">Pricing older than {s.policy.maxPricingAgeMin} minutes is always rejected.</p>
-          </Card>
-          <Card>
-            <CardHead title="Recent agent actions" right={<button className="link small" onClick={() => go('/app/activity')}>All</button>} />
-            {s.agentRuns.length === 0 ? <p className="small muted">No agent activity yet.</p> : s.agentRuns.slice(0, 5).map((r) => (
-              <div key={r.id} className="row gap12 between" style={{ padding: '9px 0', borderBottom: '1px solid var(--line)' }}>
-                <div className="grow"><div className="semi small ellipsis">{r.title}</div><div className="tiny faint">{fmtStamp(r.ts)}</div><div className="mt4"><SegBars checks={r.checks} /></div></div>
-                <Badge sm tone={r.result === 'executed' ? 'green' : r.result === 'proposed' ? 'gold' : r.result === 'rejected' ? 'red' : 'outline'}>{r.result === 'rejected' ? 'Blocked' : r.result === 'abstained' ? 'No trade' : r.result}</Badge>
-              </div>
-            ))}
-          </Card>
-          <Card>
-            <CardHead title="Permission changes" />
-            {perm.length === 0 ? <p className="small muted">No changes yet.</p> : perm.map((a) => <KV key={a.id} k={<span className="text2">{a.title}</span>} v={<span className="tiny muted">{fmtStamp(a.ts)}</span>} />)}
-          </Card>
-        </div>
-      </div>
 
       <Card>
         <CardHead title="On-chain Testnet permissions" sub="These exact limits are enforced by OptionsContract for handel-agent.shaydez.testnet. Only your connected principal wallet can create or update them." right={chainPolicy ? <Badge tone={chainPolicy.enabled ? 'green' : 'red'}>{chainPolicy.enabled ? 'On-chain policy active' : 'Disabled'}</Badge> : <Badge tone="outline">Not configured</Badge>} />
         {chainLoading ? <p className="small muted">Reading policy from NEAR Testnet…</p> : (
           <>
             {chainPolicy && <div className="small muted mb12">Principal: <b>{chainPolicy.principal}</b> · Allowed asset: wNEAR · Current policy expiry: {new Date(Number(chainPolicy.expires_at_ns) / 1_000_000).toLocaleString()}</div>}
-            <div className="banner info mb12">All demo market symbols currently use the same Tidepool Testnet wNEAR token. The contract policy therefore authorizes that token, not real NVDA/AAPL/MSFT shares.</div>
+            <div className="banner info mb12">Only the Tidepool Testnet wNEAR token is allowlisted for this agent. These permissions do not authorize stock shares or live-market assets.</div>
+            {chainAssets && <div className="row gap8 wrap mb12">
+              <Badge tone={wnearReady ? 'green' : 'red'}>wNEAR: {wnearReady ? 'enabled · escrow mapped · Escrow registered' : 'asset, mapping or storage not ready'}</Badge>
+              <Badge tone={usdcReady ? 'green' : 'red'}>USDC: {usdcReady ? 'enabled · escrow mapped · Escrow registered' : 'asset, mapping or storage not ready'}</Badge>
+            </div>}
+            {!chainLoading && !assetReady && <Banner tone="warn">The contract must confirm both enabled assets and their NEP-141 escrow token-account mappings before automatic policy creation. The contract owner may need to enable wNEAR and map its token account. The Escrow contract must also have NEP-145 storage registration on both token contracts. That is a Testnet NEAR storage prerequisite, not a USDC or wNEAR transfer. These checks are read-only.</Banner>}
             <div className="grid g2">
-              <div className="field"><span className="label">Maximum underlying per proposal (wNEAR)</span><input className="input" type="number" min="0" step="0.000000000000000000000001" value={chainDraft.maxUnderlyingWnear} onChange={(e) => setChainDraft({ ...chainDraft, maxUnderlyingWnear: e.target.value })} placeholder="Set your wNEAR limit" /></div>
-              <div className="field"><span className="label">Maximum premium per proposal (USDC)</span><input className="input" type="number" min="0" step="0.000001" value={chainDraft.maxPremiumUsdc} onChange={(e) => setChainDraft({ ...chainDraft, maxPremiumUsdc: e.target.value })} placeholder="Set your USDC limit" /></div>
-              <div className="field"><span className="label">Maximum put collateral per proposal (USDC)</span><input className="input" type="number" min="0" step="0.000001" value={chainDraft.maxCollateralUsdc} onChange={(e) => setChainDraft({ ...chainDraft, maxCollateralUsdc: e.target.value })} placeholder="Set your USDC limit" /></div>
+              <div className="field"><span className="label">Maximum underlying per trade (wNEAR)</span><input className="input" type="number" min="0" step="0.000000000000000000000001" value={chainDraft.maxUnderlyingWnear} onChange={(e) => setChainDraft({ ...chainDraft, maxUnderlyingWnear: e.target.value })} placeholder="Set your wNEAR limit" /></div>
+              <div className="field"><span className="label">Maximum premium per trade (USDC)</span><input className="input" type="number" min="0" step="0.000001" value={chainDraft.maxPremiumUsdc} onChange={(e) => setChainDraft({ ...chainDraft, maxPremiumUsdc: e.target.value })} placeholder="Set your USDC limit" /></div>
+              <div className="field"><span className="label">Maximum put collateral per trade (USDC)</span><input className="input" type="number" min="0" step="0.000001" value={chainDraft.maxCollateralUsdc} onChange={(e) => setChainDraft({ ...chainDraft, maxCollateralUsdc: e.target.value })} placeholder="Set your USDC limit" /></div>
               <div className="field"><span className="label">Maximum open positions</span><input className="input" type="number" min="1" step="1" value={chainDraft.maxOpenPositions} onChange={(e) => setChainDraft({ ...chainDraft, maxOpenPositions: e.target.value })} placeholder="Set your position cap" /></div>
               <div className="field"><span className="label">Policy validity (days)</span><input className="input" type="number" min="1" max="365" step="1" value={chainDraft.validityDays} onChange={(e) => setChainDraft({ ...chainDraft, validityDays: e.target.value })} placeholder="1–365 days" /></div>
             </div>
             {chainError && <Banner tone="danger">{chainError}</Banner>}
             {chainSuccess && <Banner tone="info">{chainSuccess}</Banner>}
             <div className="row gap8 wrap mt12">
-              <Button variant="gold" disabled={chainSaving || !chainDraft.maxUnderlyingWnear || !chainDraft.maxPremiumUsdc || !chainDraft.maxCollateralUsdc || !chainDraft.maxOpenPositions || !chainDraft.validityDays} onClick={() => void saveChainPolicy()}>{chainSaving ? 'Waiting for wallet…' : chainPolicy ? 'Update on-chain policy' : 'Create on-chain policy'}</Button>
+              <Button variant="gold" disabled={chainSaving || !assetReady || !chainDraft.maxUnderlyingWnear || !chainDraft.maxPremiumUsdc || !chainDraft.maxCollateralUsdc || !chainDraft.maxOpenPositions || !chainDraft.validityDays} onClick={() => void saveChainPolicy()}>{chainSaving ? 'Waiting for wallet…' : chainPolicy ? 'Update on-chain policy' : 'Create on-chain policy'}</Button>
               <span className="tiny muted">This submits one wallet-signed transaction that saves your limits and enables bounded Delegated execution together.</span>
             </div>
           </>
         )}
       </Card>
 
-undefined      <Modal open={confirmRevoke} onClose={() => setConfirmRevoke(false)} title="Revoke agent access?">
+      <Modal open={confirmRevoke} onClose={() => setConfirmRevoke(false)} title="Revoke agent access?">
         <div className="col gap16">
           <p className="text2">This asks your principal wallet to sign the OptionsContract revoke_agent transaction. Handel will show revoked only after the contract confirms enabled=false. Existing positions are not cancelled.</p>
           <div className="row gap8"><Button block onClick={() => setConfirmRevoke(false)} disabled={chainRevoking}>Cancel</Button><Button block variant="danger" disabled={chainRevoking} onClick={() => void confirmOnChainRevoke()}>{chainRevoking ? 'Waiting for principal wallet…' : 'Sign on-chain revocation'}</Button></div>
         </div>
       </Modal>
-      <span className="hide"><Seg value="a" onChange={() => {}} options={[{ v: 'a', label: '' }]} /><ChecksList checks={[]} /><Sparkle /></span>
+
     </div>
   );
 }

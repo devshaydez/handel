@@ -7,6 +7,7 @@ import { shortHash } from '../data/seed';
 import type { ActKind, Activity as Act } from '../data/types';
 import { go } from '../router';
 import { useStore } from '../state/store';
+import { fetchObservedPositionActivity, type IndexedPositionActivity } from '../lib/indexer-api';
 
 const ICON: Record<ActKind, { i: typeof LuScanSearch; c: string }> = {
   proposal: { i: LuScanSearch, c: 'ai' }, approval: { i: LuThumbsUp, c: 'ok' }, rejection: { i: LuThumbsDown, c: '' }, ai_decision: { i: LuScanSearch, c: 'ai' }, no_trade: { i: LuBan, c: '' },
@@ -26,6 +27,15 @@ export default function Activity({ id }: { id?: string }) {
   const s = useStore();
   const [f, setF] = useState<F>('all');
   const [sel, setSel] = useState<string | null>(id ?? null);
+  const [chainEvents, setChainEvents] = useState<IndexedPositionActivity[]>([]);
+  const [chainError, setChainError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (!s.wallet.account) { setChainEvents([]); return () => { active = false; }; }
+    fetchObservedPositionActivity(s.wallet.account).then(rows => { if (active) { setChainEvents(rows); setChainError(null); } })
+      .catch(error => { if (active) setChainError(error instanceof Error ? error.message : 'Indexer unavailable'); });
+    return () => { active = false; };
+  }, [s.wallet.account]);
   const loading = useLoading(300);
   useEffect(() => { setSel(id ?? null); }, [id]);
   if (loading) return <PageSkeleton />;
@@ -34,10 +44,27 @@ export default function Activity({ id }: { id?: string }) {
   const counts = (k: F) => s.activity.filter(FILTER[k]).length;
   return (
     <div className="page">
-      <PageHead title="Activity and decision journal" sub="Everything the AI and you did, with the evidence, checks and result behind it. No-trade decisions are recorded too." />
+      <PageHead title="Activity and decision journal" sub="On-chain position changes observed on this device, alongside the unified Assistant decision journal." />
+      <Card>
+        <CardHead title="Observed Testnet position lifecycle" sub="Finalized contract state changes observed by this browser" />
+        {chainError && <Banner tone="warn">{chainError}. Browser-session activity remains separate.</Banner>}
+        {chainEvents.length === 0 ? <EmptyState title="No observed lifecycle changes" body="No position changes have been observed yet. Connect a wallet and open this page again after a position is created or changes state." /> : (
+          <div className="col gap12">
+            {chainEvents.map(event => <div key={event.activity_id} className="row between start gap12">
+              <div className="grow">
+                <div className="semi">Position #{event.position_id} · {event.event_type.replaceAll('_', ' ')}</div>
+                <div className="small muted">{event.previous_state ? event.previous_state + " → " : ""}{event.current_state}</div>
+                <div className="tiny faint">Finalized block {event.block_height} · {event.block_hash}</div>
+              </div>
+              <Badge tone="outline">Observed on-chain</Badge>
+            </div>)}
+          </div>
+        )}
+        <p className="tiny faint">This free journal persists observations in this browser only. It cannot recover changes that happened while the app was closed, and it is not a complete transaction/receipt history. Transaction hashes are shown only for transactions Handel itself has recorded.</p>
+      </Card>
       <Tabs value={f} onChange={setF} tabs={[{ v: 'all', label: 'All', n: counts('all') }, { v: 'ai', label: 'AI decisions', n: counts('ai') }, { v: 'tx', label: 'Transactions', n: counts('tx') }, { v: 'positions', label: 'Positions', n: counts('positions') }, { v: 'permissions', label: 'Permissions', n: counts('permissions') }]} />
       <Card className="flush">
-        {list.length === 0 ? <EmptyState title="Nothing recorded yet" body="Proposals, approvals, AI decisions and transactions are written here as they happen." action={<Button variant="gold" onClick={() => go('/app/markets')}>Explore markets</Button>} /> : (
+        {list.length === 0 ? <EmptyState title="Nothing recorded yet" body="This journal only contains events recorded in the current browser session. Reloading clears this local history." action={<Button variant="gold" onClick={() => go('/app/assistant')}>Open Assistant</Button>} /> : (
           <div style={{ padding: '4px 18px' }}>
             {list.map((a) => {
               const I = ICON[a.kind].i;
@@ -69,11 +96,11 @@ function Detail({ a }: { a: Act }) {
       {a.kind === 'no_trade' && <Banner tone="info"><b>A no-trade decision is a valid result, not an error.</b> The AI looked and decided there was nothing worth doing.</Banner>}
       {a.stage === 'unknown' && <Banner tone="warn"><b>Unresolved.</b> The outcome could not be verified. It is not shown as a success or a failure.</Banner>}
       {tx && <div className="card" style={{ padding: 14 }}><TxLanes tx={tx} /></div>}
+      {a.txHash && <div className="card" style={{ padding: 14 }}><KV k="Transaction" v={<a className="link mono tiny" href={`https://explorer.testnet.near.org/transactions/${a.txHash}`} target="_blank" rel="noreferrer">{shortHash(a.txHash)} · NEAR Explorer</a>} /></div>}
       {r ? (
         <>
           <div className="card" style={{ padding: '4px 14px' }}>
             <KV k="Action" v={r.action} /><KV k="Strategy" v={r.strategy} /><KV k="Confidence" v={r.confidence == null ? 'Not applicable' : `${Math.round(r.confidence * 100)}%`} /><KV k="User authorization" v={r.authorization} /><KV k="Execution result" v={r.result} />
-            {a.txHash && <KV k="Transaction" v={<a className="link mono tiny" href={`https://explorer.testnet.near.org/transactions/${a.txHash}`} target="_blank" rel="noreferrer">{shortHash(a.txHash)} · NEAR Explorer</a>} />}
           </div>
           <div><div className="semi mb">Market evidence used</div><EvidenceList items={r.evidence} /></div>
           {r.checks.length > 0 && <div><div className="semi">Policy checks</div><ChecksList checks={r.checks} compact /></div>}
