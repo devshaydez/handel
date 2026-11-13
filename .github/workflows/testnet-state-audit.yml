@@ -1,0 +1,35 @@
+name: Dual-RPC Testnet state audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/audit-testnet-state.mjs"
+      - ".github/workflows/testnet-state-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Read-only dual-RPC contract and token audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Query both finalized Testnet RPCs
+        run: node scripts/audit-testnet-state.mjs | tee testnet-state-audit.json
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: handel-dual-rpc-testnet-audit
+          path: testnet-state-audit.json
+          if-no-files-found: ignore
+          retention-days: 30
