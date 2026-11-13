@@ -114,7 +114,7 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
         <div className="nav-foot">
           <div className="card" style={{ padding: 14, borderRadius: 16 }}>
             <div className="row gap8"><Badge tone="outline">Testnet prototype</Badge></div>
-            <div className="tiny muted mt8">{NETWORK}. Market prices are simulated; connected-wallet transactions are real Testnet actions.</div>
+            <div className="tiny muted mt8">{NETWORK}. Test-token contract actions only; live market pricing is not connected.</div>
           </div>
         </div>
       </aside>
