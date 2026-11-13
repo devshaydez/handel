@@ -96,7 +96,7 @@ export default function Dashboard() {
           </Card>
           <Card>
             <CardHead title="Market data" />
-            <Badge tone="warning">Not connected</Badge>
+            <Badge tone="amber">Not connected</Badge>
             <p className="small muted mt8">Live spot prices, historical series, option bid/ask, implied volatility, and news are not configured. Trade premiums remain Testnet fixtures, not market quotes.</p>
             <Button block onClick={() => go('/app/markets')}>View supported assets</Button>
           </Card>
