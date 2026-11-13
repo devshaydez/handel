@@ -8,7 +8,7 @@
 
 | Field | Value |
 |---|---|
-| Workflow | [Handel backend checks, run #43425939138](https://github.com/devshaydez/handel/actions/runs/43425939138) |
+| Workflow | [PR checks, run #43458722976](https://github.com/devshaydez/handel/actions/runs/43458722976) |
 | Commit | `371fe36c3ee376a294714d06b79c73a1170fe70c` |
 | Date | 2026-11-13 |
 | Result | 6 jobs succeeded; frontend typecheck/build job was skipped |
