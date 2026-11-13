@@ -1,8 +1,8 @@
 # Handel — Project Continuation Handoff
 
-> **Internal handoff, not the public project overview.** The public, judge-facing status is in [README.md](../README.md); evidence is in [EVIDENCE.md](EVIDENCE.md). Older dated notes below are historical snapshots and must not override this current status.
+ > **Historical handoff snapshot.** This file contains dated working notes and is not the current status source. Use [README.md](../README.md) and [EVIDENCE.md](EVIDENCE.md) as authoritative; later repository changes supersede every older status and action list below.
 
-## Current verified close-out — 2026-11-13 16:58 UTC+1
+## Historical close-out snapshot — 2026-11-13 16:58 UTC+1 (superseded)
 
 - **Current main:** `f7da7824e8802c8080658949ea74e2b6a6f60a19` (latest observed commit).
 - **Latest CI:** [run #43425939138](https://github.com/devshaydez/handel/actions/runs/43425939138) completed successfully: all seven PR jobs passed, including frontend typecheck/build; the post-merge main push workflow was still running.
@@ -56,7 +56,7 @@ The dated notes below record earlier branch states. They are not current status.
 
 ### Unified product model
 - There is exactly **one AI agent**. Assistant is its conversational interface; Agent is configuration for that same agent (policy, limits, execution mode, revocation). No second agent/runtime.
-- The Assistant's current browser implementation remains scripted/demo UI and is **not yet wired** to the delegated API. Do not claim browser-driven autonomous trading.
+- At this 2026-11-12 snapshot, the Assistant browser implementation was not yet wired to the delegated API. This was superseded by the current `TestnetProposalComposer.tsx` integration; see [ADVISORY_API.md](./ADVISORY_API.md) and [EVIDENCE.md](./EVIDENCE.md#e-006--delegated-agent-implementation).
 
 ### Implemented in this branch
 1. Contract delegated Call/Put entrypoints with on-chain allowlist, amount, premium, Put collateral, expiry, open-position and pause checks.
@@ -434,9 +434,9 @@ Work is underway on branch `work/batch-9-execution-safety`, stacked on Batch 8 b
 - Phase 17: implemented on-chain Education/Advisory/ManualApproval/Delegated modes (new policies default to ManualApproval), principal-only mode changes, direct Call/Put gating, live-policy approval checks, approval-time revalidation against changed principal/caps/assets/expiry/position terms/open-position count, and SDK stale-snapshot/mode preflight. Tests added; integrated CI passed on code commit `95278bf7b2b13425b928c0e6bdec982a2c63b8f6` (run [#42708258643](https://github.com/devshaydez/handel/actions/runs/42708258643)).
 - Phase 18: added connected-wallet NEP-413 signing boundary, distinct-nonce paired intent validation, read-only finality simulation, and SHA-256 binding of the exact signed pair/verifier to the simulation before explicit-approval wallet submission. No private key handling. Verifier Mainnet-only; no Mainnet transaction or asset movement performed.
 - Phase 19: added NEP-141 escrow transfer_call builder and regression coverage for partial exercise payout recovery (confirmed payment leg is never repeated when collateral payout fails). Existing Escrow ft_on_transfer validates exact sender/token/amount/position/leg. Payout remains sequential; trusted reconciler, independent finality proof, exact Ondo route and Intents-ledger reservation remain open.
-- Batch 9 detail: [BATCH_9_EXECUTION_SAFETY.md](./BATCH_9_EXECUTION_SAFETY.md).
+- Batch 9 detail: [BATCH_9_EXECUTION_SAFETY.md](./archive/BATCH_9_EXECUTION_SAFETY.md).
 - AI security architecture: [AI_GUARDRAILS_AND_TEE_ARCHITECTURE.md](./AI_GUARDRAILS_AND_TEE_ARCHITECTURE.md). NEAR TEE attestation is not a substitute for deterministic trade/risk/authority gates; E2EE/OHTTP and System One guardrails remain integration work.
-- Project-wide remaining gates: [ALL_BATCH_LIMITATIONS.md](./ALL_BATCH_LIMITATIONS.md).
+- Project-wide remaining gates: [ALL_BATCH_LIMITATIONS.md](./archive/ALL_BATCH_LIMITATIONS.md).
 
 Batch 9 is not complete until all phases are implemented, the full branch passes one final integrated CI run, and the outstanding custody, verifier, wallet, and security-review gates are accurately recorded. No deployment, signing, funding, or asset movement is implied by SDK helpers or passing CI.
 

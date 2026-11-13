@@ -1,3 +1,5 @@
+> Historical working note; superseded by README.md and docs/EVIDENCE.md.
+
 # Batch 3 limitations register
 
 > This file is the Phase 7–9 detail only. The authoritative project-wide list, including Batch 1 and Batch 2 carry-forward items, is [ALL_BATCH_LIMITATIONS.md](./ALL_BATCH_LIMITATIONS.md).

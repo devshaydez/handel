@@ -1,6 +1,6 @@
 # NEAR AI security integration — Batch 8
 
-**Status:** Offline implementation and tests are in progress. Chat E2EE/OHTTP, explicit TEE deployment pinning, a fail-closed System One proposal guard, and a hash-chained durable decision journal are implemented on the Batch 8 branch. Live Gateway inference and live System One decisions have not been run.
+**Status (2026-11-13):** Chat E2EE/OHTTP, explicit Gateway/model TEE deployment pinning, response-signature verification, and the separate System One decision path are implemented in the current SDK. The evidence ledger records a successful live NEAR AI → SDK → Sandbox CI proof (E-001). This proves the named CI proof only; it is not evidence of a completed Testnet trade, Ondo settlement, or production custody. System One uses its own client with E2EE/OHTTP disabled and Gateway-signature verification; do not describe it as model-TEE-attested.
 
 ## Verified SDK contract
 
@@ -39,11 +39,11 @@ The deployment allowlists must be populated from a deployment independently revi
 ## Verification status and limitations
 
 - Offline unit tests use a fake SDK client; they prove rejection behavior, not that a remote TEE is honest.
-- No live inference request or System One decision has been sent.
-- No live E2EE/OHTTP key exchange has been observed end-to-end yet.
+- The live NEAR AI → SDK → Sandbox proof is recorded in [EVIDENCE.md](./EVIDENCE.md#e-001--latest-main-ci); do not generalize that CI result into proof of a completed Testnet trade or production service.
+- Chat configures E2EE/OHTTP and provider tests assert the privacy metadata; the E-001 proof is the available live-integration evidence. No independent security audit is claimed.
 - The budget ledger is shareable across Chat and System One within one process, but remains process-local and must be replaced with durable shared accounting before multi-instance production use.
 - The System One structured guardrail adapter is implemented and trading proposal runtime now requires an allowlisted, verified provider-TEE System One decision.
 - Trading proposal runtime also requires a durable decision recorder; records are hash-chained and explanations are rendered from stored evidence. A host must provide durable storage and production WORM/anchoring controls.
 - Trading proposal runtime now also requires a source-specific market evidence verifier returning an approval result, verification method, and evidence hash. No current live provider is approved; display-only sources cannot be used by a verifier as execution-grade inputs.
-- Live model compatibility and receipt verification still require a credentialed smoke test.
+- Live integration evidence is limited to the CI proof recorded in E-001; broader production compatibility, independent review, and operational hardening remain open.
 - TEE attestation does not grant wallet authority. On-chain policy, user approval, deterministic limits, and verified settlement remain mandatory.

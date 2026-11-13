@@ -1,3 +1,5 @@
+> Historical working note; superseded by README.md and docs/EVIDENCE.md.
+
 # Handel Testnet backend plan
 
 ## Agreed scope

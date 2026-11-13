@@ -1,3 +1,5 @@
+> Historical working note; superseded by README.md and docs/EVIDENCE.md.
+
 # Handel — project-wide limitations and release register
 
 **Scope:** All work from Batch 1 through the remaining release phases (Phases 1–13).  
@@ -173,7 +175,7 @@ This is a preflight guard, not deployment automation or independent proof of the
 
 ## Cross-batch product requirements — AI education and decision accountability
 
-Tracked in [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md). These are open acceptance requirements across Batches 8–10, not completed features: the same agent must teach in context and trade only under the user's selected authority mode; each consequential action, rejection, and no-trade decision must be linked to a durable, evidence-grounded decision record. User-facing explanations must distinguish proposals from confirmed execution and must never invent evidence or outcomes. Close only with implementation, tests, and auditable evidence.
+Tracked in [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](../AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md). These are open acceptance requirements across Batches 8–10, not completed features: the same agent must teach in context and trade only under the user's selected authority mode; each consequential action, rejection, and no-trade decision must be linked to a durable, evidence-grounded decision record. User-facing explanations must distinguish proposals from confirmed execution and must never invent evidence or outcomes. Close only with implementation, tests, and auditable evidence.
 
 ## Batch 9 — Phases 17–19: execution and safety (implementation foundations CI-verified; live integration/release gates remain)
 

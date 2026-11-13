@@ -1,3 +1,5 @@
+> Historical working note; superseded by README.md and docs/EVIDENCE.md.
+
 # Path B integration notes
 
 Status: architecture target only. No Chain Signatures signer contract, NEP-413 payload builder, wallet-signing adapter, Tidepool transfer, or signed transaction has been implemented or run. Do not treat this note as an executable protocol specification.

@@ -1,3 +1,5 @@
+> Historical working note; superseded by README.md and docs/EVIDENCE.md.
+
 # Versioned lifecycle storage and migration design
 
 Status: implementation and migration gate, 2026-11-08. Premium sidecars/transfers/refunds, lifecycle outbox/callbacks, evidence-attested payout recovery, and registration/expiry unit coverage are implemented in the PR branch. Runtime and test commit `f5e8460b3ac7cdf05328801da2743a7ab5686a74` passed CI run #42531159905 (Rust format/tests/Wasm/Sandbox and SDK build/tests/demo). Versioned root-state migration entrypoints and legacy deployment migration are not implemented.

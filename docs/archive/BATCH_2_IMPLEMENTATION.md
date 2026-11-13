@@ -1,3 +1,5 @@
+> Historical working note; superseded by README.md and docs/EVIDENCE.md.
+
 # Batch 2 — Asset integration, settlement verification, transaction orchestration
 
 ## Scope

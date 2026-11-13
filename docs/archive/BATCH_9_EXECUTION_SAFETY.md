@@ -1,3 +1,5 @@
+> Historical working note; superseded by README.md and docs/EVIDENCE.md.
+
 # Batch 9 — Execution and safety (Phases 17–19)
 
 Branch: work/batch-9-execution-safety  

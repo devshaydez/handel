@@ -84,7 +84,7 @@ For sensitive user, wallet and portfolio context, the target NEAR AI Cloud confi
 - shared durable budget ledger before multi-instance production use;
 - no API keys in prompts, browser code, logs or repository files.
 
-The current Batch 8 provider code requires model attestation and a `provider_tee` receipt by default, but its factory currently constructs the Chat client with `e2ee: false` and `ohttp: false`, does not configure a deployment-measurement allowlist, and uses the SDK's default one-hour attestation cache. Therefore application-level request encryption and OHTTP are **not yet enabled** in Handel. The System One decision route is also not integrated. The budget ledger is process-local. These must be addressed and tested before sensitive production traffic. When System One is added, it must use a separate client with E2EE/OHTTP disabled as required by the current SDK.
+The current Chat provider enables field-level E2EE and Gateway OHTTP, pins Gateway/model signers and compose/OS measurements, requires up-to-date attestation, and verifies response signatures; see `sdk/src/nearai-provider.ts`, `sdk/src/nearai-stack.ts`, and the provider tests. The separate System One client intentionally disables E2EE/OHTTP and uses its configured Gateway-signature policy; it is not represented as model-TEE-attested. The current budget ledger is process-local, so multi-instance production still requires durable shared accounting. The evidence ledger records the live NEAR AI → SDK → Sandbox CI proof (E-001), not a completed Testnet trade or production deployment.
 
 ## 6. Implementation ownership
 
@@ -102,10 +102,10 @@ The current Batch 8 provider code requires model attestation and a `provider_tee
 
 ## 7. Current status and no-overclaim rule
 
-- Batch 8 has an initial NEAR AI inference adapter, mocked attestation/signature tests and a host-side proposal runtime. No live inference has been performed.
-- The user has added a GitHub Actions secret named `NEARAI_API_KEY`; this does not prove that the backend runtime has the secret or that a live call works.
-- Handel has not yet integrated System One input/tool/output guardrails.
-- E2EE and OHTTP are not yet enabled in the current provider factory.
+- The current Chat provider and separate System One path are implemented and exercised by tests; E-001 records the live NEAR AI → SDK → Sandbox CI proof.
+- Chat enables E2EE/OHTTP and verifies allowlisted Gateway/model TEE evidence and response signatures.
+- System One uses a separate E2EE/OHTTP-disabled client and Gateway-signature verification; it is not claimed to be model-TEE-attested.
+- The budget ledger is process-local; durable shared accounting, production operations and independent security review remain open.
 - TEE verification does not establish trading correctness, market-data integrity, wallet authorisation, custody or settlement.
 - No Mainnet transaction, real-asset custody or production trading readiness is claimed.
 

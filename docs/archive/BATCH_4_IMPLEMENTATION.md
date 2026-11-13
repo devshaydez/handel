@@ -1,3 +1,5 @@
+> Historical working note; superseded by README.md and docs/EVIDENCE.md.
+
 # Batch 4 — AI integration, application boundary, adversarial tests
 
 **Branch:** `work/batch-4-ai-integration-adversarial`  

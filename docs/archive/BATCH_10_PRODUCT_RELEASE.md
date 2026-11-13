@@ -1,3 +1,5 @@
+> Historical working note; superseded by README.md and docs/EVIDENCE.md.
+
 # Batch 10 — Product integration and release evidence (Phases 20–22)
 
 **Branch:** work/batch-10-product-release  
