@@ -670,6 +670,7 @@ export function sendChat(text: string, ctx: { sym?: string; positionId?: string 
       const reply = await askHandelAssistant(t, context);
       let answer = reply.answer;
       if (reply.kind === 'trade_intent' && reply.trade) {
+        if (state.paused || state.revoked) throw new Error(state.revoked ? 'Agent access is revoked. Re-enable the on-chain policy before trading.' : 'Automation is paused. Resume the agent before trading.');
         let principal = await currentNearAccount();
         if (!principal) principal = (await connectNearWallet()).accountId;
         await ensureDelegatedAgentReady();
