@@ -48,7 +48,7 @@ export default function Activity({ id }: { id?: string }) {
       <Card>
         <CardHead title="Observed Testnet position lifecycle" sub="Finalized contract state changes observed by this browser" />
         {chainError && <Banner tone="warn">{chainError}. Browser-session activity remains separate.</Banner>}
-        {chainEvents.length === 0 ? <EmptyState title="No indexed lifecycle events" body="No position changes have been observed yet. Connect a wallet and open this page again after a position is created or changes state." /> : (
+        {chainEvents.length === 0 ? <EmptyState title="No observed lifecycle changes" body="No position changes have been observed yet. Connect a wallet and open this page again after a position is created or changes state." /> : (
           <div className="col gap12">
             {chainEvents.map(event => <div key={event.activity_id} className="row between start gap12">
               <div className="grow">
@@ -56,7 +56,7 @@ export default function Activity({ id }: { id?: string }) {
                 <div className="small muted">{event.previous_state ? event.previous_state + " → " : ""}{event.current_state}</div>
                 <div className="tiny faint">Finalized block {event.block_height} · {event.block_hash}</div>
               </div>
-              <Badge tone="outline">On-chain</Badge>
+              <Badge tone="outline">Observed on-chain</Badge>
             </div>)}
           </div>
         )}
