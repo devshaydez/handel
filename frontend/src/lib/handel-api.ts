@@ -70,6 +70,9 @@ export interface AdvisoryProposalRequest {
 export interface AdvisoryProposalReply {
   proposal: {
     proposalId: string;
+    principal: string;
+    holder: string;
+    positionId: string;
     type: 'Call' | 'Put';
     underlyingAssetId: string;
     strike: string;
