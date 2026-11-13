@@ -2,6 +2,7 @@ import { createServer, type Server } from "node:http";
 import { Pool } from "pg";
 import { NearOptionsPositionReader, OptionsPositionIndexer } from "./onchain-indexer.js";
 import { PostgresPositionSnapshotRepository } from "./postgres-position-store.js";
+import { NearFinalizedReceiptIndexer } from "./near-finalized-receipt-indexer.js";
 
 function required(name: string): string {
   const value = process.env[name]?.trim();
@@ -31,6 +32,14 @@ export async function startHandelIndexerServer(): Promise<Server> {
   await repository.migrate();
   const reader = new NearOptionsPositionReader(rpcUrl, contractId);
   const indexer = new OptionsPositionIndexer(reader, repository);
+  const receiptStartHeightRaw = process.env.HANDEL_RECEIPT_INDEXER_START_HEIGHT?.trim();
+  const receiptIndexer = receiptStartHeightRaw ? new NearFinalizedReceiptIndexer(pool, rpcUrl, Number(receiptStartHeightRaw)) : null;
+  let receiptLastRun: Awaited<ReturnType<NearFinalizedReceiptIndexer["reconcile"]>> | null = null;
+  let receiptLastError: string | null = null;
+  let receiptRunning = false;
+  const receiptPollMs = Number(process.env.HANDEL_RECEIPT_INDEXER_POLL_MS ?? "15000");
+  if (!Number.isSafeInteger(receiptPollMs) || receiptPollMs < 5000) throw new Error("HANDEL_RECEIPT_INDEXER_POLL_MS must be at least 5000");
+  if (receiptIndexer) await receiptIndexer.migrate();
   let lastRun: Awaited<ReturnType<OptionsPositionIndexer["reconcile"]>> | null = null;
   let lastError: string | null = null;
   let running = false;
@@ -50,6 +59,15 @@ export async function startHandelIndexerServer(): Promise<Server> {
   };
   await reconcile();
   const interval = setInterval(() => { void reconcile(); }, pollMs);
+  const reconcileReceipts = async () => {
+    if (!receiptIndexer || receiptRunning || stopped) return;
+    receiptRunning = true;
+    try { receiptLastRun = await receiptIndexer.reconcile(10); receiptLastError = null; }
+    catch (error) { receiptLastError = error instanceof Error ? error.message : "receipt indexing failed"; }
+    finally { receiptRunning = false; }
+  };
+  await reconcileReceipts();
+  const receiptInterval = receiptIndexer ? setInterval(() => { void reconcileReceipts(); }, receiptPollMs) : null;
 
   const server = createServer(async (req, res) => {
     try {
@@ -59,10 +77,11 @@ export async function startHandelIndexerServer(): Promise<Server> {
         send(res, lastError ? 503 : 200, {
           ok: !lastError, service: "handel-testnet-indexer", contractId,
           indexing: running, lastRun, lastError, pollMs,
+          receiptHistory: { enabled: Boolean(receiptIndexer), indexing: receiptRunning, lastRun: receiptLastRun, lastError: receiptLastError, pollMs: receiptPollMs, startHeight: receiptStartHeightRaw ? Number(receiptStartHeightRaw) : null },
         });
         return;
       }
-      if (url.pathname !== "/v1/portfolio" && url.pathname !== "/v1/activity") {
+      if (url.pathname !== "/v1/portfolio" && url.pathname !== "/v1/activity" && url.pathname !== "/v1/receipts") {
         send(res, 404, { error: "not_found" }); return;
       }
       const account = url.searchParams.get("account") ?? "";
@@ -70,9 +89,13 @@ export async function startHandelIndexerServer(): Promise<Server> {
       const limit = Math.min(250, Math.max(1, Number(url.searchParams.get("limit") ?? "100") || 100));
       if (url.pathname === "/v1/portfolio") {
         send(res, 200, { account, contractId, positions: await repository.listPositions(account, limit), indexedAt: lastRun });
+      } else if (url.pathname === "/v1/receipts") {
+        if (!receiptIndexer) { send(res, 503, { error: "receipt_history_not_configured", required: "HANDEL_RECEIPT_INDEXER_START_HEIGHT" }); return; }
+        send(res, 200, { account, contractId, receipts: await receiptIndexer.listAccountHistory(account, limit), indexedAt: receiptLastRun });
       } else {
-        send(res, 200, { account, contractId, events: await repository.listActivity(account, limit), indexedAt: lastRun,
-          historyKind: "reconciled_on_chain_position_state_changes", transactionHashes: "not_available_from_view_state_reconciliation" });
+        const events = await repository.listActivity(account, limit);
+        const receipts = receiptIndexer ? await receiptIndexer.listAccountHistory(account, limit) : [];
+        send(res, 200, { account, contractId, events, receipts, indexedAt: lastRun, historyKind: receiptIndexer ? "finalized_transaction_and_receipt_history_plus_position_state_changes" : "reconciled_on_chain_position_state_changes", receiptHistoryEnabled: Boolean(receiptIndexer) });
       }
     } catch {
       send(res, 503, { error: "indexer_unavailable" });
@@ -86,6 +109,7 @@ export async function startHandelIndexerServer(): Promise<Server> {
     if (stopped) return;
     stopped = true;
     clearInterval(interval);
+    if (receiptInterval) clearInterval(receiptInterval);
     await new Promise<void>(resolve => server.close(() => resolve()));
     await repository.close();
   };
