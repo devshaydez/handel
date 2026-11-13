@@ -155,7 +155,7 @@ export default function Landing() {
             </div>
             {[
               { h: 'Product', l: [['How it works', 'how'], ['Modes', 'modes'], ['Safety', 'safety'], ['Preview', 'preview']] },
-              { h: 'Resources', l: [['Documentation', 'https://github.com/devshaydez/handel/tree/main/docs'], ['API reference', 'https://github.com/devshaydez/handel/blob/main/docs/ADVISORY_API.md'], ['System status', 'https://handel-live.vercel.app/api/health']] },
+              { h: 'Resources', l: [['Documentation', 'https://github.com/devshaydez/handel/tree/main/docs'], ['API reference', 'https://github.com/devshaydez/handel/blob/main/docs/ADVISORY_API.md'], ] },
               
               
             ].map((c) => (
