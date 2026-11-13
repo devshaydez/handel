@@ -114,6 +114,7 @@ export class NearFinalizedReceiptIndexer {
     let height = cursor;
     let transactions = 0;
     let receipts = 0;
+    const receiptHeightCache = new Map<string, number>();
     const client = await this.pool.connect();
     try {
       while (height <= finalHeight && height < cursor + maxBlocks) {
@@ -149,10 +150,16 @@ export class NearFinalizedReceiptIndexer {
               `, [tx.hash,tx.signer_id,transaction.receiver_id,height,blockHash,result.final_execution_status,JSON.stringify(result.status ?? null)]);
               transactions += 1;
               for (const receipt of result.receipts_outcome ?? []) {
+                // Current Testnet RPCs return a receipt's block hash but not its
+                // block height. Resolve the real height from that hash instead of
+                // guessing, and keep the receipt if neither identity is present.
                 if (!receipt.id || !receipt.outcome?.executor_id ||
-                    !Number.isSafeInteger(receipt.block_height) || !receipt.block_hash) {
+                    (!Number.isSafeInteger(receipt.block_height) && !receipt.block_hash)) {
                   throw new Error("NEAR transaction contains malformed receipt outcome");
                 }
+                const receiptHeight = Number.isSafeInteger(receipt.block_height)
+                  ? receipt.block_height
+                  : await this.receiptBlockHeight(receipt.block_hash as string, receiptHeightCache);
                 const status = receipt.outcome.status;
                 const executionStatus = typeof status === "object" && status !== null
                   ? ("SuccessValue" in status ? "success" : "Failure" in status ? "failure" : "unknown")
@@ -167,7 +174,7 @@ export class NearFinalizedReceiptIndexer {
                     block_height=EXCLUDED.block_height,block_hash=EXCLUDED.block_hash,
                     execution_status=EXCLUDED.execution_status,finalized=true,logs=EXCLUDED.logs
                 `, [receipt.id,tx.hash,tx.signer_id,transaction.receiver_id,receipt.outcome.executor_id,
-                  receipt.block_height,receipt.block_hash,executionStatus,JSON.stringify(receipt.outcome.logs ?? [])]);
+                  receiptHeight,receipt.block_hash,executionStatus,JSON.stringify(receipt.outcome.logs ?? [])]);
                 receipts += 1;
               }
               await client.query("COMMIT");
@@ -187,6 +194,19 @@ export class NearFinalizedReceiptIndexer {
       client.release();
     }
     return { fromHeight: cursor, toHeight: height - 1, transactions, receipts };
+  }
+
+  /** Resolve a receipt's finalized height from its block hash. Never fabricates one. */
+  private async receiptBlockHeight(blockHash: string, cache: Map<string, number>): Promise<number> {
+    const cached = cache.get(blockHash);
+    if (cached !== undefined) return cached;
+    const block = await this.rpc<BlockResult>("block", { block_id: blockHash });
+    const height = Number(block.header?.height);
+    if (!Number.isSafeInteger(height) || block.header?.hash !== blockHash) {
+      throw new Error("NEAR RPC returned a malformed block for receipt hash " + blockHash);
+    }
+    cache.set(blockHash, height);
+    return height;
   }
 
   async listAccountHistory(account: string, limit = 100): Promise<IndexedReceipt[]> {

@@ -54,6 +54,15 @@ test("indexer performs idempotent full reconciliation and persists positions", a
   assert.equal(repository.rows.get("0")?.position.state, "Settled");
 });
 
+test("reader surfaces a contract execution error instead of reporting missing bytes", async () => {
+  const reader = new NearOptionsPositionReader("https://rpc.testnet.near.org", "options.testnet", async () =>
+    new Response(JSON.stringify({ result: {
+      block_height: 100, block_hash: "final-block",
+      error: "wasm execution failed with error: MethodResolveError(MethodNotFound)",
+    } }), { status: 200 }));
+  await assert.rejects(() => reader.positionCount(), /MethodNotFound/);
+});
+
 test("reader rejects invalid page bounds and malformed positions", async () => {
   const reader = new NearOptionsPositionReader("https://rpc.testnet.near.org", "options.testnet", async () => rpc([{ id: 100, writer: "writer.testnet", holder: "holder.testnet" }]));
   await assert.rejects(() => reader.positionsPage(0, 51), /bounds/);
