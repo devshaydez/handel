@@ -13,7 +13,7 @@ import { getOnChainAgentExecutionMode, getOnChainAgentPolicy, saveOnChainAgentPo
 const MODES: { m: Mode; t: string; tag: string; pts: string[]; disabled?: boolean }[] = [
   { m: 'advisory', t: 'Advisory', tag: 'AI recommends', pts: ['Analyses markets and explains options', 'Recommends or rejects opportunities', 'Never executes. You act yourself'] },
   { m: 'approval', t: 'Approval', tag: 'You approve each trade', pts: ['Writes structured trade proposals', 'You approve or reject each one', 'Approved trades still pass every check'] },
-  { m: 'auto', t: 'Automatic', tag: 'Bounded delegated execution', pts: ['Agent creates Call / Put options and registers Escrow within the on-chain policy', 'Principal wallet signs collateral; holder wallet signs premium', 'Restricted FunctionCall key cannot transfer tokens or perform sensitive holder actions'] },
+  { m: 'auto', t: 'Automatic', tag: 'Bounded delegated execution', pts: ['After principal signs the exact trade intent, agent creates Call / Put options and registers Escrow within the on-chain policy', 'Principal wallet signs collateral; holder wallet signs premium', 'Restricted FunctionCall key cannot transfer tokens or perform sensitive holder actions'] },
 ];
 function formatBaseUnits(value: string | number, decimals: number): string {
   const amount = BigInt(value);
@@ -115,7 +115,7 @@ export default function Agent() {
               <Badge tone={s.authorization.status === 'delegated' ? 'amber' : s.authorization.status === 'revoked' ? 'red' : 'outline'}>{s.authorization.status === 'delegated' ? `Delegated · ${s.authorization.id}` : s.authorization.status === 'revoked' ? 'Revoked' : s.authorization.status === 'per-proposal' ? 'Per-proposal approval' : 'No trading authority'}</Badge>
               <Badge tone="outline">{st.label}</Badge>
             </div>
-            <p className="small muted" style={{ maxWidth: '62ch' }}>{s.mode === 'auto' ? 'The agent can create options and register Escrow automatically within your on-chain caps. The principal must still sign collateral and the holder must sign premium. No token transfers are delegated.' : s.mode === 'approval' ? 'The agent writes proposals. Nothing is funded until you approve it in your wallet, and approved trades are checked against the on-chain contract and escrow.' : 'The agent has no ability to trade. It analyses and recommends only.'}</p>
+            <p className="small muted" style={{ maxWidth: '62ch' }}>{s.mode === 'auto' ? 'After a principal-signed trade intent, the agent creates options and registers Escrow within your on-chain caps. The principal separately signs collateral and the holder signs premium. No token transfers are delegated.' : s.mode === 'approval' ? 'The agent writes proposals. Nothing is funded until you approve it in your wallet, and approved trades are checked against the on-chain contract and escrow.' : 'The agent has no ability to trade. It analyses and recommends only.'}</p>
           </div>
           <div className="col gap8" style={{ minWidth: 200 }}>
             {s.paused ? <Button variant="gold" icon={<LuPlay size={14} />} onClick={resumeAgent} disabled={s.revoked}>Resume agent</Button> : <Button icon={<LuPause size={14} />} onClick={pauseAgent} disabled={s.revoked}>Pause automation</Button>}
