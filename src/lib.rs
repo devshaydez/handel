@@ -2861,18 +2861,26 @@ mod tests {
                 "sha256:replayed-terms".into(),
             )
         }));
-        assert!(replay.is_err(), "a proposal nonce-derived ID must be one-time");
+        assert!(
+            replay.is_err(),
+            "a proposal nonce-derived ID must be one-time"
+        );
 
         context("buyer.testnet");
         let holder_cannot_approve = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.approve_agent_proposal("one-time-proposal".into())
         }));
-        assert!(holder_cannot_approve.is_err(), "only the writer principal may approve");
+        assert!(
+            holder_cannot_approve.is_err(),
+            "only the writer principal may approve"
+        );
 
         context("writer.testnet");
         c.approve_agent_proposal("one-time-proposal".into());
         assert_eq!(
-            c.get_agent_proposal("one-time-proposal".into()).unwrap().state,
+            c.get_agent_proposal("one-time-proposal".into())
+                .unwrap()
+                .state,
             ProposalState::Approved
         );
     }
@@ -2893,22 +2901,43 @@ mod tests {
         context("agent.testnet");
         let over_size = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.create_agent_proposal(
-                "over-size".into(), OptionKind::Call, account("buyer.testnet"),
-                "nep141:stock.testnet".into(), 6, 20, 70, 5, "sha256:size".into(),
+                "over-size".into(),
+                OptionKind::Call,
+                account("buyer.testnet"),
+                "nep141:stock.testnet".into(),
+                6,
+                20,
+                70,
+                5,
+                "sha256:size".into(),
             )
         }));
         assert!(over_size.is_err());
         let over_premium = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.create_agent_proposal(
-                "over-premium".into(), OptionKind::Call, account("buyer.testnet"),
-                "nep141:stock.testnet".into(), 5, 20, 70, 11, "sha256:premium".into(),
+                "over-premium".into(),
+                OptionKind::Call,
+                account("buyer.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                20,
+                70,
+                11,
+                "sha256:premium".into(),
             )
         }));
         assert!(over_premium.is_err());
         let over_put_collateral = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.create_agent_proposal(
-                "over-collateral".into(), OptionKind::Put, account("buyer.testnet"),
-                "nep141:stock.testnet".into(), 5, 101, 70, 5, "sha256:collateral".into(),
+                "over-collateral".into(),
+                OptionKind::Put,
+                account("buyer.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                101,
+                70,
+                5,
+                "sha256:collateral".into(),
             )
         }));
         assert!(over_put_collateral.is_err());
@@ -2918,8 +2947,15 @@ mod tests {
         context("agent.testnet");
         let revoked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             c.create_agent_proposal(
-                "revoked-proposal".into(), OptionKind::Call, account("buyer.testnet"),
-                "nep141:stock.testnet".into(), 5, 20, 70, 5, "sha256:revoked".into(),
+                "revoked-proposal".into(),
+                OptionKind::Call,
+                account("buyer.testnet"),
+                "nep141:stock.testnet".into(),
+                5,
+                20,
+                70,
+                5,
+                "sha256:revoked".into(),
             )
         }));
         assert!(revoked.is_err());
