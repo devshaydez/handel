@@ -260,6 +260,24 @@ export async function setOnChainAgentExecutionMode(mode: 'Education' | 'Advisory
   return tx.transactionHash;
 }
 
+export async function ensureDelegatedAgentReady(): Promise<void> {
+  const principal = await currentNearAccount();
+  if (!principal) throw new Error('Connect the principal NEAR Testnet wallet before placing a trade.');
+  const policy = await getOnChainAgentPolicy();
+  if (!policy || policy.principal !== principal || !policy.enabled ||
+      BigInt(policy.expires_at_ns) <= BigInt(Date.now()) * 1_000_000n) {
+    throw new Error('This wallet has no active on-chain Handel limits. Save the trading limits once in Agent settings before placing trades.');
+  }
+  if (!policy.allowed_assets.includes('nep141:wnear.tidepool-sandbox.testnet')) {
+    throw new Error('WNEAR is not enabled in this wallet’s on-chain Handel limits.');
+  }
+  const mode = await getOnChainAgentExecutionMode();
+  if (mode !== 'Delegated') await setOnChainAgentExecutionMode('Delegated');
+  if (await getOnChainAgentExecutionMode() !== 'Delegated') {
+    throw new Error('Delegated execution could not be verified on-chain. No trade was submitted.');
+  }
+}
+
 export async function saveOnChainAgentPolicy(input: {
   allowedAssets: string[];
   maxUnderlyingAmount: string;
