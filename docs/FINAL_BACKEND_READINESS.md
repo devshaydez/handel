@@ -1,5 +1,17 @@
 # Final backend readiness — frontend excluded
 
+## Status update — 2026-11-13
+
+OptionsContract and Escrow deploy-only transactions have now completed on NEAR Testnet:
+- OptionsContract: `7pWEFi8adgKeGF7aYYWSfSpMFc5vYWtYtbtkGaBC2z44`, artifact SHA-256 `53a54422f9d0bd296bdff5a20d7f15d18d2f390fc986af16356aa1a84f12522a`.
+- Escrow: `DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR`, artifact SHA-256 `a7d7f1184d813a94c5d1c431ebef01489720e906b4a6d4cf89b957d7245ab604`.
+
+Vercel production deployment for main commit `8fb39e2` is READY. Live `/api/health` reports Testnet, fixed demo pricing, and delegated execution configuration. Restricted keys and server-side secrets are configured.
+
+This is not full release readiness: the Assistant browser is still not wired to delegated submission; live code-hash/state verification and the actual principal/holder two-wallet lifecycle are still outstanding. No real delegated Testnet trade or settlement has been proven. Keep the Testnet/demo-only scope and authority boundary described below.
+
+ Final backend readiness — frontend excluded
+
 ## Status update — 2026-11-12
 
 The latest integrated CI run is [#43300087425](https://github.com/devshaydez/handel/actions/runs/43300087425): all seven jobs passed, including Rust/Sandbox integration, SDK tests, frontend typecheck + production build, dual-RPC Testnet asset checks, live NEAR AI inference, and the approval-gated AI → SDK → Sandbox proof. The frontend transaction-evidence changes were merged into `feat/handel-frontend-integration` by PR [#22](https://github.com/devshaydez/handel/pull/22), merge commit `2fdfb34edc3eef15e988c48a4ddb938c6783851a`.

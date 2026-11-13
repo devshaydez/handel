@@ -5,6 +5,24 @@
 Handel has **one AI agent**, surfaced through the Assistant. The Assistant is the single conversational interface for education, market analysis, trade planning and (when delegated execution is fully configured) trade submission. The Agent tab is **configuration only**: it controls the same agent's on-chain policy, limits, execution mode and revocation. It is not a second agent and must not maintain a separate decision or execution runtime. Both surfaces must use the same connected principal, agent identity, policy snapshot and audit trail.
 
 
+## Verified status — 2026-11-13 (supersedes the 2026-11-12 snapshot)
+
+- PR #25 is merged to `main`; the Escrow deploy-script argument fix is on `main` at `8fb39e2b8aa35ead33dc2d655fd40c863840cbe9`.
+- OptionsContract deploy-only Testnet transaction: [7pWEFi8adgKeGF7aYYWSfSpMFc5vYWtYtbtkGaBC2z44](https://explorer.testnet.near.org/transactions/7pWEFi8adgKeGF7aYYWSfSpMFc5vYWtYtbtkGaBC2z44). Artifact SHA-256: `53a54422f9d0bd296bdff5a20d7f15d18d2f390fc986af16356aa1a84f12522a`.
+- Escrow deploy-only Testnet transaction: [DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR](https://explorer.testnet.near.org/transactions/DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR). Artifact SHA-256: `a7d7f1184d813a94c5d1c431ebef01489720e906b4a6d4cf89b957d7245ab604`.
+- Latest Vercel production deployment is READY for `8fb39e2`. Live `/api/health` returns `ok=true`, `network=testnet`, `pricingMode=demo_fixture`, and `delegatedExecutionConfigured=true`.
+- The delegated and proposal FunctionCall keys were installed on the Testnet agent account with their separate exact method scopes; Vercel production/preview values were updated. The server-only API token was rotated.
+- CI run #43314638314 passed all seven jobs on delegated branch head `63d30387d85db728c4b26fba6d1ec4293597f087`; this is not a fresh run on the post-deployment `main` commit. This PR enables main push checks.
+- **Not yet proven:** independent live code-hash/state comparison after both upgrades; Assistant browser-to-delegated API wiring; one real two-party wallet-signed Testnet lifecycle with create/register receipts, principal collateral and holder premium; over-limit and post-revocation live rejection receipts.
+- Execution remains Testnet-only with synthetic Tidepool assets and fixed demo premium. No Mainnet, live Ondo pricing, or real-asset settlement claim.
+
+ Handel
+
+## Unified Assistant and Agent
+
+Handel has **one AI agent**, surfaced through the Assistant. The Assistant is the single conversational interface for education, market analysis, trade planning and (when delegated execution is fully configured) trade submission. The Agent tab is **configuration only**: it controls the same agent's on-chain policy, limits, execution mode and revocation. It is not a second agent and must not maintain a separate decision or execution runtime. Both surfaces must use the same connected principal, agent identity, policy snapshot and audit trail.
+
+
 ## Verified status — 2026-11-12
 
 - PR [#25](https://github.com/devshaydez/handel/pull/25) contains the delegated contract path, SDK signer/executor, Vercel Testnet endpoint, wallet funding helpers, tests and updated handoff.

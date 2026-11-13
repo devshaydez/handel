@@ -4,6 +4,8 @@ name: Handel backend checks
 on:
   push:
     branches:
+      - main
+      - feat/unified-agent-delegated-execution
       - work/testnet-backend-hardening
       - work/batch-4-ai-integration-adversarial
       - work/batch-5-testnet-release-readiness

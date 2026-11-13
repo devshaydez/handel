@@ -13,7 +13,7 @@ import { getOnChainAgentPolicy, saveOnChainAgentPolicy } from '../lib/near-walle
 const MODES: { m: Mode; t: string; tag: string; pts: string[]; disabled?: boolean }[] = [
   { m: 'advisory', t: 'Advisory', tag: 'AI recommends', pts: ['Analyses markets and explains options', 'Recommends or rejects opportunities', 'Never executes. You act yourself'] },
   { m: 'approval', t: 'Approval', tag: 'You approve each trade', pts: ['Writes structured trade proposals', 'You approve or reject each one', 'Approved trades still pass every check'] },
-  { m: 'auto', t: 'Automatic', tag: 'Not activated yet', pts: ['Delegated Testnet executor is implemented but not deployed', 'A restricted agent FunctionCall key and secure Assistant session are still required', 'The principal signs collateral and the holder signs premium; the agent never moves tokens'], disabled: true },
+  { m: 'auto', t: 'Automatic', tag: 'Not activated yet', pts: ['Bounded Testnet executor and restricted server key are deployed; browser trade submission is not yet connected', 'Assistant-to-executor wallet authorization and a real two-party Testnet lifecycle still require verification', 'The principal signs collateral and the holder signs premium; the agent never moves tokens'], disabled: true },
 ];;
 function formatBaseUnits(value: string | number, decimals: number): string {
   const amount = BigInt(value);

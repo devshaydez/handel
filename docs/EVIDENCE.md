@@ -53,3 +53,17 @@ Never claim a path works without an entry here.
 - New Vercel handler `POST /api/v1/delegated/trades` uses `NEAR_AGENT_DELEGATED_FUNCTION_CALL_PRIVATE_KEY`, checks exact key scope/allowance before each call, and uses only the configured demo fixture. It requires `HANDEL_AGENT_API_TOKEN`.
 - Frontend exports separate principal-only collateral and holder-only premium wallet actions. The Assistant UI is not yet wired to this endpoint; the bearer token must remain server-side.
 - **No live delegated Testnet transaction has been recorded.** The deployed OptionsContract still requires a user-authorized upgrade to include the new entrypoints. The agent restricted key and Vercel environment variables have not been provisioned/verified in this work.
+
+
+## Testnet deployment close-out — 2026-11-13
+
+| Contract | Account | Deploy-only transaction | Artifact SHA-256 | Result |
+|---|---|---|---|---|
+| OptionsContract | `options.shaydez.testnet` | `7pWEFi8adgKeGF7aYYWSfSpMFc5vYWtYtbtkGaBC2z44` | `53a54422f9d0bd296bdff5a20d7f15d18d2f390fc986af16356aa1a84f12522a` | CLI reported successful deploy; no initializer called |
+| Escrow | `escrow.shaydez.testnet` | `DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR` | `a7d7f1184d813a94c5d1c431ebef01489720e906b4a6d4cf89b957d7245ab604` | CLI reported successful deploy; no initializer called |
+
+- Production Vercel deployment for `8fb39e2`: READY.
+- Live `GET /api/health`: `{ ok: true, service: "handel", network: "testnet", pricingMode: "demo_fixture", delegatedExecutionConfigured: true }`.
+- CI run #43314638314: seven jobs passed on branch head `63d30387d85db728c4b26fba6d1ec4293597f087`; not a post-deployment main-commit run.
+- No real delegated trade, collateral transfer, holder premium payment, or settlement receipt is recorded by this close-out. Deployment receipts are not lifecycle evidence.
+- Remaining acceptance evidence: independent account code-hash/state verification; connect Assistant to the restricted delegated route without exposing the API token; execute a separately authorized principal/holder Testnet lifecycle; capture policy-limit and revocation rejection receipts.

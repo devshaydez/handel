@@ -1,5 +1,24 @@
 # Handel — Project Continuation Handoff
 
+## Current verified close-out — 2026-11-13 (supersedes older status snapshots)
+
+- **Main:** `8fb39e2b8aa35ead33dc2d655fd40c863840cbe9`; PR #25 is merged.
+- **OptionsContract:** deploy-only transaction `7pWEFi8adgKeGF7aYYWSfSpMFc5vYWtYtbtkGaBC2z44`; artifact SHA-256 `53a54422f9d0bd296bdff5a20d7f15d18d2f390fc986af16356aa1a84f12522a`.
+- **Escrow:** deploy-only transaction `DrQ8m91nef1uzZ11aVcG5B7i8FvLCHqZMKryp496gqeR`; artifact SHA-256 `a7d7f1184d813a94c5d1c431ebef01489720e906b4a6d4cf89b957d7245ab604`.
+- Both deploy commands completed successfully and explicitly omitted initialization.
+- Vercel production deployment for `8fb39e2` is READY. Live health returns Testnet, `demo_fixture`, and `delegatedExecutionConfigured=true`.
+- Restricted delegated and proposal keys are installed with separate scopes; Vercel values were updated; server API token rotated.
+- Latest recorded seven-job CI success is run #43314638314 on branch head `63d30387d85db728c4b26fba6d1ec4293597f087`. It is not evidence for the post-deployment main commit. This close-out PR adds push-to-main CI triggering.
+
+### Still open — do not mark complete without evidence
+1. Independently compare the live OptionsContract and Escrow code hashes/state against the just-deployed artifacts; explorer extraction was blocked during this review.
+2. Wire the Assistant browser flow to the restricted delegated endpoint through a wallet-authenticated server boundary. Never expose `HANDEL_AGENT_API_TOKEN` in Vite/browser variables. Current Assistant remains education-oriented; delegated API exists server-side.
+3. Verify the active on-chain agent policy, execution mode, token configuration, and escrow controller at finalized Testnet state.
+4. Execute one real two-party synthetic Testnet lifecycle: agent create/register; principal-signed collateral; holder-signed premium; verify all receipts and final state.
+5. Capture live over-limit and post-revocation rejection receipts. Keep the current ManualApproval/default mode unless the principal explicitly changes the on-chain mode through their wallet.
+
+**Authority boundary remains:** agent never transfers tokens; principal signs writer collateral; holder signs premium. Fixed demo premium and synthetic Tidepool assets only. No Mainnet, Ondo, or real-asset settlement claim.
+
 ## Current delegated-execution handoff — 2026-11-12 (supersedes older status snapshots)
 
 **Branch:** `feat/unified-agent-delegated-execution`  
