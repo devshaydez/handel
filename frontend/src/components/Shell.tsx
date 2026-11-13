@@ -6,7 +6,7 @@ import {
 import { fmtStamp, NETWORK } from '../data/mock';
 import { go, type Route } from '../router';
 import {
-  dismissToast, hydrateAgentMode, markAllRead, markRead, useStore, agentStatus,
+  dismissToast, hydrateAgentMode, markAllRead, markRead,
 } from '../state/store';
 import { AgentPill } from './status';
 import { getOnChainAgentExecutionMode, getOnChainAgentPolicy } from '../lib/near-wallet';
@@ -33,7 +33,6 @@ export function Brand({ onClick }: { onClick?: () => void }) {
 }
 
 function Notifications() {
-  const s = useStore();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useClickOutside(ref, () => setOpen(false), open);
@@ -104,9 +103,6 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
   }, []);
   const [more, setMore] = useState(false);
   const [q, setQ] = useState('');
-  const pending = s.proposals.filter((p) => p.status === 'pending').length;
-  const st = agentStatus(s);
-  void st;
   const mobileNav = NAV.filter((n) => ['/app', '/app/markets', '/app/portfolio', '/app/assistant'].includes(n.href));
   const moreNav = NAV.filter((n) => !mobileNav.includes(n));
   return (
@@ -119,7 +115,6 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
             <a key={n.href} href={'#' + n.href} onClick={(e) => { e.preventDefault(); go(n.href); }} className={`nav-item ${n.match(route.path) ? 'on' : ''}`} aria-current={n.match(route.path) ? 'page' : undefined}>
               <n.icon size={18} />
               {n.label}
-              {n.count && pending > 0 && <span className="count">{pending}</span>}
             </a>
           ))}
         </nav>
@@ -170,7 +165,6 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
             <button key={n.href} className="list-item" onClick={() => { setMore(false); go(n.href); }}>
               <n.icon size={18} />
               <span className="semi grow">{n.label}</span>
-              {n.count && pending > 0 && <Badge tone="gold">{pending}</Badge>}
             </button>
           ))}
         </div>
