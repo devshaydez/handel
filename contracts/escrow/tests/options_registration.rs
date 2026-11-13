@@ -306,6 +306,39 @@ async fn call_and_put_registration_deposit_and_settle_through_escrow() -> anyhow
         .await?
         .json::<serde_json::Value>()?;
     assert_eq!(pending_proposal["state"], "PendingApproval");
+    let pending_position = root
+        .view(options.id(), "get_position")
+        .args_json(json!({"id": 0}))
+        .await?
+        .json::<serde_json::Value>()?;
+    assert_eq!(pending_position["writer"], writer.id().as_str());
+    assert_eq!(pending_position["holder"], holder.id().as_str());
+
+    // The distinct holder cannot impersonate the writer/principal approval.
+    let holder_approval = holder
+        .call(options.id(), "approve_agent_proposal")
+        .args_json(json!({"proposal_id": proposal_id}))
+        .transact()
+        .await?;
+    assert!(holder_approval.is_failure());
+
+    // Reusing the signed nonce-derived proposal ID is rejected on-chain.
+    let replay = agent
+        .call(options.id(), "create_agent_proposal")
+        .args_json(json!({
+            "proposal_id": proposal_id,
+            "kind": kind,
+            "holder": writer.id(),
+            "asset_id": asset_id,
+            "underlying_amount": underlying_amount,
+            "strike_amount_usdc": strike_amount_usdc,
+            "expiry_ns": expiry,
+            "premium_amount_usdc": premium_amount_usdc,
+            "rationale_hash": "sha256:replayed"
+        }))
+        .transact()
+        .await?;
+    assert!(replay.is_failure());
 
     // A proposal cannot be registered into escrow before the principal approves.
     let premature_registration = writer
