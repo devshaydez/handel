@@ -69,7 +69,7 @@ export function TestnetProposalComposer() {
 
   return <Card>
     <CardHead title="Delegated Testnet trade" />
-    <p className="small muted">The same Assistant and Agent identity executes option creation and Escrow registration automatically within the on-chain policy. Your principal wallet still signs collateral; the holder signs premium. The agent cannot transfer either token.</p>
+    <p className="small muted">After you sign the exact trade intent with NEP-413, the restricted agent automatically creates the option and registers Escrow within the on-chain policy. Your principal wallet separately signs collateral; the holder signs premium. The agent cannot transfer either token.</p>
     <div className="col gap8 mt12">
       <label className="small">Holder NEAR account</label>
       <input value={holder} onChange={e => setHolder(e.target.value)} placeholder="buyer.shaydez.testnet" disabled={!!reply || busy} />
