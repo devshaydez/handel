@@ -58,9 +58,9 @@ export default function Settings() {
             )}
           </Card>
           <Card>
-            <CardHead title="Agent permissions overview" right={<button className="link small" onClick={() => go('/app/agent')}>Manage</button>} />
-            <KV k="Mode" v={s.mode === 'auto' ? 'Automatic' : s.mode === 'approval' ? 'Approval' : 'Advisory'} /><KV k="Agent status" v={st.label} /><KV k="Authorization" v={s.authorization.status} />
-            <KV k="Allowed assets" v={s.policy.assets.join(', ') || 'None'} /><KV k="Max premium" v={usd(s.policy.maxPremiumUsd, 0)} />
+            <CardHead title="Agent authority" right={<button className="link small" onClick={() => go('/app/agent')}>Manage</button>} />
+            <p className="small muted">The authoritative trading permissions live on OptionsContract. Open Agent settings to read the current policy and execution mode directly from NEAR Testnet. Browser-side preferences do not grant trading authority.</p>
+            <Button size="sm" onClick={() => go('/app/agent')}>View on-chain permissions</Button>
           </Card>
           <Card>
             <CardHead title="Transaction preferences" />
@@ -126,7 +126,7 @@ export default function Settings() {
           </Card>
           <Card>
             <CardHead title="Privacy" icon={<LuCircleHelp size={16} />} />
-            <p className="text2 small">This prototype stores nothing outside your browser session. In production Handel will keep your decision journal and policy so you can audit them. It will not sell your data. Final privacy terms will be published before launch.</p>
+            <p className="text2 small">This Testnet prototype sends Assistant messages to the configured Handel backend and NEAR AI service. Wallet signing stays inside your connected NEAR wallet; Handel does not receive your wallet private key. Privacy and retention terms are not yet finalized, so do not submit sensitive personal information.</p>
             
           </Card>
         </div>
