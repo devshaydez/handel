@@ -31,7 +31,7 @@ export async function startHandelIndexerServer(): Promise<Server> {
   await repository.migrate();
   const reader = new NearOptionsPositionReader(rpcUrl, contractId);
   const indexer = new OptionsPositionIndexer(reader, repository);
-  let lastRun: Record<string, unknown> | null = null;
+  let lastRun: Awaited<ReturnType<OptionsPositionIndexer["reconcile"]>> | null = null;
   let lastError: string | null = null;
   let running = false;
   let stopped = false;
