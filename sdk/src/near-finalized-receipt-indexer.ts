@@ -67,8 +67,6 @@ export class NearFinalizedReceiptIndexer {
         next_block_height bigint NOT NULL,
         updated_at timestamptz NOT NULL DEFAULT now()
       );
-      INSERT INTO handel_receipt_indexer_cursor (id,next_block_height)
-      VALUES (1,$1) ON CONFLICT (id) DO NOTHING;
       CREATE TABLE IF NOT EXISTS handel_chain_transactions (
         transaction_hash text PRIMARY KEY,
         signer_id text NOT NULL,
@@ -96,7 +94,11 @@ export class NearFinalizedReceiptIndexer {
       );
       CREATE INDEX IF NOT EXISTS handel_chain_receipts_executor_idx
         ON handel_chain_receipts (executor_id,block_height DESC);
-    `, [this.startHeight]);
+    `);
+    await this.pool.query(
+      "INSERT INTO handel_receipt_indexer_cursor (id,next_block_height) VALUES (1,$1) ON CONFLICT (id) DO NOTHING",
+      [this.startHeight],
+    );
   }
 
   async reconcile(maxBlocks = 20): Promise<{ fromHeight: number; toHeight: number; transactions: number; receipts: number }> {
