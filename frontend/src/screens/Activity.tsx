@@ -34,10 +34,10 @@ export default function Activity({ id }: { id?: string }) {
   const counts = (k: F) => s.activity.filter(FILTER[k]).length;
   return (
     <div className="page">
-      <PageHead title="Activity and decision journal" sub="Everything the AI and you did, with the evidence, checks and result behind it. No-trade decisions are recorded too." />
+      <PageHead title="Activity and decision journal" sub="Browser-session activity only. Persistent on-chain transaction and position indexing is not connected yet." />
       <Tabs value={f} onChange={setF} tabs={[{ v: 'all', label: 'All', n: counts('all') }, { v: 'ai', label: 'AI decisions', n: counts('ai') }, { v: 'tx', label: 'Transactions', n: counts('tx') }, { v: 'positions', label: 'Positions', n: counts('positions') }, { v: 'permissions', label: 'Permissions', n: counts('permissions') }]} />
       <Card className="flush">
-        {list.length === 0 ? <EmptyState title="Nothing recorded yet" body="Proposals, approvals, AI decisions and transactions are written here as they happen." action={<Button variant="gold" onClick={() => go('/app/markets')}>Explore markets</Button>} /> : (
+        {list.length === 0 ? <EmptyState title="Nothing recorded yet" body="This journal only contains events recorded in the current browser session. Reloading clears this local history." action={<Button variant="gold" onClick={() => go('/app/assistant')}>Open Assistant</Button>} /> : (
           <div style={{ padding: '4px 18px' }}>
             {list.map((a) => {
               const I = ICON[a.kind].i;
