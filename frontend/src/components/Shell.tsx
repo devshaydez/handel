@@ -6,7 +6,7 @@ import {
 import { fmtStamp, NETWORK } from '../data/mock';
 import { go, type Route } from '../router';
 import {
-  dismissToast, hydrateAgentMode, markAllRead, markRead,
+  dismissToast, hydrateAgentMode, markAllRead, markRead, useStore,
 } from '../state/store';
 import { AgentPill } from './status';
 import { getOnChainAgentExecutionMode, getOnChainAgentPolicy } from '../lib/near-wallet';
@@ -33,6 +33,7 @@ export function Brand({ onClick }: { onClick?: () => void }) {
 }
 
 function Notifications() {
+  const s = useStore();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useClickOutside(ref, () => setOpen(false), open);
@@ -156,7 +157,6 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
         <button className={moreNav.some((n) => n.match(route.path)) ? 'on' : ''} onClick={() => setMore(true)}>
           <LuEllipsis size={20} />
           More
-          {pending > 0 && <span className="count">{pending}</span>}
         </button>
       </nav>
       <Modal open={more} onClose={() => setMore(false)} title="More">
