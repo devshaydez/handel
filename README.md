@@ -195,7 +195,7 @@ npm --prefix sdk test
 npm --prefix sdk run lifecycle
 
 # Frontend
-npm --prefix frontend ci
+npm --prefix frontend install --no-audit --no-fund
 npm --prefix frontend run typecheck
 npm --prefix frontend run build
 
