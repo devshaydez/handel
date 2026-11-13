@@ -94,8 +94,6 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
   const [more, setMore] = useState(false);
   const [q, setQ] = useState('');
   const pending = s.proposals.filter((p) => p.status === 'pending').length;
-  const st = agentStatus(s);
-  void st;
   const mobileNav = NAV.filter((n) => ['/app', '/app/markets', '/app/portfolio', '/app/assistant'].includes(n.href));
   const moreNav = NAV.filter((n) => !mobileNav.includes(n));
   return (
