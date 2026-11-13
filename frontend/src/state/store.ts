@@ -674,6 +674,7 @@ export function sendChat(text: string, ctx: { sym?: string; positionId?: string 
         let principal = await currentNearAccount();
         if (!principal) principal = (await connectNearWallet()).accountId;
         await ensureDelegatedAgentReady();
+        hydrateAgentMode('auto');
         const sessionToken = await delegatedSessionFor(principal);
         const assetId = 'nep141:wnear.tidepool-sandbox.testnet';
         const quantity = decimalBaseUnits(reply.trade.quantityWnear, 24);
