@@ -176,7 +176,7 @@ const hashesMatch = result =>
   (!expectedOptions || result.optionsCode.codeSha256 === expectedOptions) &&
   (!expectedEscrow || result.escrowCode.codeSha256 === expectedEscrow);
 const rpcErrors = results.flatMap(result =>
-  [...Object.entries(result.optionsViews), ...Object.entries(result.escrowViews), ...Object.entries(result.tokenViews)]
+  [...Object.entries(result.optionsViews), ...Object.entries(result.escrowViews), ...Object.entries(result.tokenViews), ...Object.entries(result.escrowPositions)]
     .filter(([key]) => key.endsWith(":ERROR"))
     .map(([key, error]) => ({ endpoint: result.endpoint, key, error })));
 const report = {
