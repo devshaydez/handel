@@ -121,6 +121,7 @@ export async function createAdvisoryProposal(input: AdvisoryProposalRequest): Pr
 export interface DelegatedTradeRequest {
   principal: string;
   holder: string;
+  authorization: { message: string; nonce: string; recipient: string; callbackUrl: string; issuedAtMs: string; publicKey: string; signature: string };
   request: { type: 'Call' | 'Put'; assetId: string; quantity: string; strike: string; expiryNs: string };
 }
 export interface DelegatedTradeReply {
