@@ -13,6 +13,7 @@ export default function Dashboard() {
   const loading = useLoading(350);
   if (loading) return <PageSkeleton />;
   const pf = portfolio(s);
+  const empty = s.positions.length === 0;
   const st = agentStatus(s);
   const open = s.positions.filter((p) => p.status === 'open' || p.status === 'expired' || p.status === 'pending' || p.status === 'unresolved');
   const unresolved = s.positions.filter((p) => p.status === 'unresolved');
