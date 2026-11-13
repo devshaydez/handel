@@ -72,7 +72,7 @@ export default function Proposals() {
       setPreparedCall({ ...reply.prepared, rationale: reply.proposal.rationale, risks: reply.proposal.risks, aiModel: reply.ai.model });
       setSign(true);
     } catch (error) {
-      setPrepareError(error instanceof Error ? error.message : 'Could not prepare the AI proposal.');
+      setPrepareError(String(error));
     } finally {
       setPreparing(false);
     }
