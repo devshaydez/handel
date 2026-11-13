@@ -2211,10 +2211,20 @@ mod tests {
 
         context("writer.testnet");
         let first = c.create_call(
-            account("holder.testnet"), "nep141:stock.testnet".into(), 5, 10, 80, 2,
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            5,
+            10,
+            80,
+            2,
         );
         let second = c.create_put(
-            account("holder.testnet"), "nep141:stock.testnet".into(), 5, 10, 80, 2,
+            account("holder.testnet"),
+            "nep141:stock.testnet".into(),
+            5,
+            10,
+            80,
+            2,
         );
         assert_eq!(first, 0);
         assert_eq!(second, 1);
@@ -2228,9 +2238,8 @@ mod tests {
         assert_eq!(next[0].id, second);
         assert!(c.get_positions_page(2, 50).is_empty());
 
-        let invalid = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            c.get_positions_page(0, 51)
-        }));
+        let invalid =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.get_positions_page(0, 51)));
         assert!(invalid.is_err());
     }
 
