@@ -81,7 +81,7 @@ async function finalView<T>(rpc: string, methodName: string, args: Record<string
     blockHash: body.result.block_hash,
   };
 }
-async function readDirectPortfolio(rpc: string, account: string): Promise<IndexedChainPosition[]> {
+async function readDirectPortfolio(rpc: string, account: string): Promise<{ rows: IndexedChainPosition[]; blockHeight: number; blockHash: string }> {
   const count = await finalView<number | string>(rpc, "get_position_count", {});
   const total = Number(count.value);
   if (!Number.isSafeInteger(total) || total < 0 || total > 5000) throw new Error("OptionsContract returned an unsupported position count");
@@ -109,7 +109,7 @@ async function readDirectPortfolio(rpc: string, account: string): Promise<Indexe
       });
     }
   }
-  return rows;
+  return { rows, blockHeight: count.blockHeight, blockHash: count.blockHash };
 }
 export async function fetchIndexedPortfolio(account: string): Promise<IndexedChainPosition[]> {
   const base = baseUrl();
@@ -120,11 +120,15 @@ export async function fetchIndexedPortfolio(account: string): Promise<IndexedCha
   // Zero-cost fallback: query finalized contract views directly from two independent public RPCs.
   // The contract must first be upgraded with get_position_count/get_positions_page.
   const [primary, secondary] = await Promise.all(POSITION_RPCS.map(rpc => readDirectPortfolio(rpc, account)));
-  const stable = (rows: IndexedChainPosition[]) => JSON.stringify(rows.map(row => ({
-    id: row.position_id, writer: row.writer, holder: row.holder, state: row.state, payload: row.payload,
-  })));
+  const stable = (snapshot: { rows: IndexedChainPosition[]; blockHeight: number; blockHash: string }) => JSON.stringify({
+    blockHeight: snapshot.blockHeight,
+    blockHash: snapshot.blockHash,
+    rows: snapshot.rows.map(row => ({
+      id: row.position_id, writer: row.writer, holder: row.holder, state: row.state, payload: row.payload,
+    })),
+  });
   if (stable(primary) !== stable(secondary)) throw new Error("Independent NEAR Testnet RPCs disagree; refusing to show an unverified portfolio snapshot");
-  return primary;
+  return primary.rows;
 }
 export async function fetchIndexedActivity(account: string): Promise<IndexedPositionActivity[]> {
   const data = await read<{ events: IndexedPositionActivity[] }>("/v1/activity?account=" + encodeURIComponent(account));
