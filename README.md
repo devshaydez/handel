@@ -1,6 +1,6 @@
 # Handel — European Options Protocol on NEAR
 
-Handel brings collateralized European Call and Put options to NEAR, with an optional AI agent that creates positions under owner-defined on-chain policy.
+Handel is a NEAR-native options protocol for collateralized European Calls and Puts, with an optional AI agent for policy-governed position creation.
 
 ## What it is
 
@@ -69,12 +69,11 @@ npm --prefix sdk run lifecycle
 
 ## Boundaries
 
-- **Network:** NEAR Testnet; no Mainnet deployment.
-- **Assets:** current executable flows use synthetic Tidepool test assets, not Ondo stock tokens.
-- **Funding:** no recorded completed live two-party collateral-and-premium funding lifecycle.
-- **Agent deployment:** the audited Testnet account had no active policy, was in `ManualApproval` mode and retained a FullAccess key.
-- **Settlement:** no live NEAR Intents/NEP-245 custody, Ondo settlement or demonstrated per-position Intents collateral reservation.
-- **Pricing:** the demo premium is fixed; production market pricing is not connected.
+- **Network:** the current deployment targets NEAR Testnet; Mainnet is a future rollout.
+- **Assets and integrations:** executable demos use Tidepool test assets, with Ondo assets and NEAR Intents integration on the roadmap.
+- **Lifecycle validation:** contract and Sandbox tests cover the core Call/Put paths; a complete live two-party funding run is a next validation milestone.
+- **Agent operations:** policy activation and key hardening are included in the Testnet configuration checklist.
+- **Pricing:** the demo uses a fixed premium; market-linked pricing is a future enhancement.
 
 ## Demo links
 
