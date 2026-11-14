@@ -1,6 +1,6 @@
 # Testnet deployment and release runbook
 
-**Status:** preparation only. No deployment is authorized or claimed by this document.  
+**Status:** OptionsContract in-place upgrade reported successful and independently corroborated by two Testnet RPCs on 2026-11-15. Escrow deployment is recorded. Remaining configuration and funded-lifecycle gates are open.  
 **Network:** NEAR Testnet only.  
 **Release posture:** prototype / synthetic assets only; not production custody and not safe for real assets.
 
@@ -48,7 +48,7 @@ PowerShell:
 
     ./scripts/deploy-testnet.ps1 -ContractAccount <options-account.testnet> -ConfirmTestnetDeployment
 
-These commands deploy without calling the initializer. For a **brand-new account with no prior contract state only**, initialization is a separate explicit choice:
+These commands deploy without calling the initializer. The OptionsContract account `options.shaydez.testnet` has since been upgraded in place (owner-reported success; post-upgrade RPC verification is recorded in [E-002/E-009](EVIDENCE.md)). Do not repeat the upgrade unless a new reviewed artifact and explicit owner authorization require it. For a **brand-new account with no prior contract state only**, initialization is a separate explicit choice:
 
     bash scripts/deploy.sh <options-account.testnet> --confirm-testnet-deployment --initialize
 
@@ -82,6 +82,10 @@ Tidepool is community-operated, custodial at deposit-address creation, and has o
 
 ## 6. Escrow and OptionsContract authority configuration\n\nPerform this only after both contracts have been deployed and independently verified, using the intended Testnet account IDs. Use the owner account for each owner-only call and retain every transaction hash.\n\n1. The Escrow owner calls `propose_controller` on Escrow with the exact OptionsContract account ID.\n2. The OptionsContract owner calls `set_escrow_contract` on OptionsContract with the exact Escrow account ID.\n3. The OptionsContract owner calls `accept_escrow_controller` on OptionsContract. This makes the cross-contract call from OptionsContract itself so Escrow can authenticate the proposed controller. Verify Escrow's controller view afterwards.\n4. The OptionsContract owner enables each explicitly approved asset with `set_asset(asset_id, decimals, true)`, then binds its NEP-141 contract with `set_escrow_token_account(asset_id, token_account)`. Do not infer IDs or decimals from symbols; verify the exact Testnet token contract and metadata independently first.\n5. The OptionsContract owner configures `set_trusted_reconciler` only after the reconciler's authority, evidence source, operational ownership, and key policy have been reviewed. This is a trust-root assignment, not cryptographic proof verification.\n6. The Escrow owner proposes the payout reconciler with `propose_payout_reconciler`; the selected reconciler account must separately call `accept_payout_reconciler`. Verify the resulting reconciler view.\n\nDo not create positions or transfer tokens during configuration. Do not treat controller configuration as proof that collateral is reserved or that external settlement is verified.\n\n## 7. Post-deployment verification — mandatory
 
+**Completed OptionsContract upgrade verification (2026-11-15):** the read-only audit found Options Wasm SHA-256 `b9b67461f6f54428aedf2f3515e043470940f38acdec7f871eb3f28be8fcc715` (436,180 bytes) at block height 277724568. FastNEAR and dRPC agreed on the deployed code hash; `get_position_count` and both configured `get_escrow_token_account` views succeeded; `deployedCodeGaps` and `rpcViewErrors` were empty. The agent policy remained null and execution mode remained `ManualApproval`. See [E-009](EVIDENCE.md#e-009--dual-rpc-audit-of-deployed-testnet-state).
+
+**Evidence still to attach:** the supplied audit had `expectedHashesSupplied: false`, and did not include the upgrade transaction hash or a local artifact hash. Therefore do not describe the deployment as byte-for-byte matched to a specific source commit until those are recorded.
+
 For each deployed contract:
 
 1. Query account and contract code state through an independently selected NEAR RPC source.
@@ -98,13 +102,13 @@ No live asset/settlement claim is permitted until the exact route, asset identit
 
 ## 8. Release gates still open
 
-- [ ] Dedicated OptionsContract and Escrow Testnet accounts and key policy.
+- [x] Dedicated OptionsContract and Escrow Testnet accounts exist and have deployed code; verify their key policy independently.
 - [x] Escrow Testnet deployment helpers (Bash/PowerShell), deterministic artifact selection, explicit confirmation, deploy-only default, and opt-in initializer are implemented and CI-tested.
-- [ ] Escrow deployment and owner/controller/reconciler configuration are executed and independently verified on Testnet.
+- [ ] Escrow owner/controller/payout-reconciler configuration is independently verified on Testnet; the current audit does not expose all of these authority settings.
 - [x] Migration decision recorded: **in-place upgrade; persistent storage layout unchanged since Nov 9**. Compared the serialized OptionsContract/OptionPosition and EscrowContract/EscrowPosition field layouts at Nov 9 commit `d9c188ba29e51d2e39a44146c37fbcfbe7138178` with current `main`; layouts match. The upgrade itself has **not** been executed.
 - [x] Provider-published Tidepool Testnet token IDs, token accounts, and decimals snapshotted in `config/testnet-assets.tidepool.json`; OptionsContract USDC asset identity is now configurable without changing its serialized root state.
 - [x] Dual-RPC live Tidepool asset/verifier checks and dry-quote smoke passed in current-main CI run [#43647596976](https://github.com/devshaydez/handel/actions/runs/43647596976) (job-level success; the overall workflow was later cancelled before the Rust/Sandbox job completed).
-- [ ] Re-run the verifier with `HANDEL_ESCROW_ACCOUNT` set and independently review Escrow's NEP-145 registration/balance. Approve any storage registration/funding separately.
+- [ ] Register and fund the OptionsContract and Escrow accounts for USDC/wNEAR using the token contracts' NEP-145 flow; the post-upgrade audit found null storage registrations and zero contract token balances. Verify balances after owner-approved deposits/registrations.
 - [ ] Independently verified settlement event/proof source; trusted reconciler assumption reviewed.
 - [ ] Enforceable per-position collateral reservation and custody authority.
 - [ ] End-to-end deployed premium, exercise, expiry, payout retry, ambiguous reconciliation, and replay tests.
