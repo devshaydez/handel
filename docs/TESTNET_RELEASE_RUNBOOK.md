@@ -1,6 +1,6 @@
 # Testnet deployment and release runbook
 
-**Status:** OptionsContract in-place upgrade reported successful and independently corroborated by two Testnet RPCs on 2026-11-15. Escrow deployment is recorded. Remaining configuration and funded-lifecycle gates are open.  
+**Status:** OptionsContract in-place upgrade completed and independently corroborated by two Testnet RPCs on 2026-11-15. Escrow deployment is recorded.  
 **Network:** NEAR Testnet only.  
 **Release posture:** prototype / synthetic assets only; not production custody and not safe for real assets.
 
