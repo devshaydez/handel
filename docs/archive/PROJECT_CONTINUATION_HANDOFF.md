@@ -1,6 +1,6 @@
 # Handel — Project Continuation Handoff
 
-> **Historical handoff snapshot.** This file contains dated working notes and is not the current status source. Use [README.md](../README.md) and [EVIDENCE.md](EVIDENCE.md) as authoritative; later repository changes supersede every older status and action list below.
+> **Historical handoff snapshot.** This file contains dated working notes and is not the current status source. Use [README.md](../../README.md) and [EVIDENCE.md](../EVIDENCE.md) as authoritative; later repository changes supersede every older status and action list below.
 
 ## Historical close-out snapshot — 2026-11-13 16:58 UTC+1 (superseded)
 
@@ -27,7 +27,7 @@
 
 ## Historical handoff notes (retained for traceability)
 
-The dated notes below record earlier branch states. They are not current status. Where they conflict with the current verified close-out above, the current section and [EVIDENCE.md](EVIDENCE.md) take precedence.
+The dated notes below record earlier branch states. They are not current status. Where they conflict with the current verified close-out above, the current section and [EVIDENCE.md](../EVIDENCE.md) take precedence.
 
 ## Current verified close-out — 2026-11-13 (supersedes older status snapshots)
 
@@ -56,7 +56,7 @@ The dated notes below record earlier branch states. They are not current status.
 
 ### Unified product model
 - There is exactly **one AI agent**. Assistant is its conversational interface; Agent is configuration for that same agent (policy, limits, execution mode, revocation). No second agent/runtime.
-- At this 2026-11-12 snapshot, the Assistant browser implementation was not yet wired to the delegated API. This was superseded by the current `TestnetProposalComposer.tsx` integration; see [ADVISORY_API.md](./ADVISORY_API.md) and [EVIDENCE.md](./EVIDENCE.md#e-006--delegated-agent-implementation).
+- At this 2026-11-12 snapshot, the Assistant browser implementation was not yet wired to the delegated API. This was superseded by the current `TestnetProposalComposer.tsx` integration; see [ADVISORY_API.md](../ADVISORY_API.md) and [EVIDENCE.md](../EVIDENCE.md#e-006--delegated-agent-implementation).
 
 ### Implemented in this branch
 1. Contract delegated Call/Put entrypoints with on-chain allowlist, amount, premium, Put collateral, expiry, open-position and pause checks.
@@ -198,7 +198,7 @@ This document is being added on branch `docs/project-continuation-handoff-2026-1
 
 The user clarified that Handel is intended to be an **AI-assisted stock-trading product**, with options trading on Ondo tokenized equities as its initial protocol/execution mechanism. It must also educate beginners. The user wants automatic execution to be available when an individual user explicitly opts in; users who do not opt in retain recommendation-and-approval control.
 
-The full durable requirements are in [`docs/PRODUCT_VISION_AND_AI_AUTONOMY.md`](./PRODUCT_VISION_AND_AI_AUTONOMY.md). Treat that document as a product requirement, not evidence that the features are already implemented.
+The full durable requirements are in [`docs/PRODUCT_VISION_AND_AI_AUTONOMY.md`](../PRODUCT_VISION_AND_AI_AUTONOMY.md). Treat that document as a product requirement, not evidence that the features are already implemented.
 
 Important scope distinction: current Handel contracts/SDK are designed around fully collateralized European options. Direct spot-equity buy/sell execution is **not established** by the current architecture. Do not claim that Handel can already buy or sell the underlying stock directly. Decide and document whether spot trading is a later execution rail or outside the initial hackathon vertical slice. The first delivery should truthfully support the actual options actions and explain their relationship to bullish/bearish stock views.
 
@@ -424,7 +424,7 @@ Never use one status label as a substitute for another.
 
 ## New durable product requirement — AI education and decision accountability
 
-See [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](./AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md). This requirement applies across Batches 8–10: one agent combines contextual education with permissioned trading; every consequential action and no-trade decision must have a traceable, evidence-grounded explanation and durable decision record. Education never grants trading authority. This is a product requirement, not evidence of implementation. Do not omit it from future handoffs, implementation plans, acceptance tests, or release reviews.
+See [`docs/AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md`](../AGENT_EDUCATION_AND_DECISION_ACCOUNTABILITY.md). This requirement applies across Batches 8–10: one agent combines contextual education with permissioned trading; every consequential action and no-trade decision must have a traceable, evidence-grounded explanation and durable decision record. Education never grants trading authority. This is a product requirement, not evidence of implementation. Do not omit it from future handoffs, implementation plans, acceptance tests, or release reviews.
 
 
 ## Batch 9 progress — Execution & Safety (Phases 17–19)
@@ -434,9 +434,9 @@ Work is underway on branch `work/batch-9-execution-safety`, stacked on Batch 8 b
 - Phase 17: implemented on-chain Education/Advisory/ManualApproval/Delegated modes (new policies default to ManualApproval), principal-only mode changes, direct Call/Put gating, live-policy approval checks, approval-time revalidation against changed principal/caps/assets/expiry/position terms/open-position count, and SDK stale-snapshot/mode preflight. Tests added; integrated CI passed on code commit `95278bf7b2b13425b928c0e6bdec982a2c63b8f6` (run [#42708258643](https://github.com/devshaydez/handel/actions/runs/42708258643)).
 - Phase 18: added connected-wallet NEP-413 signing boundary, distinct-nonce paired intent validation, read-only finality simulation, and SHA-256 binding of the exact signed pair/verifier to the simulation before explicit-approval wallet submission. No private key handling. Verifier Mainnet-only; no Mainnet transaction or asset movement performed.
 - Phase 19: added NEP-141 escrow transfer_call builder and regression coverage for partial exercise payout recovery (confirmed payment leg is never repeated when collateral payout fails). Existing Escrow ft_on_transfer validates exact sender/token/amount/position/leg. Payout remains sequential; trusted reconciler, independent finality proof, exact Ondo route and Intents-ledger reservation remain open.
-- Batch 9 detail: [BATCH_9_EXECUTION_SAFETY.md](./archive/BATCH_9_EXECUTION_SAFETY.md).
-- AI security architecture: [AI_GUARDRAILS_AND_TEE_ARCHITECTURE.md](./AI_GUARDRAILS_AND_TEE_ARCHITECTURE.md). NEAR TEE attestation is not a substitute for deterministic trade/risk/authority gates; E2EE/OHTTP and System One guardrails remain integration work.
-- Project-wide remaining gates: [ALL_BATCH_LIMITATIONS.md](./archive/ALL_BATCH_LIMITATIONS.md).
+- Batch 9 detail: [BATCH_9_EXECUTION_SAFETY.md](../archive/BATCH_9_EXECUTION_SAFETY.md).
+- AI security architecture: [AI_GUARDRAILS_AND_TEE_ARCHITECTURE.md](../AI_GUARDRAILS_AND_TEE_ARCHITECTURE.md). NEAR TEE attestation is not a substitute for deterministic trade/risk/authority gates; E2EE/OHTTP and System One guardrails remain integration work.
+- Project-wide remaining gates: [ALL_BATCH_LIMITATIONS.md](../archive/ALL_BATCH_LIMITATIONS.md).
 
 Batch 9 is not complete until all phases are implemented, the full branch passes one final integrated CI run, and the outstanding custody, verifier, wallet, and security-review gates are accurately recorded. No deployment, signing, funding, or asset movement is implied by SDK helpers or passing CI.
 
