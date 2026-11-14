@@ -1,6 +1,6 @@
 # Evidence ledger
 
-**Snapshot:** 2026-11-13  
+**Snapshot:** 2026-11-14  
 **Repository:** [devshaydez/handel](https://github.com/devshaydez/handel)  
 **Rule:** each row states exactly what the artifact proves and what it does not prove. A successful build, deployment or dry quote is never promoted into evidence of a complete trade.
 
@@ -8,10 +8,13 @@
 
 | Field | Value |
 |---|---|
-| Workflow | [Handel backend checks, run #43474798000](https://github.com/devshaydez/handel/actions/runs/43474798000) |
-| Commit | `b07eeafcdcaadf8c1b397e61eb4cbb9638369a36` |
-| Date | 2026-11-13 |
-| Result | Historical run: 6 jobs succeeded; frontend typecheck/build was skipped on this commit. PR [#33](https://github.com/devshaydez/handel/pull/33) later changed the workflow to run frontend checks on `main` pushes. |
+| Current main workflow | [Handel backend checks, run #43647596976 (run #909)](https://github.com/devshaydez/handel/actions/runs/43647596976) |
+| Current main commit | `58c0f9f9ba73852365f4b4c5aca832bebb032d6b` |
+| Snapshot date | 2026-11-14 |
+| Current run result | In progress when recorded: SDK build/tests/offline demo, read-only Testnet asset verification, PowerShell syntax, NEAR AI preflight, and frontend typecheck/build succeeded; Rust format/unit/Sandbox/Wasm job was still running. No whole-workflow pass is claimed for this commit. |
+| Last completed all-jobs success | [Run #43645266413 (run #906)](https://github.com/devshaydez/handel/actions/runs/43645266413), commit `418eeea5a55f1b58232a608a92c9fe21fc6ceafd`; seven jobs succeeded, including frontend typecheck/build. |
+
+Historical baseline: [run #43474798000](https://github.com/devshaydez/handel/actions/runs/43474798000), commit `b07eeafcdcaadf8c1b397e61eb4cbb9638369a36`, 2026-11-13. Six jobs succeeded; frontend typecheck/build was skipped on that commit. PR [#33](https://github.com/devshaydez/handel/pull/33) later changed the workflow to run frontend checks on `main` pushes.
 
 Successful jobs:
 - Rust format, unit tests and Wasm build

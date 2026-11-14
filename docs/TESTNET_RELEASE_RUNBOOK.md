@@ -100,8 +100,9 @@ No live asset/settlement claim is permitted until the exact route, asset identit
 
 - [ ] Dedicated OptionsContract and Escrow Testnet accounts and key policy.
 - [x] Escrow Testnet deployment helpers (Bash/PowerShell), deterministic artifact selection, explicit confirmation, deploy-only default, and opt-in initializer are implemented and CI-tested.\n- [ ] Escrow deployment and owner/controller/reconciler configuration are executed and independently verified on Testnet.
-- [ ] Persistent-state migration/redeployment decision; no upgrade against unknown legacy state.
-- [x] Provider-published Tidepool Testnet token IDs, token accounts, and decimals snapshotted in `config/testnet-assets.tidepool.json`; OptionsContract USDC asset identity is now configurable without changing its serialized root state.\n- [ ] Pass the dual-RPC live asset-verification CI job; then re-run with `HANDEL_ESCROW_ACCOUNT` set after the dedicated Escrow account exists and independently review its NEP-145 balance. Approve any storage registration/funding separately.
+- [x] Migration decision recorded: **in-place upgrade; persistent storage layout unchanged since Nov 9**. Compared the serialized OptionsContract/OptionPosition and EscrowContract/EscrowPosition field layouts at Nov 9 commit `d9c188ba29e51d2e39a44146c37fbcfbe7138178` with current `main`; layouts match. The upgrade itself has **not** been executed.
+- [x] Provider-published Tidepool Testnet token IDs, token accounts, and decimals snapshotted in `config/testnet-assets.tidepool.json`; OptionsContract USDC asset identity is now configurable without changing its serialized root state.\n- [x] Dual-RPC live Tidepool asset/verifier checks and dry-quote smoke passed in current-main CI run [#43647596976](https://github.com/devshaydez/handel/actions/runs/43647596976) (job-level success; the overall workflow was still running when recorded).
+- [ ] Re-run the verifier with `HANDEL_ESCROW_ACCOUNT` set and independently review Escrow's NEP-145 registration/balance. Approve any storage registration/funding separately.
 - [ ] Independently verified settlement event/proof source; trusted reconciler assumption reviewed.
 - [ ] Enforceable per-position collateral reservation and custody authority.
 - [ ] End-to-end deployed premium, exercise, expiry, payout retry, ambiguous reconciliation, and replay tests.

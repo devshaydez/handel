@@ -1,6 +1,6 @@
 # Production UI audit — 2026-11-13
 
-> Historical read-only audit snapshot. Findings describe the production build and source state inspected at that time; they are not current implementation status. Use [README.md](../README.md), [EVIDENCE.md](EVIDENCE.md), and [PERSISTENT_TESTNET_INDEXER.md](PERSISTENT_TESTNET_INDEXER.md) for current verified status.
+> **DATED SNAPSHOT — 2026-11-13.** This is a historical, read-only audit of the production build and source state inspected on that date. Findings are not current implementation or deployment status. For current verified status, use [README.md](../README.md), [EVIDENCE.md](EVIDENCE.md), and [PERSISTENT_TESTNET_INDEXER.md](PERSISTENT_TESTNET_INDEXER.md).
 
 ## Scope
 
