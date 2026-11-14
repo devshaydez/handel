@@ -80,7 +80,7 @@ npm --prefix sdk run lifecycle
 - **Network:** the current deployment targets NEAR Testnet; Mainnet is a future rollout.
 - **Assets and integrations:** executable demos use Tidepool test assets, with Ondo assets and NEAR Intents integration on the roadmap.
 - **Lifecycle validation:** contract and Sandbox tests cover the core Call/Put paths; a complete live two-party funding run is a next validation milestone.
-- **Agent operations:** policy activation and key hardening are included in the Testnet configuration checklist.
+- **Agent operations:** the agent account now uses a restricted FunctionCall key scoped to the four delegated methods; policy activation remains part of Testnet configuration.
 - **Pricing:** the demo uses a fixed premium; market-linked pricing is a future enhancement.
 
 ## Demo links
