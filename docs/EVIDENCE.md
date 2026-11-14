@@ -18,17 +18,33 @@ This ledger separates observed results from implementation evidence and outstand
 
 The latest completed all-jobs success is run #906. Run #912 is the current-main check; its final Sandbox proof had not completed when this snapshot was taken.
 
-### E-002 — OptionsContract Testnet deployment
+### E-002 — OptionsContract Testnet deployment and in-place upgrade
+
+**Initial deployment (historical):**
 
 | Field | Value |
 |---|---|
 | Account | `options.shaydez.testnet` |
 | Deployment transaction | [5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz](https://explorer.testnet.near.org/transactions/5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz) |
-| Wasm artifact | `target/near/handel/_options.wasm` |
+| Recorded Wasm artifact | `target/near/handel/_options.wasm` |
 | Size | 425,264 bytes |
 | SHA-256 | `1d95e9b75d94c13eea83e708502aff0a4c54c7eee4bb09881482403bb9479ab3` |
 
-A user-run Testnet `view_code` retrieval was hashed locally and reported an exact byte-for-byte match with this artifact.
+**In-place upgrade — owner-reported successful deployment, independently corroborated by two RPCs on 2026-11-15:**
+
+| Field | Value |
+|---|---|
+| Account | `options.shaydez.testnet` |
+| Audit block height | 277724568 |
+| Audit block hash | `4n3tDwBrQVkppWUNSC3hDf3FvEw7gwHy4BKnvzhNrouq` |
+| Deployed Wasm size | 436,180 bytes |
+| Deployed code SHA-256 | `b9b67461f6f54428aedf2f3515e043470940f38acdec7f871eb3f28be8fcc715` |
+| Independent RPCs | FastNEAR Testnet and dRPC Testnet |
+| RPC agreement | Same Options code hash; audit reported `independentRpcAgreement: true` |
+| Method-surface result | `deployedCodeGaps: []`; `rpcViewErrors: []` |
+
+The post-upgrade audit successfully called `get_position_count` (0), `get_escrow_token_account` for USDC and wNEAR, `get_asset` for both assets, `get_agent_policy` (null), and `get_agent_execution_mode` (`ManualApproval`). The previous MethodNotFound gap is closed.
+
 
 ### E-003 — Escrow Testnet deployment
 
@@ -72,25 +88,44 @@ The inspected READY deployment [`dpl_BS2BSRCAqc9VEs9hns9Mpa6chaBC`](https://verc
 
 ### E-009 — Dual-RPC audit of deployed Testnet state
 
-[Read-only audit script](../scripts/audit-testnet-state.mjs) queried:
+[Read-only audit script](../scripts/audit-testnet-state.mjs) was run after the OptionsContract in-place upgrade on 2026-11-15. It queried:
 
 - `https://rpc.testnet.fastnear.com`
 - `https://near-testnet.drpc.org`
 
-Both RPC providers returned matching code hashes, view values and execution outcomes.
+The supplied output reported `mode: READ_ONLY`, `transactionsSubmitted: 0`, `independentRpcAgreement: true`, `rpcViewErrors: []`, and `deployedCodeGaps: []`. Both providers returned the same Options and Escrow code hashes and corroborating view results.
 
-**Agent-key update — 2026-11-15:** The project owner reports that the FullAccess key has been removed from `handel-agent.shaydez.testnet`. The account is now reported to retain only its restricted FunctionCall key, scoped to the four delegated methods. This is a post-audit configuration update and has not yet been independently confirmed by a refreshed dual-RPC key audit; the table below preserves the earlier 2026-11-14 snapshot.
+**OptionsContract post-upgrade snapshot**
 
 | Check | Observed result |
 |---|---|
-| Options Wasm | SHA-256 `1d95e9b75d94c13eea83e708502aff0a4c54c7eee4bb09881482403bb9479ab3`; 425,264 bytes |
+| Account owner | `options.shaydez.testnet` |
+| Wasm | SHA-256 `b9b67461f6f54428aedf2f3515e043470940f38acdec7f871eb3f28be8fcc715`; 436,180 bytes |
+| Audit block | Height 277724568; hash `4n3tDwBrQVkppWUNSC3hDf3FvEw7gwHy4BKnvzhNrouq` |
+| Required views | `get_position_count` returned 0; USDC and wNEAR `get_escrow_token_account` views returned the expected Tidepool token accounts |
+| Asset configuration | USDC enabled (6 decimals); wNEAR enabled (24 decimals) |
+| Agent policy | `get_agent_policy` returned null |
+| Agent execution mode | `ManualApproval` |
+| Method gaps / RPC view errors | None reported |
+
+**Escrow and token snapshot**
+
+| Check | Observed result |
+|---|---|
 | Escrow Wasm | SHA-256 `a7d7f1184d813a94c5d1c431ebef01489720e906b4a6d4cf89b957d7245ab604`; 302,940 bytes |
-| Options views | `get_position_count()` and both `get_escrow_token_account(...)` calls returned `MethodResolveError(MethodNotFound)` |
-| Escrow views | Owner = `escrow.shaydez.testnet`; pending owner = null; demo self-trade = false |
-| Options views | Owner = `options.shaydez.testnet`; USDC/WNEAR enabled with 6/24 decimals; agent policy = null; execution mode = `ManualApproval` |
-| Token accounts | Escrow, Options and agent accounts had no storage registration and zero USDC/wNEAR balances; principal held 100 USDC and 40 wNEAR |
-| Agent keys (2026-11-14 snapshot) | Five keys: two proposal-scoped, two restricted FunctionCall keys (four delegated methods, 1 NEAR allowance), and one FullAccess key; see the dated 2026-11-15 update above for the subsequent owner-reported removal |
-| Audit result | Exit code 2: strict audit failure because required views were absent from deployed code |
+| Escrow owner | `escrow.shaydez.testnet` |
+| Escrow demo self-trade | false |
+| Token account mappings | OptionsContract maps the USDC and wNEAR asset IDs to `usdc.tidepool-sandbox.testnet` and `wnear.tidepool-sandbox.testnet` |
+
+**Agent key snapshot**
+
+The refreshed on-chain key audit reported four FunctionCall keys and zero FullAccess keys for `handel-agent.shaydez.testnet`:
+
+- Two keys scoped to `create_agent_proposal`.
+- Two keys scoped to `agent_create_call`, `agent_create_put`, `agent_begin_collateral_lock`, and `agent_register_escrow_position`.
+- Each key had a 1 NEAR allowance and receiver `options.shaydez.testnet`.
+
+The prior E-009 snapshot (2026-11-14) recorded missing OptionsContract views and a FullAccess agent key. The 2026-11-15 post-upgrade audit supersedes those observations for deployed code and the current key set.
 
 ### E-010 — Receipt indexer and PostgreSQL replay
 
@@ -110,9 +145,8 @@ The test established persistence of finalized transaction/receipt outcomes, serv
 The evidence above does **not** establish the following:
 
 - **Completed live two-party Testnet lifecycle:** no recorded transaction set proves delegated creation and Escrow registration followed by principal-signed collateral and holder-signed premium funding, with final balances and position state.
-- **Deployed delegated-agent readiness:** the 2026-11-14 audit recorded a null Options policy and `ManualApproval` execution mode. The owner reported removal of the agent account's FullAccess key on 2026-11-15; a refreshed on-chain audit is still needed to independently confirm the current key set and policy configuration.
-- **Token-account readiness:** the audited Escrow, Options and agent accounts were not registered or funded for USDC/wNEAR.
-- **Current source deployed on Testnet:** the deployed Options Wasm lacked view methods present in source. An owner-signed upgrade and post-upgrade state/code verification are outstanding.
+- **Deployed delegated-agent readiness:** the 2026-11-15 audit confirms zero FullAccess keys but four restricted FunctionCall keys. The policy remains null and execution mode remains `ManualApproval`; bounded policy activation and a delegated execution test are outstanding.
+- **Token-account readiness:** the post-upgrade audit still found null NEP-145 storage registrations for OptionsContract and Escrow and zero token balances for those contracts. Registration and funding are outstanding.
 - **Indexer position snapshots / hosted operation:** position indexing is blocked by the deployed view gap; the recorded PostgreSQL test was local.
 - **Ondo / NEAR Intents support:** no exact Ondo asset registry/ID/standard evidence, Intents custody, solver fill, enforceable per-position collateral reservation, or paired settlement is recorded. Tidepool assets are synthetic test assets.
 - **Trustless settlement:** the configured reconciler/attestor is a trust assumption; RPC quorum is corroboration, not a NEAR light client. Escrow payout legs are sequential asynchronous transfers, not atomic.
