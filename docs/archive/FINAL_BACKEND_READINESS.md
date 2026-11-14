@@ -1,4 +1,4 @@
-> **Archived historical snapshot.** Superseded by [README.md](../../../README.md), [EVIDENCE.md](../../EVIDENCE.md), and [BACKEND_GAP_REGISTER.md](../../BACKEND_GAP_REGISTER.md). Do not use this file as current release status.
+> **Archived historical snapshot.** Superseded by [README.md](../../../README.md), [EVIDENCE.md](../EVIDENCE.md), and [BACKEND_GAP_REGISTER.md](../BACKEND_GAP_REGISTER.md). Do not use this file as current release status.
 
 # Backend readiness snapshot
 
