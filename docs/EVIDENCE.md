@@ -4,7 +4,7 @@
 **Repository:** [devshaydez/handel](https://github.com/devshaydez/handel)  
 **Rule:** each row states exactly what the artifact proves and what it does not prove. A successful build, deployment or dry quote is never promoted into evidence of a complete trade.
 
-## E-001 — Latest main CI
+## E-001 — Latest main CI at evidence-refresh snapshot
 
 | Field | Value |
 |---|---|
@@ -16,16 +16,17 @@
 
 Historical baseline: [run #43474798000](https://github.com/devshaydez/handel/actions/runs/43474798000), commit `b07eeafcdcaadf8c1b397e61eb4cbb9638369a36`, 2026-11-13. Six jobs succeeded; frontend typecheck/build was skipped on that commit. PR [#33](https://github.com/devshaydez/handel/pull/33) later changed the workflow to run frontend checks on `main` pushes.
 
-Successful jobs:
-- Rust format, unit tests and Wasm build
-- TypeScript SDK build and offline demo
-- Live Testnet asset verification (read-only)
+Successful jobs on run #909 at the recorded snapshot:
+- TypeScript SDK build, SDK tests and offline demo
+- Dual-RPC Tidepool Testnet asset/verifier checks and dry-quote smoke (no deposit or transaction)
+- NEAR AI credential/model-catalogue preflight and SDK-prepared proof artifact checks
 - Windows PowerShell proof-runner syntax
-- NEAR AI credential and model-catalogue preflight
-- Live NEAR AI → SDK → Sandbox contract proof
+- Frontend typecheck and production build
 
-**Proves:** the named jobs passed on the recorded commit. The frontend check configuration has since changed in merged PR [#33](https://github.com/devshaydez/handel/pull/33); consult the latest Actions run for its result.  
-**Does not prove:** frontend build/typecheck on this commit, a real Testnet trade, Ondo asset support, Mainnet settlement, production custody or security audit.
+The Rust format/unit/Sandbox/Wasm job was still running. The overall run had not completed.
+
+**Proves:** each listed job completed successfully for commit `58c0f9f`; the job-level Tidepool check passed.  
+**Does not prove:** a completed whole-workflow pass for `58c0f9f`, successful Rust/Sandbox completion on that commit, a real Handel Testnet trade, Ondo asset support, Mainnet settlement, production custody or security audit.
 
 ## E-002 — OptionsContract Testnet deployment and exact Wasm match
 
