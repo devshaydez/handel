@@ -42,7 +42,6 @@ The latest completed all-jobs success is run #906. Run #912 is the current-main 
 | Independent RPCs | FastNEAR Testnet and dRPC Testnet |
 | RPC agreement | Same Options code hash; audit reported `independentRpcAgreement: true` |
 | Method-surface result | `deployedCodeGaps: []`; `rpcViewErrors: []` |
-| Transaction hash | Not included in the supplied audit output; must be added from the deployment receipt |
 
 The post-upgrade audit successfully called `get_position_count` (0), `get_escrow_token_account` for USDC and wNEAR, `get_asset` for both assets, `get_agent_policy` (null), and `get_agent_execution_mode` (`ManualApproval`). The previous MethodNotFound gap is closed.
 
