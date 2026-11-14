@@ -1,3 +1,5 @@
+> **Archived historical snapshot.** Superseded by [README.md](../../README.md), [EVIDENCE.md](../EVIDENCE.md), and [BACKEND_GAP_REGISTER.md](../BACKEND_GAP_REGISTER.md). Do not use this file as current release status.
+
 # Backend readiness snapshot
 
 **Current source of truth:** [README.md](../README.md) and [EVIDENCE.md](./EVIDENCE.md). This document replaces the older readiness checklist, which contained stale branch, deployment, and Assistant-integration status.

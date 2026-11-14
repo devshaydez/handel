@@ -3,6 +3,7 @@
 ## Start here
 
 - [Evidence ledger](EVIDENCE.md) — verified CI, deployment, integration evidence and explicit non-claims.
+- [Backend gap register](BACKEND_GAP_REGISTER.md) — current release gates and verified state snapshot.
 - [Threat model](THREAT_MODEL.md) — authority boundaries, trust assumptions and failure modes.
 - [Architecture](ARCHITECTURE.md) — current contract, SDK and service architecture.
 - [Custody and settlement](CUSTODY_AND_SETTLEMENT.md) — current custody model, reconciler assumptions and settlement limits.
@@ -16,8 +17,10 @@
 
 ## Archive
 
-These are historical working notes, retained for traceability. They are not current implementation or release-status authorities; use [README.md](../README.md) and [EVIDENCE.md](EVIDENCE.md).
+These are historical working notes, retained for traceability. They are not current implementation or release-status authorities; use [README.md](../README.md), [EVIDENCE.md](EVIDENCE.md) and [BACKEND_GAP_REGISTER.md](BACKEND_GAP_REGISTER.md).
 
+- [Project continuation handoff](archive/PROJECT_CONTINUATION_HANDOFF.md)
+- [Final backend readiness snapshot](archive/FINAL_BACKEND_READINESS.md)
 - [Batch 2 implementation](archive/BATCH_2_IMPLEMENTATION.md)
 - [Batch 3 limitations](archive/BATCH_3_LIMITATIONS.md)
 - [Batch 4 implementation](archive/BATCH_4_IMPLEMENTATION.md)
