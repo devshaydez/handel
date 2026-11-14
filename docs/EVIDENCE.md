@@ -1,6 +1,6 @@
 # Evidence ledger
 
-**Snapshot:** 2026-11-14  
+**Snapshot:** 2026-11-15  
 **Repository:** [devshaydez/handel](https://github.com/devshaydez/handel)
 
 This ledger separates observed results from implementation evidence and outstanding proof. Transaction links point to NEAR Testnet; CI links point to the exact workflow runs.
@@ -79,6 +79,8 @@ The inspected READY deployment [`dpl_BS2BSRCAqc9VEs9hns9Mpa6chaBC`](https://verc
 
 Both RPC providers returned matching code hashes, view values and execution outcomes.
 
+**Agent-key update — 2026-11-15:** The project owner reports that the FullAccess key has been removed from `handel-agent.shaydez.testnet`. The account is now reported to retain only its restricted FunctionCall key, scoped to the four delegated methods. This is a post-audit configuration update and has not yet been independently confirmed by a refreshed dual-RPC key audit; the table below preserves the earlier 2026-11-14 snapshot.
+
 | Check | Observed result |
 |---|---|
 | Options Wasm | SHA-256 `1d95e9b75d94c13eea83e708502aff0a4c54c7eee4bb09881482403bb9479ab3`; 425,264 bytes |
@@ -87,7 +89,7 @@ Both RPC providers returned matching code hashes, view values and execution outc
 | Escrow views | Owner = `escrow.shaydez.testnet`; pending owner = null; demo self-trade = false |
 | Options views | Owner = `options.shaydez.testnet`; USDC/WNEAR enabled with 6/24 decimals; agent policy = null; execution mode = `ManualApproval` |
 | Token accounts | Escrow, Options and agent accounts had no storage registration and zero USDC/wNEAR balances; principal held 100 USDC and 40 wNEAR |
-| Agent keys | Five keys: two proposal-scoped, two restricted FunctionCall keys (four delegated methods, 1 NEAR allowance), and one FullAccess key |
+| Agent keys (2026-11-14 snapshot) | Five keys: two proposal-scoped, two restricted FunctionCall keys (four delegated methods, 1 NEAR allowance), and one FullAccess key; see the dated 2026-11-15 update above for the subsequent owner-reported removal |
 | Audit result | Exit code 2: strict audit failure because required views were absent from deployed code |
 
 ### E-010 — Receipt indexer and PostgreSQL replay
@@ -108,7 +110,7 @@ The test established persistence of finalized transaction/receipt outcomes, serv
 The evidence above does **not** establish the following:
 
 - **Completed live two-party Testnet lifecycle:** no recorded transaction set proves delegated creation and Escrow registration followed by principal-signed collateral and holder-signed premium funding, with final balances and position state.
-- **Deployed delegated-agent readiness:** the audited Options policy was null and execution mode was `ManualApproval`; a FullAccess key remained on the agent account. Owner-authorized policy/key changes are not evidenced.
+- **Deployed delegated-agent readiness:** the 2026-11-14 audit recorded a null Options policy and `ManualApproval` execution mode. The owner reported removal of the agent account's FullAccess key on 2026-11-15; a refreshed on-chain audit is still needed to independently confirm the current key set and policy configuration.
 - **Token-account readiness:** the audited Escrow, Options and agent accounts were not registered or funded for USDC/wNEAR.
 - **Current source deployed on Testnet:** the deployed Options Wasm lacked view methods present in source. An owner-signed upgrade and post-upgrade state/code verification are outstanding.
 - **Indexer position snapshots / hosted operation:** position indexing is blocked by the deployed view gap; the recorded PostgreSQL test was local.
