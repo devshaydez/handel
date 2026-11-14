@@ -1,21 +1,36 @@
-# Handel — European Options Protocol on NEAR
+# Handel — Options on NEAR
 
-Handel is a NEAR-native options protocol for collateralized European Calls and Puts, with an optional AI agent for policy-governed position creation.
+**Create and manage collateralized European Calls and Puts on NEAR, with an AI agent that can help create positions within strict on-chain rules.**
 
-## What it is
+I built Handel around a simple idea: options should be a first-class part of DeFi, not an afterthought. The protocol gives writers and holders clear terms for collateral, premium, expiry and exercise, while an optional agent helps take care of permitted option-creation steps.
 
-Handel is an options protocol first. Writers create Calls or Puts with defined collateral, premium, expiry and exercise terms; holders pay the premium and can exercise within the contract's exercise window. The protocol separates option lifecycle logic from token movement through an OptionsContract and a NEP-141 Escrow.
-
-The AI agent is an execution feature: it can prepare and initiate permitted option creation, while wallet-authorized parties retain control of collateral and premium transfers.
+The options protocol is the foundation. The agent makes it easier to use.
 
 ## What works today
 
-- **Options lifecycle:** Call/Put creation, collateral and premium gates, exercise and expiry paths are implemented in the contracts and covered by unit tests.
+- **Call and Put lifecycle:** creation, collateral and premium gates, exercise and expiry paths are implemented in the contracts and covered by unit tests.
 - **Escrow mechanics:** per-position NEP-141 collateral registration, exact-token/amount checks, premium handling, exercise and expiry paths are implemented and exercised in Sandbox tests with mock tokens.
 - **Testnet deployments:** OptionsContract Wasm is deployed and its retrieved code hash matches the recorded artifact. Escrow deployment is recorded. See [E-002](docs/EVIDENCE.md#e-002--optionscontract-testnet-deployment) and [E-003](docs/EVIDENCE.md#e-003--escrow-testnet-deployment).
-- **Agent controls:** delegated entrypoints enforce principal policy in contract code; the SDK restricts its signer to four methods with a finite allowance and rejects FullAccess signers.
+- **AI agent controls:** delegated entrypoints enforce principal policy in contract code; the SDK restricts its signer to four methods with a finite allowance and rejects FullAccess signers.
 - **Read-only Testnet verification:** two independent RPC providers agreed on deployed code hashes and audited contract/token state. Tidepool asset verification and dry-quote checks also run in CI.
 - **Build and test coverage:** the latest completed all-jobs CI run passed Rust formatting/unit/Sandbox/Wasm, SDK build/tests, frontend typecheck/build, Testnet read-only checks and the AI-to-Sandbox proof. See [E-001](docs/EVIDENCE.md#e-001--ci-and-automated-verification).
+
+## How to try it
+
+**[Open the Handel live app](https://handel-live.vercel.app)**
+
+Take a quick look around:
+
+1. Open the app and explore the dashboard.
+2. Go to the markets view to see the available market interface.
+3. Open the Trade Builder and choose a Call or Put to review its option terms.
+4. Open the agent area to see the policy-governed option-creation workflow.
+
+This is a product walkthrough; the README's verified lifecycle evidence is from contract tests, Sandbox runs and read-only Testnet checks.
+
+## The AI agent
+
+The agent is a practical part of Handel: it can prepare and initiate option creation and Escrow registration when the principal's on-chain policy allows it. Its delegated signer is restricted to four contract methods with a finite allowance, and the contract checks policy limits on delegated calls. It cannot move collateral or pay premiums: those transfers still require separate wallet signatures from the writer and holder.
 
 ## How an option works
 
@@ -25,13 +40,6 @@ The AI agent is an execution feature: it can prepare and initiate permitted opti
 4. **Pay premium — holder signs.** The holder sends the premium with `ft_transfer_call` and calls `settle_premium`; Escrow records payment after the payout callback succeeds.
 5. **Exercise — holder signs.** During the exercise window, the holder sends the exercise payment and calls `settle_exercise`. Escrow pays the writer and transfers collateral to the holder in a second transfer.
 6. **Expire — writer calls.** If the holder does not exercise, the writer can call `release_expired_collateral` after the 24-hour exercise grace period, subject to any required premium refund.
-
-## The AI agent (feature)
-
-- **On-chain policy:** delegated calls re-check the principal, enabled state, execution mode, expiry, asset and numeric limits.
-- **Restricted authority:** the SDK accepts a FunctionCall key scoped to four OptionsContract methods with a finite allowance; it refuses FullAccess keys.
-- **Principal control:** only the principal can revoke its agent through `revoke_agent`.
-- **No fund-moving authority:** the agent can create/register an option, but collateral and premium transfers require separate wallet signatures from the principal and holder.
 
 ## Claim → Proof
 
