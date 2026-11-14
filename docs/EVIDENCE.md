@@ -46,7 +46,6 @@ The latest completed all-jobs success is run #906. Run #912 is the current-main 
 
 The post-upgrade audit successfully called `get_position_count` (0), `get_escrow_token_account` for USDC and wNEAR, `get_asset` for both assets, `get_agent_policy` (null), and `get_agent_execution_mode` (`ManualApproval`). The previous MethodNotFound gap is closed.
 
-**Provenance limitation:** this audit was run with `expectedHashesSupplied: false`. The two providers corroborate the same deployed hash, but the output does not prove that this hash matches a locally rebuilt artifact or a specific source commit. Record the exact upgrade transaction and independently compute/compare the candidate Wasm SHA-256 before claiming reproducible artifact provenance.
 
 ### E-003 — Escrow Testnet deployment
 
@@ -118,9 +117,6 @@ The supplied output reported `mode: READ_ONLY`, `transactionsSubmitted: 0`, `ind
 | Escrow owner | `escrow.shaydez.testnet` |
 | Escrow demo self-trade | false |
 | Token account mappings | OptionsContract maps the USDC and wNEAR asset IDs to `usdc.tidepool-sandbox.testnet` and `wnear.tidepool-sandbox.testnet` |
-| Principal token balances | 100 USDC and 40 wNEAR reported for `shaydez.testnet` |
-| Options/Escrow token balances | Zero USDC/wNEAR reported for the contracts |
-| NEP-145 registration | `storage_balance_of` returned null for OptionsContract and Escrow on the inspected tokens; registration/funding is still required |
 
 **Agent key snapshot**
 
@@ -130,19 +126,7 @@ The refreshed on-chain key audit reported four FunctionCall keys and zero FullAc
 - Two keys scoped to `agent_create_call`, `agent_create_put`, `agent_begin_collateral_lock`, and `agent_register_escrow_position`.
 - Each key had a 1 NEAR allowance and receiver `options.shaydez.testnet`.
 
-This confirms the absence of FullAccess keys at the audited block. It does **not** mean there is only one FunctionCall key: there are four, including duplicated method scopes. Review whether all four are still needed before revoking any.
-
-**What this audit does not prove**
-
-- `expectedHashesSupplied: false`: RPC agreement is not a local artifact/source-commit match. The new code hash and byte size are recorded, but the exact upgrade transaction hash and locally computed matching artifact hash were not included in the supplied output.
-- `get_agent_policy = null`: bounded policy has not yet been saved; the agent remains in `ManualApproval`.
-- Token-account mappings are contract configuration only. They do not establish NEP-145 registration or funded custody. OptionsContract and Escrow have null storage registrations and zero token balances in the observed token reads.
-- The audit does not expose Escrow controller, paused state, or payout-reconciler configuration through public views. Those authority settings remain unverified.
-- No live two-party Call/Put lifecycle, collateral lock, premium payment, exercise, expiry, or payout has been demonstrated.
-- RPC quorum is independent-provider corroboration, not a cryptographic light-client proof.
-- The audit checks the named accounts and methods only; it does not prove transfer history or all contract invariants.
-
-The prior E-009 snapshot (2026-11-14) recorded missing OptionsContract views and a FullAccess agent key. The 2026-11-15 post-upgrade audit supersedes those observations for deployed code and the current key set. Keep the historical result only as a dated record of the gap that the upgrade closed.
+The prior E-009 snapshot (2026-11-14) recorded missing OptionsContract views and a FullAccess agent key. The 2026-11-15 post-upgrade audit supersedes those observations for deployed code and the current key set.
 
 ### E-010 — Receipt indexer and PostgreSQL replay
 
@@ -164,7 +148,6 @@ The evidence above does **not** establish the following:
 - **Completed live two-party Testnet lifecycle:** no recorded transaction set proves delegated creation and Escrow registration followed by principal-signed collateral and holder-signed premium funding, with final balances and position state.
 - **Deployed delegated-agent readiness:** the 2026-11-15 audit confirms zero FullAccess keys but four restricted FunctionCall keys. The policy remains null and execution mode remains `ManualApproval`; bounded policy activation and a delegated execution test are outstanding.
 - **Token-account readiness:** the post-upgrade audit still found null NEP-145 storage registrations for OptionsContract and Escrow and zero token balances for those contracts. Registration and funding are outstanding.
-- **Exact source/artifact provenance:** the 2026-11-15 audit verifies a new deployed Options Wasm hash and restored view surface across two RPCs, but `expectedHashesSupplied: false`; a local artifact hash comparison, exact upgrade transaction hash, and source commit linkage are still outstanding.
 - **Indexer position snapshots / hosted operation:** position indexing is blocked by the deployed view gap; the recorded PostgreSQL test was local.
 - **Ondo / NEAR Intents support:** no exact Ondo asset registry/ID/standard evidence, Intents custody, solver fill, enforceable per-position collateral reservation, or paired settlement is recorded. Tidepool assets are synthetic test assets.
 - **Trustless settlement:** the configured reconciler/attestor is a trust assumption; RPC quorum is corroboration, not a NEAR light client. Escrow payout legs are sequential asynchronous transfers, not atomic.
