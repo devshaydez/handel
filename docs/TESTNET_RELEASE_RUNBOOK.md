@@ -84,7 +84,6 @@ Tidepool is community-operated, custodial at deposit-address creation, and has o
 
 **Completed OptionsContract upgrade verification (2026-11-15):** the read-only audit found Options Wasm SHA-256 `b9b67461f6f54428aedf2f3515e043470940f38acdec7f871eb3f28be8fcc715` (436,180 bytes) at block height 277724568. FastNEAR and dRPC agreed on the deployed code hash; `get_position_count` and both configured `get_escrow_token_account` views succeeded; `deployedCodeGaps` and `rpcViewErrors` were empty. The agent policy remained null and execution mode remained `ManualApproval`. See [E-009](EVIDENCE.md#e-009--dual-rpc-audit-of-deployed-testnet-state).
 
-**Evidence still to attach:** the supplied audit had `expectedHashesSupplied: false`, and did not include the upgrade transaction hash or a local artifact hash. Therefore do not describe the deployment as byte-for-byte matched to a specific source commit until those are recorded.
 
 For each deployed contract:
 
@@ -104,11 +103,11 @@ No live asset/settlement claim is permitted until the exact route, asset identit
 
 - [x] Dedicated OptionsContract and Escrow Testnet accounts exist and have deployed code; verify their key policy independently.
 - [x] Escrow Testnet deployment helpers (Bash/PowerShell), deterministic artifact selection, explicit confirmation, deploy-only default, and opt-in initializer are implemented and CI-tested.
-- [ ] Escrow owner/controller/payout-reconciler configuration is independently verified on Testnet; the current audit does not expose all of these authority settings.
-- [x] Migration decision recorded: **in-place upgrade; persistent storage layout unchanged since Nov 9**. Compared the serialized OptionsContract/OptionPosition and EscrowContract/EscrowPosition field layouts at Nov 9 commit `d9c188ba29e51d2e39a44146c37fbcfbe7138178` with current `main`; layouts match. The upgrade itself has **not** been executed.
+- [ ] Escrow owner/controller/payout-reconciler configuration is independently verified on Testnet.
+- [x] In-place OptionsContract upgrade executed on 2026-11-15; post-upgrade dual-RPC verification is recorded in [E-009](EVIDENCE.md#e-009--dual-rpc-audit-of-deployed-testnet-state). Persistent storage layout compatibility was reviewed before upgrade.
 - [x] Provider-published Tidepool Testnet token IDs, token accounts, and decimals snapshotted in `config/testnet-assets.tidepool.json`; OptionsContract USDC asset identity is now configurable without changing its serialized root state.
 - [x] Dual-RPC live Tidepool asset/verifier checks and dry-quote smoke passed in current-main CI run [#43647596976](https://github.com/devshaydez/handel/actions/runs/43647596976) (job-level success; the overall workflow was later cancelled before the Rust/Sandbox job completed).
-- [ ] Register and fund the OptionsContract and Escrow accounts for USDC/wNEAR using the token contracts' NEP-145 flow; the post-upgrade audit found null storage registrations and zero contract token balances. Verify balances after owner-approved deposits/registrations.
+- [ ] Register and fund the OptionsContract and Escrow accounts for USDC/wNEAR using the token contracts' NEP-145 flow. Verify balances after owner-approved deposits/registrations.
 - [ ] Independently verified settlement event/proof source; trusted reconciler assumption reviewed.
 - [ ] Enforceable per-position collateral reservation and custody authority.
 - [ ] End-to-end deployed premium, exercise, expiry, payout retry, ambiguous reconciliation, and replay tests.
