@@ -38,7 +38,7 @@ export default function Landing() {
               ))}
             </h1>
             <p className="lp-sub">
-              Handel explains the Testnet options flow, checks the on-chain policy and submits eligible wNEAR Call/Put orders within your limits. Live market data is not connected.
+              Handel reads the market, explains every option, and proposes trades with the evidence attached. You decide what the AI may do, and you can stop it at any time.
             </p>
             <div className="row gap12 wrap">
               <button className="btn btn-gold btn-lg" onClick={() => go('/connect')}>Connect wallet</button>
@@ -68,10 +68,10 @@ export default function Landing() {
           <p className="lead">Every step shows what is happening and who is in control. A submitted transaction is never shown as a completed trade.</p>
           <div className="lp-steps">
             {[
-              { i: LuEye, t: 'Understand', d: 'Ask questions or describe a writer-side Testnet Call/Put. The Assistant asks for any missing order details.' },
-              { i: LuLayers, t: 'Choose a contract', d: 'Set the order terms using Tidepool Testnet wNEAR and USDC test tokens. No live equities or market quotes are connected.' },
-              { i: LuGauge, t: 'Check the risk', d: 'OptionsContract enforces your on-chain asset, size, collateral, position-count and expiry limits.' },
-              { i: LuWallet, t: 'Sign and track', d: 'The restricted agent creates the option and registers Escrow. The principal signs collateral; the holder separately signs premium.' },
+              { i: LuEye, t: 'Understand', d: 'Browse markets and read the AI’s analysis: trend, volatility, bull and bear cases, and the risks.' },
+              { i: LuLayers, t: 'Choose a contract', d: 'Compare calls and puts across strikes and expiries. Verified prices are separated from estimates.' },
+              { i: LuGauge, t: 'Check the risk', d: 'Independent checks confirm collateral, limits and pricing before anything can be signed.' },
+              { i: LuWallet, t: 'Sign and track', d: 'Approve in your NEAR wallet, then follow submission, execution and settlement separately.' },
             ].map((s, i) => (
               <div key={s.t} className="lp-step">
                 <span className="tl-ic ai"><s.i size={17} /></span>
@@ -120,7 +120,7 @@ export default function Landing() {
 
         <section className="lp-sec" id="preview">
           <h2>See the whole account at a glance</h2>
-          <p className="lead">Illustrative interface preview · simulated figures, not live account data.</p>
+          <p className="lead">Illustrative preview. Figures are simulated, not live account data.</p>
           <div className="lp-prev">
             <MCard title="Daily P&L" sub={<><span>30 days</span><Growth v={6.8} /></>} href="">
               <Lollipop data={Array.from({ length: 48 }, (_, i) => 30 + Math.abs(Math.sin(i / 5)) * 60 + i * 1.4 + ((i * 37) % 17))} height={140} fmt={(v) => `$${Math.round(v * 6)}`} />
@@ -139,7 +139,7 @@ export default function Landing() {
         <div className="lp-cta">
           <div>
             <h2 className="display" style={{ fontSize: 'clamp(24px,3vw,36px)', textTransform: 'uppercase', fontWeight: 800, maxWidth: '20ch', lineHeight: 1.1 }}>Try the full workflow in minutes</h2>
-            <p className="muted" style={{ marginTop: 10, maxWidth: '48ch' }}>Connect a NEAR Testnet wallet and use the bounded wNEAR Call/Put flow. Market quotes and premiums remain fixtures; this is not a live equities exchange.</p>
+            <p className="muted" style={{ marginTop: 10, maxWidth: '48ch' }}>Connect a NEAR Testnet wallet and use the bounded wNEAR Call/Put flow. Market quotes and premiums are simulated.</p>
           </div>
           <button className="btn btn-gold btn-lg" onClick={() => go('/connect')}>Open Testnet app <LuArrowUpRight size={16} /></button>
         </div>
@@ -148,24 +148,34 @@ export default function Landing() {
             <div className="lf-brand">
               <Brand />
               <p>Options trading on NEAR with an AI that proposes and a policy engine that checks. You stay in control of every signature.</p>
-              <div className="lf-status"><span className="dot" style={{ color: 'var(--amber)', width: 7, height: 7 }} />NEAR Testnet prototype · market data not connected</div>
+              <div className="lf-status"><span className="dot" style={{ color: 'var(--amber)', width: 7, height: 7 }} />NEAR Testnet · simulated market data</div>
               <div className="lf-social">
                 <a href="https://github.com/devshaydez/handel" target="_blank" rel="noreferrer" aria-label="GitHub"><LuGithub size={16} /></a>
               </div>
             </div>
             {[
               { h: 'Product', l: [['How it works', 'how'], ['Modes', 'modes'], ['Safety', 'safety'], ['Preview', 'preview']] },
-              { h: 'Resources', l: [['Documentation', 'https://github.com/devshaydez/handel/tree/main/docs'], ['API reference', 'https://github.com/devshaydez/handel/blob/main/docs/ADVISORY_API.md'], ] },
-              
-              
+              { h: 'Resources', l: [['Documentation', 'https://github.com/devshaydez/handel/tree/main/docs'], ['API reference', 'https://github.com/devshaydez/handel/blob/main/docs/ADVISORY_API.md'], ['Source code', 'https://github.com/devshaydez/handel']] },
+              { h: 'Company', l: [['About'], ['Blog'], ['Careers'], ['Contact']] },
+              { h: 'Legal', l: [['Terms of service'], ['Privacy policy'], ['Risk disclosure'], ['Cookie settings']] },
             ].map((c) => (
               <nav key={c.h} className="lf-col" aria-label={c.h}>
                 <h5>{c.h}</h5>
                 {c.l.map(([n, id]) => (
-                  <a key={n} href={id?.startsWith("https://") ? id : "#" + (id ?? "")} target={id?.startsWith("https://") ? "_blank" : undefined} rel={id?.startsWith("https://") ? "noreferrer" : undefined} onClick={(e) => { if (id?.startsWith("https://")) return; e.preventDefault(); if (id) scrollTo(id); }}>{n}</a>
+                  <a key={n} href={id?.startsWith('https://') ? id : '#/'} target={id?.startsWith('https://') ? '_blank' : undefined} rel={id?.startsWith('https://') ? 'noreferrer' : undefined} onClick={(e) => { if (id?.startsWith('https://')) return; e.preventDefault(); if (id) scrollTo(id); }}>{n}</a>
                 ))}
               </nav>
             ))}
+          </div>
+          <div className="lf-news">
+            <div>
+              <b>Product updates</b>
+              <span>New strategies, safety features and market coverage. No spam.</span>
+            </div>
+            <form onSubmit={(e) => e.preventDefault()}>
+              <input type="email" placeholder="you@example.com" aria-label="Email address" />
+              <button className="btn btn-gold" type="submit">Subscribe</button>
+            </form>
           </div>
           <div className="lf-bottom">
             <span>© 2026 Handel. NEAR Testnet prototype. Live market pricing and real-asset execution are not connected; Testnet tokens have no real-world value.</span>
