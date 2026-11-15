@@ -39,7 +39,7 @@ The deployment allowlists must be populated from a deployment independently revi
 ## Verification status and limitations
 
 - Offline unit tests use a fake SDK client; they prove rejection behavior, not that a remote TEE is honest.
-- The live NEAR AI → SDK → Sandbox proof is recorded in [EVIDENCE.md](./EVIDENCE.md#e-001--latest-main-ci); do not generalize that CI result into proof of a completed Testnet trade or production service.
+- The live NEAR AI → SDK → Sandbox proof is recorded in [EVIDENCE.md](./EVIDENCE.md#e-001--ci-and-automated-verification); do not generalize that CI result into proof of a completed Testnet trade or production service.
 - Chat configures E2EE/OHTTP and provider tests assert the privacy metadata; the E-001 proof is the available live-integration evidence. No independent security audit is claimed.
 - The budget ledger is shareable across Chat and System One within one process, but remains process-local and must be replaced with durable shared accounting before multi-instance production use.
 - The System One structured guardrail adapter is implemented and trading proposal runtime now requires an allowlisted, verified provider-TEE System One decision.
