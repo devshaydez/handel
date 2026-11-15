@@ -26,7 +26,7 @@ The latest completed all-jobs success is run #906. Run #912 is the current-main 
 |---|---|
 | Account | `options.shaydez.testnet` |
 | Deployment transaction | [5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz](https://explorer.testnet.near.org/transactions/5VL24bzw5XHdFunUZoWFGJ6ZVaC8uoHLRvLgT8fSmZzz) |
-| Recorded Wasm artifact | `target/near/handel/_options.wasm` |
+| Recorded Wasm artifact | `target/near/handel_options.wasm` |
 | Size | 425,264 bytes |
 | SHA-256 | `1d95e9b75d94c13eea83e708502aff0a4c54c7eee4bb09881482403bb9479ab3` |
 
@@ -84,7 +84,11 @@ The source and test suite establish the delegated implementation path. They do n
 
 ### E-007 — Vercel production deployment
 
-The inspected READY deployment [`dpl_BS2BSRCAqc9VEs9hns9Mpa6chaBC`](https://vercel.com/shaydyting-2601s-projects/handel-frontend/BS2BSRCAqc9VEs9hns9Mpa6chaBC) was built from commit `418eeea5a55f1b58232a608a92c9fe21fc6ceafd`; its aliases included `handel-live.vercel.app`. This is the deployment observed at the time of the backend gap-register check, not proof that the latest `main` commit is deployed.
+The latest inspected READY production deployment at this snapshot is [`dpl_44hKab6taWS8NxXeXvWTreihGPke`](https://vercel.com/shaydyting-2601s-projects/handel-frontend/44hKab6taWS8NxXeXvWTreihGPke), built from current `main` commit `750e46ca00b9cee7f7176241bab0e358850d7113`. Its aliases include `handel-live.vercel.app`. The deployment is READY and matches `main` at the time of this snapshot; any subsequent `main` commit must be followed by its own successful production deployment.
+
+### E-008 — Withdrawn
+
+E-008 was withdrawn; no evidence item is claimed under this number.
 
 ### E-009 — Dual-RPC audit of deployed Testnet state
 
@@ -150,6 +154,5 @@ The evidence above does **not** establish the following:
 - **Indexer position snapshots / hosted operation:** position indexing is blocked by the deployed view gap; the recorded PostgreSQL test was local.
 - **Ondo / NEAR Intents support:** no exact Ondo asset registry/ID/standard evidence, Intents custody, solver fill, enforceable per-position collateral reservation, or paired settlement is recorded. Tidepool assets are synthetic test assets.
 - **Trustless settlement:** the configured reconciler/attestor is a trust assumption; RPC quorum is corroboration, not a NEAR light client. Escrow payout legs are sequential asynchronous transfers, not atomic.
-- **Production parity:** the inspected Vercel deployment was built from `418eeea`, not the later `main` snapshot.
 
 For the design and security boundaries behind these items, see [THREAT_MODEL.md](THREAT_MODEL.md), [CUSTODY_AND_SETTLEMENT.md](CUSTODY_AND_SETTLEMENT.md), and [SETTLEMENT_ARCHITECTURE.md](SETTLEMENT_ARCHITECTURE.md).
