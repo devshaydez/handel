@@ -12,7 +12,7 @@ The options protocol is the foundation. The agent makes it easier to use.
 - **Escrow mechanics:** per-position NEP-141 collateral registration, exact-token/amount checks, premium handling, exercise and expiry paths are implemented and exercised in Sandbox tests with mock tokens.
 - **Testnet deployment and read-only verification:** OptionsContract was upgraded in place on 2026-11-15; two independent RPCs agree on the deployed Wasm hash and upgraded view surface, with no reported method gaps or view errors. Escrow deployment is recorded. See [E-002](docs/EVIDENCE.md#e-002--optionscontract-testnet-deployment-and-in-place-upgrade), [E-003](docs/EVIDENCE.md#e-003--escrow-testnet-deployment), and [E-009](docs/EVIDENCE.md#e-009--dual-rpc-audit-of-deployed-testnet-state).
 - **AI agent controls:** delegated entrypoints enforce principal policy in contract code; the SDK restricts its signer to four methods with a finite allowance and rejects FullAccess signers.
-- **Build and test coverage:** the latest completed all-jobs CI run passed Rust formatting/unit/Sandbox/Wasm, SDK build/tests, frontend typecheck/build, Testnet read-only checks and the AI-to-Sandbox proof. See [E-001](docs/EVIDENCE.md#e-001--ci-and-automated-verification).
+- **Build and test coverage:** the latest completed `main` CI run (#928) passed all six jobs: Rust formatting/unit/Sandbox/Wasm, SDK build/tests, frontend typecheck/build, Testnet read-only checks, NEAR AI preflight and the AI-to-Sandbox proof. See [E-001](docs/EVIDENCE.md#e-001--ci-and-automated-verification).
 
 ## How to try it
 
@@ -50,7 +50,7 @@ The agent is a practical part of Handel: it can prepare and initiate option crea
 | Escrow validates deposits and covers Call/Put flows in Sandbox | [Escrow tests](contracts/escrow/tests/options_registration.rs), [E-005](docs/EVIDENCE.md#e-005--offline-and-sandbox-lifecycle-tests) |
 | Delegated signer is method-scoped and rejects FullAccess | [Signer implementation and tests](sdk/src/near-function-call-signer.ts), [tests](sdk/src/near-function-call-signer.test.ts) |
 | Contract policy limits and principal revocation are enforced in source tests | [Policy tests](src/lib.rs): `agent_policy_limits_principal_and_revoke_are_enforced`, `agent_proposal_rejects_policy_limit_breaches_and_revocation` |
-| CI covers contracts, SDK, frontend, Testnet checks and AI-to-Sandbox proof | [Completed run #906, E-001](docs/EVIDENCE.md#e-001--ci-and-automated-verification) |
+| CI covers contracts, SDK, frontend, Testnet checks and AI-to-Sandbox proof | [Latest completed run #928, E-001](docs/EVIDENCE.md#e-001--ci-and-automated-verification) |
 | Deployed Testnet code and state were checked against two RPCs | [Dual-RPC audit, E-009](docs/EVIDENCE.md#e-009--dual-rpc-audit-of-deployed-testnet-state) |
 
 ## Tracks
