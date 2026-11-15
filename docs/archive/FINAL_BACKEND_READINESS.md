@@ -22,6 +22,6 @@
 
 ## Required evidence before stronger claims
 
-See the explicit open evidence checklist in [EVIDENCE.md](../EVIDENCE.md#evidence-still-required-before-stronger-claims), the [threat model](../THREAT_MODEL.md), and [custody and settlement boundaries](../CUSTODY_AND_SETTLEMENT.md).
+See the explicit open evidence checklist in [EVIDENCE.md](../EVIDENCE.md#not-proven), the [threat model](../THREAT_MODEL.md), and [custody and settlement boundaries](../CUSTODY_AND_SETTLEMENT.md).
 
 A passing build, Sandbox lifecycle, dry quote, or deployed Wasm hash is not proof of a completed live trade, production custody, or settlement.

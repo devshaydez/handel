@@ -11,7 +11,8 @@ The options protocol is the foundation. The agent makes it easier to use.
 - **Call and Put lifecycle:** creation, collateral and premium gates, exercise and expiry paths are implemented in the contracts and covered by unit tests.
 - **Escrow mechanics:** per-position NEP-141 collateral registration, exact-token/amount checks, premium handling, exercise and expiry paths are implemented and exercised in Sandbox tests with mock tokens.
 - **Testnet deployment and read-only verification:** OptionsContract was upgraded in place on 2026-11-15; two independent RPCs agree on the deployed Wasm hash and upgraded view surface, with no reported method gaps or view errors. Escrow deployment is recorded. See [E-002](docs/EVIDENCE.md#e-002--optionscontract-testnet-deployment-and-in-place-upgrade), [E-003](docs/EVIDENCE.md#e-003--escrow-testnet-deployment), and [E-009](docs/EVIDENCE.md#e-009--dual-rpc-audit-of-deployed-testnet-state).
-- **AI agent controls:** delegated entrypoints enforce principal policy in contract code; the SDK restricts its signer to four methods with a finite allowance and rejects FullAccess signers.
+- **AI agent controls:** delegated policy enforcement, Delegated mode, restricted method-scoped keys, and principal revocation are proven on Testnet; the agent initiates creation and Escrow registration but cannot transfer collateral or premium.
+- **Live Testnet lifecycle:** delegated policy enforcement, a two-party option funded and premium-settled, and rejected over-limit and revoked-agent calls. See [E-011](docs/EVIDENCE.md#e-011--live-testnet-lifecycle-and-delegated-agent-proofs-2026-11-15).
 - **Build and test coverage:** the latest completed `main` CI run (#928) passed all six jobs: Rust formatting/unit/Sandbox/Wasm, SDK build/tests, frontend typecheck/build, Testnet read-only checks, NEAR AI preflight and the AI-to-Sandbox proof. See [E-001](docs/EVIDENCE.md#e-001--ci-and-automated-verification).
 
 ## How to try it
@@ -25,7 +26,7 @@ Take a quick look around:
 3. Open the Trade Builder and choose a Call or Put to review its option terms.
 4. Open the agent area to see the policy-governed option-creation workflow.
 
-This is a product walkthrough; the README's verified lifecycle evidence is from contract tests, Sandbox runs and read-only Testnet checks.
+This is a product walkthrough; live Testnet evidence covers delegated creation/registration and a separate two-party option funded through premium settlement. Exercise, expiry and collateral return have not yet been run on-chain; see [E-011](docs/EVIDENCE.md#e-011--live-testnet-lifecycle-and-delegated-agent-proofs-2026-11-15).
 
 ## The AI agent
 
@@ -78,7 +79,7 @@ npm --prefix sdk run lifecycle
 
 - **Network:** the current deployment targets NEAR Testnet; Mainnet is a future rollout.
 - **Assets and integrations:** executable demos use Tidepool test assets, with Ondo assets and NEAR Intents integration on the roadmap.
-- **Lifecycle validation:** contract and Sandbox tests cover the core Call/Put paths; a complete live two-party funding run is a next validation milestone.
+- **Lifecycle validation:** a live two-party Testnet option is proven through premium settlement (E-011, position 1); exercise, expiry and collateral return have not yet been run on-chain.
 - **Agent operations:** the agent account now uses a restricted FunctionCall key scoped to the four delegated methods; policy activation remains part of Testnet configuration.
 - **Pricing:** the demo uses a fixed premium; market-linked pricing is a future enhancement.
 

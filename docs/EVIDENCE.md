@@ -79,11 +79,11 @@ These artifacts establish local deterministic and Sandbox behavior for the scena
 | Principal authorization and separate collateral/premium signature requests | [TestnetProposalComposer.tsx](../frontend/src/components/TestnetProposalComposer.tsx) |
 | Server-side bearer-token handling | [api/v1/delegated/trades.js](../api/v1/delegated/trades.js) |
 
-The source and test suite establish the delegated implementation path. They do not establish that a real user-authorized two-party trade has completed on Testnet.
+E-006 records the source and test-suite implementation evidence. Subsequent live Testnet execution and two-party premium-settlement evidence is recorded separately in E-011.
 
 ### E-007 — Vercel production deployment
 
-The READY production deployment [`dpl_HKCb8SABkcme5pjKTARTnhdqBMGy`](https://vercel.com/shaydyting-2601s-projects/handel-frontend/HKCb8SABkcme5pjKTARTnhdqBMGy) was built from `main` commit `2e8a3e7371c95a792c6037c5cd43fe2dff77757e`, with alias `handel-live.vercel.app`. Comparing that deployed commit with current `main` (`9a53f74c7c4a8d70df140e4a32fd7436cc3811d9`) shows 24 later commits and changes to README/docs as well as non-documentation files: `scripts/audit-testnet-state.mjs`, `sdk/src/near-finalized-receipt-indexer.test.ts`, `sdk/src/near-finalized-receipt-indexer.ts`, `sdk/src/onchain-indexer.test.ts`, and `sdk/src/onchain-indexer.ts`. The live app therefore lags `main` for those script and SDK changes; the intervening history is not documentation-only.
+The latest READY production deployment [`dpl_8w7HjmkE374TzLBGQea4ii914hFa`](https://vercel.com/shaydyting-2601s-projects/handel-frontend/8w7HjmkE374TzLBGQea4ii914hFa) is built from `main` commit `9a53f74c7c4a8d70df140e4a32fd7436cc3811d9`, with alias `handel-live.vercel.app`. Vercel reports the deployment state as `READY` and its Git source as branch `main` at that exact SHA. This verifies the production deployment for the documented snapshot commit; later documentation-only commits are not part of that deployment.
 
 ### E-008 — Withdrawn
 
@@ -210,9 +210,9 @@ The test established persistence of finalized transaction/receipt outcomes, serv
 
 The evidence above does **not** establish the following:
 
-- **Completed live two-party Testnet lifecycle:** no recorded transaction set proves delegated creation and Escrow registration followed by principal-signed collateral and holder-signed premium funding, with final balances and position state.
-- **Deployed delegated-agent readiness:** the 2026-11-15 audit confirms zero FullAccess keys but four restricted FunctionCall keys. The policy remains null and execution mode remains `ManualApproval`; bounded policy activation and a delegated execution test are outstanding.
-- **Token-account readiness:** the post-upgrade audit still found null NEP-145 storage registrations for OptionsContract and Escrow and zero token balances for those contracts. Registration and funding are outstanding.
+- **Completed live two-party Testnet lifecycle:** the lifecycle is proven through premium settlement (E-011, position 1); exercise, expiry and collateral return have not been run on-chain yet.
+- **Deployed delegated-agent readiness:** policy, Delegated mode, delegated create plus Escrow registration, over-limit rejection and post-revoke rejection are proven (E-011, position 0). Agent-driven collateral and premium transfers are intentionally impossible; they require the writer's and holder's own signatures.
+- **Token-account readiness:** Escrow accepted wNEAR collateral and USDC premium transfers (E-011). This does not establish Options-contract token registration.
 - **Indexer position snapshots / hosted operation:** position indexing is blocked by the deployed view gap; the recorded PostgreSQL test was local.
 - **Ondo / NEAR Intents support:** no exact Ondo asset registry/ID/standard evidence, Intents custody, solver fill, enforceable per-position collateral reservation, or paired settlement is recorded. Tidepool assets are synthetic test assets.
 - **Trustless settlement:** the configured reconciler/attestor is a trust assumption; RPC quorum is corroboration, not a NEAR light client. Escrow payout legs are sequential asynchronous transfers, not atomic.
