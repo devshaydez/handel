@@ -130,6 +130,69 @@ The refreshed on-chain key audit reported four FunctionCall keys and zero FullAc
 
 The prior E-009 snapshot (2026-11-14) recorded missing OptionsContract views and a FullAccess agent key. The 2026-11-15 post-upgrade audit supersedes those observations for deployed code and the current key set.
 
+### E-011 — Live Testnet lifecycle and delegated-agent proofs (2026-11-15)
+
+**Network and accounts:** NEAR Testnet. Principal/writer: `shaydez.testnet`; delegated agent: `handel-agent.shaydez.testnet`; OptionsContract: `options.shaydez.testnet`; Escrow: `escrow.shaydez.testnet`. The configured asset is the synthetic Tidepool Testnet token `wnear.tidepool-sandbox.testnet`; the premium/strike asset is USDC.
+
+**Delegated-agent policy and mode**
+
+The principal set the delegated policy with:
+- Allowed asset: `nep141:wnear.tidepool-sandbox.testnet`.
+- Maximum underlying: 1 wNEAR.
+- Maximum premium: 5 USDC.
+- Maximum collateral: 100 USDC.
+- Maximum open positions: 3.
+
+The agent execution mode was set to `Delegated` in [transaction 4adF37qomsMVGc2CYYggEmdLzwpzP2xcredmyfZt8Yo7](https://explorer.testnet.near.org/transactions/4adF37qomsMVGc2CYYggEmdLzwpzP2xcredmyfZt8Yo7). After the revoke test below, the policy was set again in [transaction 8WXwSp5CgN2Zpgwkt1pL2reCsaZQuwYRQJ2NAiR1DAGf](https://explorer.testnet.near.org/transactions/8WXwSp5CgN2Zpgwkt1pL2reCsaZQuwYRQJ2NAiR1DAGf).
+
+**Position 0 — delegated creation and Escrow collateral lock**
+
+Terms: Call; writer `shaydez.testnet`; holder `handel-holder-demo.testnet`; 1 wNEAR underlying; 10 USDC strike; 5 USDC premium.
+
+| Action | Testnet transaction |
+|---|---|
+| `agent_create_call` | [9ehWG5qf3KRj5fwofqfFL4KpmuHi6FfPAL5jckhzp3wL](https://explorer.testnet.near.org/transactions/9ehWG5qf3KRj5fwofqfFL4KpmuHi6FfPAL5jckhzp3wL) |
+| `agent_register_escrow_position` | [HxQHdqaNoz168fQFSjwcv4Da97aBqBTigUEdMrhZWv4Y](https://explorer.testnet.near.org/transactions/HxQHdqaNoz168fQFSjwcv4Da97aBqBTigUEdMrhZWv4Y) |
+| Writer collateral lock | [47SYKprXmmB5c1CF4ZuirmkMj2gqcg8tak8rRjNZg5Vn](https://explorer.testnet.near.org/transactions/47SYKprXmmB5c1CF4ZuirmkMj2gqcg8tak8rRjNZg5Vn) |
+
+Observed Escrow state: `CollateralLocked`. Premium was **not paid** on Position 0.
+
+**Guardrail rejection and principal revocation**
+
+| Test | Observed result | Testnet transaction |
+|---|---|---|
+| Agent attempted 2 wNEAR against the 1 wNEAR maximum | Contract panic: `size exceeds limit` | [F4ZuUNs7Gi6oyRD1fyEc5fEejdhoEtUqEXVt1EDRvnr6](https://explorer.testnet.near.org/transactions/F4ZuUNs7Gi6oyRD1fyEc5fEejdhoEtUqEXVt1EDRvnr6) |
+| Principal called `revoke_agent` | Revocation transaction | [A3NMWGA3WB5SCDddhPpvKzghbt4Vo7xa9EFprvCiWwhs](https://explorer.testnet.near.org/transactions/A3NMWGA3WB5SCDddhPpvKzghbt4Vo7xa9EFprvCiWwhs) |
+| Agent attempted another create after revocation | Contract panic: `agent revoked` | [FggGj3vFcP5umQ1LqTvF7hjocjX82Whzaf7QbaLYThbz](https://explorer.testnet.near.org/transactions/FggGj3vFcP5umQ1LqTvF7hjocjX82Whzaf7QbaLYThbz) |
+
+**Position 1 — writer-signed creation and two-party funding**
+
+Terms: Call; writer `shaydez.testnet`; holder `handel-buyer-15687.testnet`; 1 wNEAR underlying; 10 USDC strike; 5 USDC premium.
+
+| Action | Testnet transaction |
+|---|---|
+| Writer `create_call` | [5Woqtp8fvwKmucj5kKStN9UGFpJ4mTbKGtP6grNcHw5H](https://explorer.testnet.near.org/transactions/5Woqtp8fvwKmucj5kKStN9UGFpJ4mTbKGtP6grNcHw5H) |
+| `register_escrow_position` | [61agMMu5KmeDrXqJScbQBJp6pjgDvF4vv18VLzESgio3](https://explorer.testnet.near.org/transactions/61agMMu5KmeDrXqJScbQBJp6pjgDvF4vv18VLzESgio3) |
+| Writer collateral lock | [33SdQaGhb7ByRxfqoCyZ7Nu6t9qNsg4uCxYkX4HiZD5X](https://explorer.testnet.near.org/transactions/33SdQaGhb7ByRxfqoCyZ7Nu6t9qNsg4uCxYkX4HiZD5X) |
+| Holder `ft_transfer_call` for premium | [HmCQGHRGyo2PksPaBe6odz1pNY27MAnhzJ1JUn5fwf8M](https://explorer.testnet.near.org/transactions/HmCQGHRGyo2PksPaBe6odz1pNY27MAnhzJ1JUn5fwf8M) |
+| Holder `settle_premium` | [7yfM4BUKJNoxMWGcNLBxBiG6kKYHQUeVVVDuPcjFP8zX](https://explorer.testnet.near.org/transactions/7yfM4BUKJNoxMWGcNLBxBiG6kKYHQUeVVVDuPcjFP8zX) |
+
+Observed result: `premium paid=true`, `received=true`, and no payout failure. Escrow state was `CollateralLocked`. The writer's USDC balance increased by 5,000,000 base units. This records collateral and premium funding; it does not claim exercise or expiry settlement.
+
+**Post-activity dual-RPC audit**
+
+The read-only audit queried two independent Testnet RPCs at blocks 277851588–277851592. It reported `independentRpcAgreement: true`, `rpcViewErrors: []`, and `deployedCodeGaps: []`.
+
+| Check | Observed result |
+|---|---|
+| Options Wasm SHA-256 | `b9b67461f6f54428aedf2f3515e043470940f38acdec7f871eb3f28be8fcc715` |
+| Escrow Wasm SHA-256 | `a7d7f1184d813a94c5d1c431ebef01489720e906b4a6d4cf89b957d7245ab604` |
+| Agent execution mode | `Delegated` |
+| Agent FunctionCall keys | Four: two scoped only to `create_agent_proposal`; two scoped to the four delegated methods |
+| FullAccess keys | Zero |
+
+This evidence establishes a delegated Call creation and Escrow registration/collateral-lock path, policy-limit and revocation rejections, and a separate writer/holder path with successful premium receipt. It does not establish exercise or expiry settlement.
+
 ### E-010 — Receipt indexer and PostgreSQL replay
 
 | Field | Value |
