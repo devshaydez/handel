@@ -10,9 +10,8 @@ The options protocol is the foundation. The agent makes it easier to use.
 
 - **Call and Put lifecycle:** creation, collateral and premium gates, exercise and expiry paths are implemented in the contracts and covered by unit tests.
 - **Escrow mechanics:** per-position NEP-141 collateral registration, exact-token/amount checks, premium handling, exercise and expiry paths are implemented and exercised in Sandbox tests with mock tokens.
-- **Testnet deployments:** OptionsContract was upgraded in place on 2026-11-15. Two independent RPCs agree on the deployed Wasm hash and the upgraded view surface is responding; the audit found no deployed-code method gaps. Escrow deployment is recorded. See [E-002](docs/EVIDENCE.md#e-002--optionscontract-testnet-deployment), [E-003](docs/EVIDENCE.md#e-003--escrow-testnet-deployment), and [E-009](docs/EVIDENCE.md#e-009--dual-rpc-audit-of-deployed-testnet-state).
+- **Testnet deployment and read-only verification:** OptionsContract was upgraded in place on 2026-11-15; two independent RPCs agree on the deployed Wasm hash and upgraded view surface, with no reported method gaps or view errors. Escrow deployment is recorded. See [E-002](docs/EVIDENCE.md#e-002--optionscontract-testnet-deployment-and-in-place-upgrade), [E-003](docs/EVIDENCE.md#e-003--escrow-testnet-deployment), and [E-009](docs/EVIDENCE.md#e-009--dual-rpc-audit-of-deployed-testnet-state).
 - **AI agent controls:** delegated entrypoints enforce principal policy in contract code; the SDK restricts its signer to four methods with a finite allowance and rejects FullAccess signers.
-- **Read-only Testnet verification:** the 2026-11-15 post-upgrade audit found matching code hashes and view results across two independent RPC providers, no view errors, and no deployed-code method gaps. 
 - **Build and test coverage:** the latest completed all-jobs CI run passed Rust formatting/unit/Sandbox/Wasm, SDK build/tests, frontend typecheck/build, Testnet read-only checks and the AI-to-Sandbox proof. See [E-001](docs/EVIDENCE.md#e-001--ci-and-automated-verification).
 
 ## How to try it
@@ -45,7 +44,7 @@ The agent is a practical part of Handel: it can prepare and initiate option crea
 
 | Claim | Proof |
 |---|---|
-| OptionsContract deployed to NEAR Testnet; retrieved Wasm matches artifact | [Deployment transaction and hash, E-002](docs/EVIDENCE.md#e-002--optionscontract-testnet-deployment) |
+| OptionsContract deployed to NEAR Testnet; retrieved Wasm matches artifact | [Deployment transaction and hash, E-002](docs/EVIDENCE.md#e-002--optionscontract-testnet-deployment-and-in-place-upgrade) |
 | Escrow Wasm deployment recorded | [Deployment transaction, E-003](docs/EVIDENCE.md#e-003--escrow-testnet-deployment) |
 | Collateral and premium gates protect the OptionsContract lifecycle | [Contract tests](src/lib.rs): `call_collateral_is_full_underlying_and_lifecycle_requires_both_receipts`, `failed_collateral_does_not_advance_to_locked` |
 | Escrow validates deposits and covers Call/Put flows in Sandbox | [Escrow tests](contracts/escrow/tests/options_registration.rs), [E-005](docs/EVIDENCE.md#e-005--offline-and-sandbox-lifecycle-tests) |
