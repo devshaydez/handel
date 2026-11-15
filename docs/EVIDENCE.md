@@ -84,7 +84,7 @@ The source and test suite establish the delegated implementation path. They do n
 
 ### E-007 — Vercel production deployment
 
-The latest inspected READY production deployment at this snapshot is [`dpl_44hKab6taWS8NxXeXvWTreihGPke`](https://vercel.com/shaydyting-2601s-projects/handel-frontend/44hKab6taWS8NxXeXvWTreihGPke), built from current `main` commit `750e46ca00b9cee7f7176241bab0e358850d7113`. Its aliases include `handel-live.vercel.app`. The deployment is READY and matches `main` at the time of this snapshot; any subsequent `main` commit must be followed by its own successful production deployment.
+The latest READY production deployment before this documentation-only update was [`dpl_44hKab6taWS8NxXeXvWTreihGPke`](https://vercel.com/shaydyting-2601s-projects/handel-frontend/44hKab6taWS8NxXeXvWTreihGPke), built from `main` commit `750e46ca00b9cee7f7176241bab0e358850d7113`, with alias `handel-live.vercel.app`. It matched `main` immediately before these documentation commits. Vercel created production builds for the three documentation commits; at the time of this check, the newest build was still BUILDING and the two earlier builds were QUEUED, so parity for the updated `main` had not yet been confirmed.
 
 ### E-008 — Withdrawn
 
