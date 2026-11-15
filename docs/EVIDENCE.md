@@ -45,7 +45,6 @@ The latest completed all-jobs success is run #906. Run #912 is the current-main 
 
 The post-upgrade audit successfully called `get_position_count` (0), `get_escrow_token_account` for USDC and wNEAR, `get_asset` for both assets, `get_agent_policy` (null), and `get_agent_execution_mode` (`ManualApproval`). The previous MethodNotFound gap is closed.
 
-
 ### E-003 — Escrow Testnet deployment
 
 | Field | Value |
@@ -84,7 +83,7 @@ The source and test suite establish the delegated implementation path. They do n
 
 ### E-007 — Vercel production deployment
 
-The latest READY production deployment before this documentation-only update was [`dpl_44hKab6taWS8NxXeXvWTreihGPke`](https://vercel.com/shaydyting-2601s-projects/handel-frontend/44hKab6taWS8NxXeXvWTreihGPke), built from `main` commit `750e46ca00b9cee7f7176241bab0e358850d7113`, with alias `handel-live.vercel.app`. It matched `main` immediately before these documentation commits. Vercel created production builds for the three documentation commits; at the time of this check, the newest build was still BUILDING and the two earlier builds were QUEUED, so parity for the updated `main` had not yet been confirmed.
+The latest READY production deployment recorded for this snapshot was [`dpl_44hKab6taWS8NxXeXvWTreihGPke`](https://vercel.com/shaydyting-2601s-projects/handel-frontend/44hKab6taWS8NxXeXvWTreihGPke), built from `main` commit `750e46ca00b9cee7f7176241bab0e358850d7113`, with alias `handel-live.vercel.app`.
 
 ### E-008 — Withdrawn
 
