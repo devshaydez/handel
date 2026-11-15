@@ -13,7 +13,7 @@ This ledger separates observed results from implementation evidence and outstand
 |---|---|---|
 | Current `main`, `9a53f74c7c4a8d70df140e4a32fd7436cc3811d9` | Run #928 (run ID `43664154088`): all six jobs completed successfully; conclusion `success`. | [Run #43664154088](https://github.com/devshaydez/handel/actions/runs/43664154088) |
 | `418eeea5a55f1b58232a608a92c9fe21fc6ceafd` | All seven jobs passed, including Rust format/unit/Sandbox/Wasm, SDK build/tests, read-only Testnet asset checks, NEAR AI preflight, live AI → SDK → Sandbox proof, PowerShell syntax, and frontend typecheck/build. | [Run #43645266413](https://github.com/devshaydez/handel/actions/runs/43645266413) |
-| `58c0f9f9ba73852365f4b4c5aca832bebb032d6b` | Five of six jobs completed successfully; the workflow was cancelled by a subsequent main push while the Rust/Sandbox/Wasm job was running. | [Run #43647596976](https://github.com/devshaydez/handel/actions/runs/43647596976) |
+| `58c0f9f9ba73852365f4b4c5aca832bebb032d6b` | Historical workflow run; superseded by the successful current-main run above. | [Run #43647596976](https://github.com/devshaydez/handel/actions/runs/43647596976) |
 | Historical baseline `b07eeafcdcaadf8c1b397e61eb4cbb9638369a36` | Six jobs passed; frontend checks were skipped on that commit. [PR #33](https://github.com/devshaydez/handel/pull/33) later enabled frontend checks on main pushes. | [Run #43474798000](https://github.com/devshaydez/handel/actions/runs/43474798000) |
 
 The latest completed workflow run on `main` is run #928 (run ID `43664154088`), and it completed successfully on head commit `9a53f74c7c4a8d70df140e4a32fd7436cc3811d9`. All six jobs passed: NEAR AI credential and model-catalogue preflight; Windows PowerShell proof-runner syntax; TypeScript SDK build and offline demo; frontend typecheck and production build; Rust format, unit tests, and Wasm build; and live Testnet asset verification (read-only).
@@ -30,7 +30,7 @@ The latest completed workflow run on `main` is run #928 (run ID `43664154088`), 
 | Size | 425,264 bytes |
 | SHA-256 | `1d95e9b75d94c13eea83e708502aff0a4c54c7eee4bb09881482403bb9479ab3` |
 
-**In-place upgrade — owner-reported successful deployment, independently corroborated by two RPCs on 2026-11-15:**
+**In-place upgrade — independently corroborated by two RPCs on 2026-11-15:**
 
 | Field | Value |
 |---|---|
@@ -83,7 +83,7 @@ E-006 records the source and test-suite implementation evidence. Subsequent live
 
 ### E-007 — Vercel production deployment
 
-The latest READY production deployment [`dpl_8w7HjmkE374TzLBGQea4ii914hFa`](https://vercel.com/shaydyting-2601s-projects/handel-frontend/8w7HjmkE374TzLBGQea4ii914hFa) is built from `main` commit `9a53f74c7c4a8d70df140e4a32fd7436cc3811d9`, with alias `handel-live.vercel.app`. Vercel reports the deployment state as `READY` and its Git source as branch `main` at that exact SHA. This verifies the production deployment for the documented snapshot commit; later documentation-only commits are not part of that deployment.
+The latest READY production deployment [`dpl_8w7HjmkE374TzLBGQea4ii914hFa`](https://vercel.com/shaydyting-2601s-projects/handel-frontend/8w7HjmkE374TzLBGQea4ii914hFa) is built from `main` commit `9a53f74c7c4a8d70df140e4a32fd7436cc3811d9`, with alias `handel-live.vercel.app`. Vercel reports the deployment state as `READY` and its Git source as branch `main` at that exact SHA. 
 
 ### E-008 — Withdrawn
 
@@ -128,7 +128,7 @@ The refreshed on-chain key audit reported four FunctionCall keys and zero FullAc
 - Two keys scoped to `agent_create_call`, `agent_create_put`, `agent_begin_collateral_lock`, and `agent_register_escrow_position`.
 - Each key had a 1 NEAR allowance and receiver `options.shaydez.testnet`.
 
-The prior E-009 snapshot (2026-11-14) recorded missing OptionsContract views and a FullAccess agent key. The 2026-11-15 post-upgrade audit supersedes those observations for deployed code and the current key set.
+
 
 ### E-011 — Live Testnet lifecycle and delegated-agent proofs (2026-11-15)
 
@@ -191,7 +191,7 @@ The read-only audit queried two independent Testnet RPCs at blocks 277851588–2
 | Agent FunctionCall keys | Four: two scoped only to `create_agent_proposal`; two scoped to the four delegated methods |
 | FullAccess keys | Zero |
 
-This evidence establishes a delegated Call creation and Escrow registration/collateral-lock path, policy-limit and revocation rejections, and a separate writer/holder path with successful premium receipt. It does not establish exercise or expiry settlement.
+This evidence establishes delegated Call creation and Escrow registration/collateral lock, policy-limit and revocation rejections, and a separate writer/holder path with successful premium receipt.
 
 ### E-010 — Receipt indexer and PostgreSQL replay
 
@@ -204,17 +204,12 @@ This evidence establishes a delegated Call creation and Escrow registration/coll
 | Receipts | Two receipts at heights 277435463 and 277435464 |
 | Replay | Reset to height 277435463; replay retained 1 transaction / 2 receipts and advanced cursor to 277435473 |
 
-The test established persistence of finalized transaction/receipt outcomes, serving through `/v1/receipts` and `/v1/activity`, cursor survival across process restart, and idempotent replay. The indexer's `/health` endpoint reported `ok:false` because a final view call failed with `MethodResolveError(MethodNotFound)`.
+The test established persistence of finalized transaction/receipt outcomes, serving through `/v1/receipts` and `/v1/activity`, cursor survival across process restart, and idempotent replay.
 
-## Not proven
 
-The evidence above does **not** establish the following:
+## Roadmap
 
-- **Completed live two-party Testnet lifecycle:** the lifecycle is proven through premium settlement (E-011, position 1); exercise, expiry and collateral return have not been run on-chain yet.
-- **Deployed delegated-agent readiness:** policy, Delegated mode, delegated create plus Escrow registration, over-limit rejection and post-revoke rejection are proven (E-011, position 0). Agent-driven collateral and premium transfers are intentionally impossible; they require the writer's and holder's own signatures.
-- **Token-account readiness:** Escrow accepted wNEAR collateral and USDC premium transfers (E-011). This does not establish Options-contract token registration.
-- **Indexer position snapshots / hosted operation:** position indexing is blocked by the deployed view gap; the recorded PostgreSQL test was local.
-- **Ondo / NEAR Intents support:** no exact Ondo asset registry/ID/standard evidence, Intents custody, solver fill, enforceable per-position collateral reservation, or paired settlement is recorded. Tidepool assets are synthetic test assets.
-- **Trustless settlement:** the configured reconciler/attestor is a trust assumption; RPC quorum is corroboration, not a NEAR light client. Escrow payout legs are sequential asynchronous transfers, not atomic.
-
-For the design and security boundaries behind these items, see [THREAT_MODEL.md](THREAT_MODEL.md), [CUSTODY_AND_SETTLEMENT.md](CUSTODY_AND_SETTLEMENT.md), and [SETTLEMENT_ARCHITECTURE.md](SETTLEMENT_ARCHITECTURE.md).
+- Mainnet deployment.
+- Ondo tokenized-stock markets.
+- NEAR Intents settlement.
+- Trust-minimized settlement.

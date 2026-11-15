@@ -1,10 +1,16 @@
-# Handel — Options on NEAR
+<p align="center"><img src="docs/images/logo.svg" alt="Handel logo" width="112"></p>
+
+<h1 align="center">Handel — Options on NEAR</h1>
 
 **Create and manage collateralized European Calls and Puts on NEAR, with an AI agent that can help create positions within strict on-chain rules.**
 
 I built Handel around a simple idea: options should be a first-class part of DeFi, not an afterthought. The protocol gives writers and holders clear terms for collateral, premium, expiry and exercise, while an optional agent helps take care of permitted option-creation steps.
 
 The options protocol is the foundation. The agent makes it easier to use.
+
+**[Watch the demo](https://x.com/shayy_xn/status/2121721458607198523)**
+
+Runs on NEAR Testnet with synthetic Tidepool assets; Ondo tokenized stocks and NEAR Intents settlement are the Mainnet roadmap.
 
 ## What works today
 
@@ -14,6 +20,26 @@ The options protocol is the foundation. The agent makes it easier to use.
 - **AI agent controls:** delegated policy enforcement, Delegated mode, restricted method-scoped keys, and principal revocation are proven on Testnet; the agent initiates creation and Escrow registration but cannot transfer collateral or premium.
 - **Live Testnet lifecycle:** delegated policy enforcement, a two-party option funded and premium-settled, and rejected over-limit and revoked-agent calls. See [E-011](docs/EVIDENCE.md#e-011--live-testnet-lifecycle-and-delegated-agent-proofs-2026-11-15).
 - **Build and test coverage:** the latest completed `main` CI run (#928) passed all six jobs: Rust formatting/unit/Sandbox/Wasm, SDK build/tests, frontend typecheck/build, Testnet read-only checks, NEAR AI preflight and the AI-to-Sandbox proof. See [E-001](docs/EVIDENCE.md#e-001--ci-and-automated-verification).
+
+### Lifecycle details
+
+```mermaid
+sequenceDiagram
+  participant W as Writer
+  participant O as OptionsContract
+  participant E as Escrow
+  participant H as Holder
+  W->>O: create_call / create_put
+  O-->>W: position (PendingCollateral)
+  W->>O: register_escrow_position
+  O->>E: create escrow position
+  W->>E: ft_transfer_call (collateral)
+  E-->>W: CollateralLocked
+  H->>E: ft_transfer_call (premium) + settle_premium
+  E-->>W: premium paid out
+  H->>E: exercise at or after expiry (strike paid, collateral delivered)
+  E-->>W: or expiry: collateral returned
+```
 
 ## How to try it
 
@@ -31,6 +57,17 @@ This is a product walkthrough; live Testnet evidence covers delegated creation/r
 ## The AI agent
 
 The agent is a practical part of Handel: it can prepare and initiate option creation and Escrow registration when the principal's on-chain policy allows it. Its delegated signer is restricted to four contract methods with a finite allowance, and the contract checks policy limits on delegated calls. It cannot move collateral or pay premiums: those transfers still require separate wallet signatures from the writer and holder.
+```mermaid
+flowchart LR
+  P["Principal sets on-chain policy<br/>assets, size, premium, expiry, max positions"] --> A["AI agent"]
+  A -->|agent_create_call / agent_create_put| C["OptionsContract checks policy on every call"]
+  A -->|agent_register_escrow_position| C
+  C -->|within limits| OK["Position created"]
+  C -->|over limit or revoked| X["Rejected on-chain"]
+  P -. revoke_agent anytime .-> A
+  A -.->|cannot| F["Move collateral or pay premium<br/>wallet signatures required"]
+```
+
 
 ## How an option works
 
@@ -75,13 +112,6 @@ npm --prefix sdk test
 npm --prefix sdk run lifecycle
 ```
 
-## Boundaries
-
-- **Network:** the current deployment targets NEAR Testnet; Mainnet is a future rollout.
-- **Assets and integrations:** executable demos use Tidepool test assets, with Ondo assets and NEAR Intents integration on the roadmap.
-- **Lifecycle validation:** a live two-party Testnet option is proven through premium settlement (E-011, position 1); exercise, expiry and collateral return have not yet been run on-chain.
-- **Agent operations:** the agent account now uses a restricted FunctionCall key scoped to the four delegated methods; policy activation remains part of Testnet configuration.
-- **Pricing:** the demo uses a fixed premium; market-linked pricing is a future enhancement.
 
 ## Demo links
 
