@@ -11,12 +11,12 @@ This ledger separates observed results from implementation evidence and outstand
 
 | Commit / run | Result | Evidence |
 |---|---|---|
-| Current `main`, `46b7b1df6baac3984fbc1b8eae113e031f76a252` | Run #912: six of seven jobs passed; live NEAR AI → SDK → Sandbox proof was still running at the snapshot. | [Run #43647881908](https://github.com/devshaydez/handel/actions/runs/43647881908) |
+| Current `main`, `9a53f74c7c4a8d70df140e4a32fd7436cc3811d9` | Run #928 (run ID `43664154088`): all six jobs completed successfully; conclusion `success`. | [Run #43664154088](https://github.com/devshaydez/handel/actions/runs/43664154088) |
 | `418eeea5a55f1b58232a608a92c9fe21fc6ceafd` | All seven jobs passed, including Rust format/unit/Sandbox/Wasm, SDK build/tests, read-only Testnet asset checks, NEAR AI preflight, live AI → SDK → Sandbox proof, PowerShell syntax, and frontend typecheck/build. | [Run #43645266413](https://github.com/devshaydez/handel/actions/runs/43645266413) |
 | `58c0f9f9ba73852365f4b4c5aca832bebb032d6b` | Five of six jobs completed successfully; the workflow was cancelled by a subsequent main push while the Rust/Sandbox/Wasm job was running. | [Run #43647596976](https://github.com/devshaydez/handel/actions/runs/43647596976) |
 | Historical baseline `b07eeafcdcaadf8c1b397e61eb4cbb9638369a36` | Six jobs passed; frontend checks were skipped on that commit. [PR #33](https://github.com/devshaydez/handel/pull/33) later enabled frontend checks on main pushes. | [Run #43474798000](https://github.com/devshaydez/handel/actions/runs/43474798000) |
 
-The latest completed all-jobs success is run #906. Run #912 is the current-main check; its final Sandbox proof had not completed when this snapshot was taken.
+The latest completed workflow run on `main` is run #928 (run ID `43664154088`), and it completed successfully on head commit `9a53f74c7c4a8d70df140e4a32fd7436cc3811d9`. All six jobs passed: NEAR AI credential and model-catalogue preflight; Windows PowerShell proof-runner syntax; TypeScript SDK build and offline demo; frontend typecheck and production build; Rust format, unit tests, and Wasm build; and live Testnet asset verification (read-only).
 
 ### E-002 — OptionsContract Testnet deployment and in-place upgrade
 
@@ -83,7 +83,7 @@ The source and test suite establish the delegated implementation path. They do n
 
 ### E-007 — Vercel production deployment
 
-The latest READY production deployment recorded for this snapshot was [`dpl_44hKab6taWS8NxXeXvWTreihGPke`](https://vercel.com/shaydyting-2601s-projects/handel-frontend/44hKab6taWS8NxXeXvWTreihGPke), built from `main` commit `750e46ca00b9cee7f7176241bab0e358850d7113`, with alias `handel-live.vercel.app`.
+The READY production deployment [`dpl_HKCb8SABkcme5pjKTARTnhdqBMGy`](https://vercel.com/shaydyting-2601s-projects/handel-frontend/HKCb8SABkcme5pjKTARTnhdqBMGy) was built from `main` commit `2e8a3e7371c95a792c6037c5cd43fe2dff77757e`, with alias `handel-live.vercel.app`. Comparing that deployed commit with current `main` (`9a53f74c7c4a8d70df140e4a32fd7436cc3811d9`) shows 24 later commits and changes to README/docs as well as non-documentation files: `scripts/audit-testnet-state.mjs`, `sdk/src/near-finalized-receipt-indexer.test.ts`, `sdk/src/near-finalized-receipt-indexer.ts`, `sdk/src/onchain-indexer.test.ts`, and `sdk/src/onchain-indexer.ts`. The live app therefore lags `main` for those script and SDK changes; the intervening history is not documentation-only.
 
 ### E-008 — Withdrawn
 
